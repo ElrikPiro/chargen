@@ -1,6 +1,1 @@
-from .core import hmm
-
-def main():
-    hmm()
-
-main()
+from .core import helloWorld
