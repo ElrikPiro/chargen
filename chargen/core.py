@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import helpers
+import json
 
 def get_hmm():
     """Get a thought."""
@@ -14,3 +15,22 @@ def hmm():
 def helloWorld():
     hmm()
     print("Uh, yes, hello world")
+
+def loadJson(jsonRef):
+    with open("json/"+jsonRef) as jsonFile:
+        jsonObj = json.load(jsonFile)
+        jsonFile.close()
+    return jsonObj
+
+def writeJson(jsonRef, jsonData):
+    with open("json/"+jsonRef, 'w') as jsonFile:
+        json.dump(jsonData, jsonFile)
+        jsonFile.close()
+
+def generateNewNameId():
+    path = "config/nombresPropios.json"
+    nameDir = loadJson(path)
+    nameId = len(nameDir) + 1
+    nameDir[nameId] = "PLACEHOLDER"
+    writeJson(path, nameDir)
+    return nameId
