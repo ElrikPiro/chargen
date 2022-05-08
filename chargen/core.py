@@ -34,3 +34,9 @@ def generateNewNameId():
     nameDir[nameId] = "PLACEHOLDER"
     writeJson(path, nameDir)
     return nameId
+
+class RelationType:
+    NONE = 0
+    MOTHER = 1
+    SPOUSE = 2
+    DESCENDANT = 3
