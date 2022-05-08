@@ -24,7 +24,7 @@ def loadJson(jsonRef):
 
 def writeJson(jsonRef, jsonData):
     with open("json/"+jsonRef, 'w') as jsonFile:
-        json.dump(jsonData, jsonFile)
+        json.dump(jsonData, jsonFile, indent=4)
         jsonFile.close()
 
 def generateNewNameId():
