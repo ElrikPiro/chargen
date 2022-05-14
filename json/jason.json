@@ -9,7 +9,7 @@
     "edad": {
         "": NaN
     },
-    "familia": NaN,
+    "familia": 1,
     "lugar_nacimiento": NaN,
     "lugar_residencia": NaN,
     "clase_social": NaN,
