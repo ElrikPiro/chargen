@@ -43,6 +43,15 @@ def generateNewFamilyId():
     writeJson(path, nameDir)
     return nameId
 
+def generateNewLugar():
+    path = "config/localizaciones.json"
+    nameDir = loadJson(path)
+    nameId = len(nameDir) + 1
+    nameDir[nameId] = {"nombre" : "PLACEHOLDER", "xyzw" : [0,0,0,0]}
+    writeJson(path, nameDir)
+    return nameId
+
+
 class RelationType:
     NONE = 0
     MOTHER = 1
