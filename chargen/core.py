@@ -16,7 +16,7 @@ def helloWorld():
     hmm()
     print("Uh, yes, hello world")
 
-def loadJson(jsonRef):
+def loadJson(jsonRef) -> dict:
     with open("json/"+jsonRef) as jsonFile:
         jsonObj = json.load(jsonFile)
         jsonFile.close()
