@@ -12,7 +12,7 @@
     "familia": 1,
     "lugar_nacimiento": 1,
     "lugar_residencia": NaN,
-    "clase_social": NaN,
+    "clase_social": "Artesano",
     "parientes": {
         "padre": NaN,
         "madre": NaN,
