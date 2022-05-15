@@ -18,7 +18,10 @@
         "madre": NaN,
         "hermanos": NaN,
         "conyugue": NaN,
-        "hijos": NaN
+        "hijos": {
+            "len": NaN,
+            "lista": []
+        }
     },
     "personalidad": {
         "": NaN
