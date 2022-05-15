@@ -54,7 +54,7 @@ def generateNewLugar():
 
 class RelationType:
     NONE = 0
-    MOTHER = 1
+    PARENT = 1
     SPOUSE = 2
     DESCENDANT = 3
     GOD = 4
