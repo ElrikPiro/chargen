@@ -22,7 +22,5 @@
             "lista": []
         }
     },
-    "personalidad": {
-        "": NaN
-    }
+    "personalidad": NaN
 }
