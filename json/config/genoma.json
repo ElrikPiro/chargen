@@ -1,0 +1,34 @@
+{
+    "humano": {
+        "cabeza": {
+            "calvicie": {
+                "alopecia masculina": {"dominancia": 1, "condicional": 1},
+                "No presente": {"dominancia": 0}
+            },
+            "menton hendido": {
+                "no hendido": {"dominancia": 1},
+                "hendido": {"dominancia": 0}
+            },
+            "hoyuelos": {
+                "presente": {"dominancia": 1},
+                "no presente": {"dominancia": 0}
+            },
+            "lobulos oreja": {
+                "sueltos": {"dominancia": 1},
+                "pegados": {"dominancia": 0}
+            }
+            #Articulo de biologywise
+        },
+        "torso": {},
+        "abdomen": {},
+        "brazos": {},
+        "piernas": {},
+        "general": {
+            "vello corporal": {
+                "abundante": {"dominancia": 1},
+                "escaso": {"dominancia": 0}
+            }
+        },
+        "otros": {}
+    }
+}
