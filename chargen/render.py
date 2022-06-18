@@ -19,11 +19,35 @@ def getFirstHeader(personaje : Character) -> str:
     
     return "# " + familia + " " + nombre
 
+def getEdadList(personaje : Character) -> str:
+    """TODO"""
+    return ""
+
+def getSecondHeader(personaje : Character) -> str:
+    """Cabecera de datos básicos"""
+    retval = ""
+    retval += "## Datos Básicos" + linesep
+    retval += "- Nombre: " + personaje.getNombre() + linesep
+    retval += "- Sexo: " + personaje.getSexo() + linesep
+    retval += "- Edad:" + linesep
+    retval += "\t- Año Nacimiento: " + personaje.getNacimiento() + linesep
+    retval += "\t- Año Muerte: " + personaje.getMuerte() + linesep
+
+    choice = input("¿Añadir edad en eventos concretos? [S|N] ")
+    
+    if choice == "S":
+        retval += getEdadList(personaje) + linesep
+
+    """TO BE CONTINUED"""
+
+    return retval
+
 
 def markdownGenerator(jsonFile : str) -> str:
     endl = linesep
     personaje = Character({}, jsonFile)
 
     retval = getFirstHeader(personaje) + endl
+    retval = getSecondHeader(personaje) + endl
 
     return retval
