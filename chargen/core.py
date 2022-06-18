@@ -51,6 +51,12 @@ def generateNewLugar():
     writeJson(path, nameDir)
     return nameId
 
+def resetPlaceHolder(config : str, id : int, name : str):
+    path = config
+    nameDir = loadJson(path)
+    nameId = id
+    nameDir[nameId] = name
+    writeJson(path, nameDir)
 
 class RelationType:
     NONE = 0
