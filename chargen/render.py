@@ -32,7 +32,8 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     claseSocial = personaje.getClaseSocial()
     if claseSocial == "PLACEHOLDER":
         personaje.data["clase_social"] = input("("+prompt+") PLACEHOLDER en clase social, introduce nombre de la clase:" )
-        personaje.save()
+    
+    personaje.save()
 
 
 def getFullName(personaje : Character, prompt : str) -> str:
@@ -49,11 +50,15 @@ def getEdadList(personaje : Character) -> str:
     return retval
 
 def getFirstHeader(personaje : Character) -> str:
+    personaje.reload()
     """La cabecera será '# Apellido Nombre'"""
     return "# " + getFullName(personaje, "Personaje principal") + linesep
 
 def getSecondHeader(personaje : Character) -> str:
     """Cabecera de datos básicos"""
+
+    personaje.reload()
+
     retval = ""
     retval += "## Datos Básicos" + linesep
     retval += "- Nombre: " + personaje.getNombre() + linesep
@@ -72,11 +77,16 @@ def getSecondHeader(personaje : Character) -> str:
 
     retval += "- Lugar de nacimiento: " + personaje.getLugarNacimiento()["nombre"] + linesep
     retval += "- Lugar de residencia: " + personaje.getLugarResidencia()["nombre"] + linesep
+    
+    personaje.save()
 
     return retval
 
 def getThirdHeader(personaje : Character) -> str:
     """Trasfondo"""
+
+    personaje.reload()
+
     retval = ""
     retval += "## Trasfondo" + linesep
     retval += "#### Situacion familiar" + linesep
@@ -103,6 +113,8 @@ def getThirdHeader(personaje : Character) -> str:
         bro = Character({}, hijo)
         pr = "hijo" if bro.getSexo() == "Hombre" else "hija"
         retval += "\t- [[" + getFullName(bro, pr) + "]]" + linesep
+
+    personaje.save()
 
     return retval
 

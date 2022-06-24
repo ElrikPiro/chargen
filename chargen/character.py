@@ -27,6 +27,10 @@ class Character:
             self.save()
         return
     
+    def reload(self):
+        self.data = loadJson(self.file)
+        return self.data
+
     def updateJsonStruct(self, deductions, caller=Caller()):
         if caller.relation != RelationType.NONE:
             self.data = self.data | deductions
