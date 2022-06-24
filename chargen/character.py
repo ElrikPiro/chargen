@@ -296,7 +296,7 @@ class Character:
                 padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT))
                 clase_social = padre.getClaseSocial()
             else:
-                clase_social = nan
+                clase_social = "PLACEHOLDER"
 
             self.data["clase_social"] = clase_social
             self.save()

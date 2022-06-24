@@ -29,6 +29,11 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
         id = personaje.getLugarResidenciaId()
         resetPlaceHolder("config/localizaciones.json", id, lugarResidencia)
 
+    claseSocial = personaje.getClaseSocial()
+    if claseSocial == "PLACEHOLDER":
+        personaje.data["clase_social"] = input("("+prompt+") PLACEHOLDER en clase social, introduce nombre de la clase:" )
+        personaje.save()
+
 
 def getFullName(personaje : Character, prompt : str) -> str:
     fixPlaceholders(personaje, "default", prompt)
