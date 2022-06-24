@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import helpers
 import json
+import requests
 
 def get_hmm():
     """Get a thought."""
@@ -15,6 +16,10 @@ def hmm():
 def helloWorld():
     hmm()
     print("Uh, yes, hello world")
+
+def getJsonFromUrl(url : str) -> dict:
+    response = requests.get(url)
+    return response.json()
 
 def loadJson(jsonRef) -> dict:
     with open("json/"+jsonRef) as jsonFile:
@@ -51,7 +56,7 @@ def generateNewLugar():
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, id : int, name : str):
+def resetPlaceHolder(config : str, id : int, name):
     path = config
     nameDir = loadJson(path)
     nameId = id

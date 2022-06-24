@@ -539,5 +539,7 @@ class Character:
                     miGenoma[especie][part][alelo]["materno"][claveMadre] = genomaDatabase[especie][part][alelo][claveMadre]
             
         self.data["genoma"] = miGenoma
-        self.save()    
+        self.save()
+
+        return miGenoma
 
