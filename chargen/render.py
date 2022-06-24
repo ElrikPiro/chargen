@@ -113,6 +113,12 @@ def getThirdHeader(personaje : Character) -> str:
         bro = Character({}, hijo)
         pr = "hijo" if bro.getSexo() == "Hombre" else "hija"
         retval += "\t- [[" + getFullName(bro, pr) + "]]" + linesep
+    retval += linesep + linesep
+
+    """TODO: #### Linea temporal y ver que pasa con la generación de Hermanos"""
+    
+    retval += "#### Linea temporal" + linesep
+
 
     personaje.save()
 
