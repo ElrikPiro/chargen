@@ -39,6 +39,7 @@ def getFirstHeader(personaje : Character) -> str:
     return "# " + familia + " " + nombre
 
 def getFullName(personaje : Character) -> str:
+    fixPlaceholders(personaje)
     return personaje.getFamilia() + " " + personaje.getNombre()
 
 def getEdadList(personaje : Character) -> str:
@@ -81,8 +82,6 @@ def getThirdHeader(personaje : Character) -> str:
 
     padre = personaje.getPadre()
     madre = personaje.getMadre()
-    fixPlaceholders(padre)
-    fixPlaceholders(madre)
 
     retval += "- Padre: [[" + getFullName(padre) + "]]" + linesep
     retval += "- Madre: [[" + getFullName(madre) + "]]" + linesep
