@@ -5,8 +5,6 @@ import math
 
 nan = float("nan")
 
-JUPYTER = 1
-
 class Caller:
     def __init__(self, file='', relation=RelationType.NONE):
         self.file = file

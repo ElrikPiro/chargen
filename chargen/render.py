@@ -100,9 +100,10 @@ def getThirdHeader(personaje : Character) -> str:
     
     retval += "- Hermanos:" + linesep
     for hermano in personaje.getHermanos():
-        bro = Character({}, hermano)
-        pr = "hermano" if bro.getSexo() == "Hombre" else "hermana"
-        retval += "\t- [[" + getFullName(bro, pr) + "]]" + linesep
+        if hermano != personaje.file:
+            bro = Character({}, hermano)
+            pr = "hermano" if bro.getSexo() == "Hombre" else "hermana"
+            retval += "\t- [[" + getFullName(bro, pr) + "]]" + linesep
     retval += linesep + linesep
 
     retval += "- Conyugue:  [[" + getFullName(personaje.getConyugue(), "Pareja") + "]]" + linesep
@@ -114,8 +115,6 @@ def getThirdHeader(personaje : Character) -> str:
         pr = "hijo" if bro.getSexo() == "Hombre" else "hija"
         retval += "\t- [[" + getFullName(bro, pr) + "]]" + linesep
     retval += linesep + linesep
-
-    """TODO: #### Linea temporal y ver que pasa con la generación de Hermanos"""
     
     retval += "#### Linea temporal" + linesep
 
