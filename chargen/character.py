@@ -181,10 +181,7 @@ class Character:
             self.data["eventos"]["nacimiento"] = primogenito.getNacimiento() - self.rollEdadMatrimonio()
         else:
             print("Datos insuficientes para fecha de nacimiento")
-            if JUPYTER == 0:
-                self.data["eventos"]["nacimiento"] =  int(input("Introduzca manualmente la fecha preferida: "))
-            else:
-                self.data["eventos"]["nacimiento"] =  1
+            self.data["eventos"]["nacimiento"] =  int(input("Introduzca manualmente la fecha preferida: "))
 
     def getNacimiento(self):
         eventos = self.data.get("eventos", nan)
