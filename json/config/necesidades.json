@@ -1,0 +1,234 @@
+{
+    "necesidades": [
+        [
+            "spending time with people",
+            "being away from people",
+            [
+                "GREGARIOUSNESS"
+            ]
+        ],
+        [
+            "drinking",
+            "being kept from alcohol",
+            [
+                "IMMODERATION",
+                "SELF-CONTROL"
+            ]
+        ],
+        [
+            "communing with [deity] / meditation",
+            "being unable to pray (to [deity])",
+            [
+                "TRADITION",
+                "LOYALTY"
+            ]
+        ],
+        [
+            "staying occupied",
+            "being unoccupied",
+            [
+                "HARD_WORK",
+                "ACTIVITY_LEVEL"
+            ]
+        ],
+        [
+            "doing something creative",
+            "doing nothing creative",
+            [
+                "ARTWORK"
+            ]
+        ],
+        [
+            "doing something exciting",
+            "leading an unexciting life",
+            [
+                "EXCITEMENT_SEEKING"
+            ]
+        ],
+        [
+            "learning something",
+            "not learning anything",
+            [
+                "KNOWLEDGE",
+                "CURIOUS"
+            ]
+        ],
+        [
+            "being with family",
+            "being away from family",
+            [
+                "FAMILY"
+            ]
+        ],
+        [
+            "being with friends",
+            "being away from friends",
+            [
+                "FRIENDSHIP"
+            ]
+        ],
+        [
+            "hearing eloquent speech",
+            "being unable to hear eloquent speech",
+            [
+                "ELOQUENCE"
+            ]
+        ],
+        [
+            "upholding tradition",
+            "being away from traditions",
+            [
+                "TRADITION"
+            ]
+        ],
+        [
+            "self-examination",
+            "a lack of introspection",
+            [
+                "INTROSPECTION"
+            ]
+        ],
+        [
+            "making merry",
+            "being unable to make merry",
+            [
+                "MERRIMENT",
+                "HUMOR"
+            ]
+        ],
+        [
+            "practicing a craft",
+            "being unable to practice a craft",
+            [
+                "CRAFTMANSHIP"
+            ]
+        ],
+        [
+            "practicing a martial art",
+            "being unable to practice a martial art",
+            [
+                "MARTIAL_PROWESS"
+            ]
+        ],
+        [
+            "practicing a skill",
+            "being unable to practice a skill",
+            [
+                "SKILL"
+            ]
+        ],
+        [
+            "taking it easy",
+            "being unable to take it easy",
+            [
+                "LEISURE_TIME"
+            ]
+        ],
+        [
+            "making romance",
+            "being unable to make romance",
+            [
+                "ROMANCE",
+                "LOVE PROPENSITY"
+            ]
+        ],
+        [
+            "seeing animals",
+            "being away from animals",
+            [
+                "NATURE"
+            ]
+        ],
+        [
+            "seeing a great beast",
+            "being away from great beasts",
+            [
+                "EXCITEMENT_SEEKING",
+                "NATURE",
+                "CURIOSITY"
+            ]
+        ],
+        [
+            "acquiring something",
+            "being unable to acquire something",
+            [
+                "GREED",
+                "COMMERCE"
+            ]
+        ],
+        [
+            "eating a good meal",
+            "a lack of decent meals",
+            [
+                "IMMODERATION"
+            ]
+        ],
+        [
+            "fighting",
+            "being unable to fight",
+            [
+                "VIOLENT"
+            ]
+        ],
+        [
+            "causing trouble",
+            "a lack of trouble-making",
+            [
+                "HARMONY",
+                "DISCORD"
+            ]
+        ],
+        [
+            "arguing",
+            "being unable to argue",
+            [
+                "FRIENDLINESS"
+            ]
+        ],
+        [
+            "being extravagant",
+            "being unable to be extravagant",
+            [
+                "IMMODESTY"
+            ]
+        ],
+        [
+            "wandering",
+            "being unable to wander",
+            [
+                "NATURE",
+                "ACTIVITY LEVEL"
+            ]
+        ],
+        [
+            "helping somebody",
+            "being unable to help anybody",
+            [
+                "ALTRUISM",
+                "SACRIFICE"
+            ]
+        ],
+        [
+            "thinking abstractly",
+            "a lack of abstract thinking",
+            [
+                "ABSTRACT_INCLINED"
+            ]
+        ],
+        [
+            "admiring art",
+            "being unable to admire art",
+            [
+                "ARTWORK"
+            ]
+        ],
+        [
+            "doing horny things",
+            "being unable to do horny things",
+            [
+                "LUST_PROPENSITY",
+                "IMMODERATION"
+            ]
+        ]
+    ]
+}

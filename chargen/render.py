@@ -51,6 +51,18 @@ def getEdadList(personaje : Character) -> str:
 
     return retval
 
+def fromTupleToMarkdownTable(tuple : tuple) -> str:
+    retval = "| "
+    for item in tuple:
+        retval += str(item) + " | "
+    retval += linesep
+    return retval
+
+def generateListaNecesidades(personaje : Character) -> str:
+    retval = ""
+
+    return retval
+
 def getFirstHeader(personaje : Character) -> str:
     personaje.reload()
     """La cabecera será '# Apellido Nombre'"""
@@ -143,6 +155,40 @@ def getThirdHeader(personaje : Character) -> str:
 
     return retval
 
+def getFourthHeader(personaje : Character) -> str:
+    """Personalidad"""
+
+    personaje.reload()
+    retval = ""
+    retval += "## Personalidad" + linesep
+    retval += "### Facetas" + linesep
+    personalidad : dict = personaje.getPersonalidad()
+
+    listaFacetas = list(dict(personalidad["facetas"]).items())
+    listaFacetas.sort(key=lambda x: -x[1])
+    listaFacetas = listaFacetas[0:5] + listaFacetas[len(listaFacetas)-6:len(listaFacetas)-1]
+    retval += fromTupleToMarkdownTable(("Faceta", "Valor (-50:50)"))
+    for faceta in listaFacetas:
+        retval += fromTupleToMarkdownTable((faceta[0], int(faceta[1])))
+    
+    retval += linesep + linesep
+    retval += "### Opiniones" + linesep
+
+    listaOpiniones = list(dict(personalidad["opiniones"]).items())
+    listaOpiniones.sort(key=lambda x: -x[1])
+    listaOpiniones = listaOpiniones[0:5] + listaOpiniones[len(listaOpiniones)-6:len(listaOpiniones)-1]
+    retval += fromTupleToMarkdownTable(("Opinion", "Valor (-50:50)"))
+    for opinion in listaOpiniones:
+        retval += fromTupleToMarkdownTable((opinion[0], int(opinion[1])))
+
+    retval += linesep + linesep
+    retval += "### Necesidades (WIP)" + linesep
+
+    retval += generateListaNecesidades(personaje)
+
+    return retval
+    
+
 def markdownGenerator(jsonFile : str) -> str:
     endl = linesep
     personaje = Character({}, jsonFile)
@@ -150,6 +196,6 @@ def markdownGenerator(jsonFile : str) -> str:
     retval = getFirstHeader(personaje) + endl
     retval += getSecondHeader(personaje) + endl
     retval += getThirdHeader(personaje) + endl
-    #TODO: retval += getFourthHeader(personaje) + endl #La personalidad 
+    retval += getFourthHeader(personaje) + endl 
 
     return retval
