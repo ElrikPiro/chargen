@@ -419,8 +419,8 @@ class Character:
                 materna.getMuerte(), 
                 materna.getNacimiento()+40
             )
-            lastChild = Character({"dummy": 1}) if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT))
-            currentYear = self.getMatrimonio() if math.isnan(lastChild.data.get("dummy", nan)) else lastChild.getNacimiento()
+            lastChild = Character({"dummy": 1, "eventos": {"nacimiento": self.getMatrimonio()}}) if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT))
+            currentYear = self.getMatrimonio() if not math.isnan(lastChild.data.get("dummy", nan)) else lastChild.getNacimiento()
             targetYear = currentYear + self.rollOffsetNacimiento()
 
             if targetYear >= deadline:
