@@ -58,8 +58,37 @@ def fromTupleToMarkdownTable(tuple : tuple) -> str:
     retval += linesep
     return retval
 
-def generateListaNecesidades(personaje : Character) -> str:
+def generateListaNecesidades(personalidad) -> str:
     retval = ""
+    necesidadesDb : dict = loadJson("config/necesidades.json")["necesidades"]
+    dictPersonalidad : dict = dict(personalidad["facetas"]) | dict(personalidad["opiniones"])
+    listaNecesidades : list = []
+
+    for necesidad in necesidadesDb:
+        strength = 0
+        #facetas positivas
+        addNeeds : list = necesidad[2]
+        for addNeed in addNeeds:
+            if addNeed in dictPersonalidad:
+                strength += dictPersonalidad[addNeed]
+
+        #factetas negativas
+        removeNeeds : list = necesidad[3]
+        for removeNeed in removeNeeds:
+            if removeNeed in dictPersonalidad:
+                strength -= dictPersonalidad[removeNeed]
+
+        if strength >= 0:
+            name = necesidad[0]
+        else:
+            name = necesidad[1]
+
+        listaNecesidades.append((name, int(strength*2)))
+    
+    listaNecesidades.sort(key=lambda x: x[1], reverse=True)
+    listaNecesidades = [("Necesidad", "Valor (0-100)"), ("---","---")] + listaNecesidades[0:10]
+    for line in listaNecesidades:
+        retval += fromTupleToMarkdownTable(line)
 
     return retval
 
@@ -166,8 +195,9 @@ def getFourthHeader(personaje : Character) -> str:
 
     listaFacetas = list(dict(personalidad["facetas"]).items())
     listaFacetas.sort(key=lambda x: -x[1])
-    listaFacetas = listaFacetas[0:5] + listaFacetas[len(listaFacetas)-6:len(listaFacetas)-1]
+    listaFacetas = listaFacetas[0:5] + listaFacetas[len(listaFacetas)-5:len(listaFacetas)]
     retval += fromTupleToMarkdownTable(("Faceta", "Valor (-50:50)"))
+    retval += fromTupleToMarkdownTable(("---", "---"))
     for faceta in listaFacetas:
         retval += fromTupleToMarkdownTable((faceta[0], int(faceta[1])))
     
@@ -176,15 +206,16 @@ def getFourthHeader(personaje : Character) -> str:
 
     listaOpiniones = list(dict(personalidad["opiniones"]).items())
     listaOpiniones.sort(key=lambda x: -x[1])
-    listaOpiniones = listaOpiniones[0:5] + listaOpiniones[len(listaOpiniones)-6:len(listaOpiniones)-1]
+    listaOpiniones = listaOpiniones[0:5] + listaOpiniones[len(listaOpiniones)-5:len(listaOpiniones)]
     retval += fromTupleToMarkdownTable(("Opinion", "Valor (-50:50)"))
+    retval += fromTupleToMarkdownTable(("---", "---"))
     for opinion in listaOpiniones:
         retval += fromTupleToMarkdownTable((opinion[0], int(opinion[1])))
 
     retval += linesep + linesep
-    retval += "### Necesidades (WIP)" + linesep
+    retval += "### Necesidades" + linesep
 
-    retval += generateListaNecesidades(personaje)
+    retval += generateListaNecesidades(personalidad)
 
     return retval
     
