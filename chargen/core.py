@@ -56,12 +56,22 @@ def generateNewLugar():
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, id : int, name):
+def resetPlaceHolder(config : str, id : int, name, lugar : bool = False):
     path = config
     nameDir = loadJson(path)
     nameId = id
-    nameDir[nameId] = name
-    writeJson(path, nameDir)
+    nombre = name["nombre"]
+        
+    if lugar:
+        items = list(nameDir.items())
+        for item in items:
+            if item[1]["nombre"] == nombre:
+                # TODO redireccionar y detener
+                pass
+        
+    else:
+        nameDir[nameId] = name
+        writeJson(path, nameDir)
 
 class RelationType:
     NONE = 0
