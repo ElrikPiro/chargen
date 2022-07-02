@@ -1,0 +1,230 @@
+{
+    "humano": {
+        "cabeza": {
+            "calvicie": {
+                "alopecia masculina": {"dominancia": 1, "condicional": 1, "hombres": 1},
+                "No presente": {"dominancia": 0}
+            },
+            "menton hendido": {
+                "no hendido": {"dominancia": 1},
+                "hendido": {"dominancia": 0}
+            },
+            "hoyuelos": {
+                "presente": {"dominancia": 1},
+                "no presente": {"dominancia": 0}
+            },
+            "lobulos oreja": {
+                "sueltos": {"dominancia": 1},
+                "pegados": {"dominancia": 0}
+            },
+            "pestañas": {
+                "largas": {"dominancia": 1},
+                "cortas": {"dominancia": 0}
+            },
+            "cejas": {
+                "pobladas": {"dominancia": 1},
+                "finas": {"dominancia": 0}
+            },
+            "flequillo": {
+                "picudo": {"dominancia": 1},
+                "redondeado": {"dominancia": 0}
+            },
+            "decoloracion cabello": {
+                "tira blanca": {"dominancia": 1},
+                "homogeneo": {"dominancia": 0}
+            },
+            "ancho de labios": {
+                "carnosos": {"dominancia": 1},
+                "finos": {"dominancia": 0}
+            },
+            "pliegue mongoles": {
+                "presente": {"dominancia": 1},
+                "no presente": {"dominancia": 0}
+            },
+            "puente nariz": {
+                "aguileña": {"dominancia": 1},
+                "recta": {"dominancia": 0}
+            },
+            "ancho nariz": {
+                "ancha": {"dominancia": 1},
+                "estrecha": {"dominancia": 0}
+            },
+            "tamaño nariz": {
+                "grande": {"dominancia": 0.5, "incompleto": 1},
+                "pequeña": {"dominancia": 0, "incompleto": 1}
+            },
+            "tamaño ojos": {
+                "grandes": {"dominancia": 0, "incompleto": 1},
+                "pequeños": {"dominancia": 0.5, "incompleto": 1}
+            },
+            "rizado del cabello": {
+                "liso": {"dominancia": 0, "incompleto": 1},
+                "rizado": {"dominancia": 0.5, "incompleto": 1}
+            },
+            "Matiz ojos": {
+                "Marron": {"dominancia": 1},
+                "Azul": {"dominancia": 0.5},
+                "Verde": {"dominancia": 0.25},
+                "Rojos": {"dominancia": 0}
+            },
+            "Saturacion ojos": {
+                "Profundo": {"dominancia": 0.5, "incompleto": 1},
+                "Neutro": {"dominancia": 0.5, "incompleto": 1}
+            },
+            "Claridad ojos": {
+                "Claros": {"dominancia": 0},
+                "Oscuros": {"dominancia": 1}
+            },
+            "Matiz cabello": {
+                "Marron": {"dominancia": 1},
+                "Rojo": {"dominancia": 0.5},
+                "Blanco": {"dominancia": 0}
+            },
+            "Saturacion cabello": {
+                "Profundo": {"dominancia": 0.5, "incompleto": 1},
+                "Neutro": {"dominancia": 0.5, "incompleto": 1}
+            },
+            "Claridad cabello": {
+                "Claro": {"dominancia": 0},
+                "Oscuro": {"dominancia": 1}
+            },
+            "Mofletes": {
+                "Rechonchos": {"dominancia": 0.5, "incompleto": 1},
+                "Chupados": {"dominancia": 0.5, "incompleto": 1}
+            },
+            "Forma de la cara": {
+                "Cuadrada": {"dominancia": 1, "incompleto": 1},
+                "Redonda": {"dominancia": 0, "incompleto": 1}
+            }            
+        },
+        "torso": {
+            "Tamaño senos": {
+                "Prominente": {"dominancia": 0, "incompleto": 1, "condicional": 1, "mujeres": 1},
+                "Escaso": {"dominancia": 1, "incompleto": 1, "condicional": 1, "mujeres": 1}
+            }
+        },
+        "abdomen": {
+            "Acumulacion grasa": {
+                "Elevada": {"dominancia": 0, "incompleto": 1},
+                "Escasa": {"dominancia": 1, "incompleto": 1}
+            }
+        },
+        "brazos": {
+            "mano habil": {
+                "derecha": {"dominancia": 1},
+                "izquierda": {"dominancia": 0}
+            },
+            "pulgar flexible": {
+                "presente": {"dominancia": 0},
+                "ausente": {"dominancia": 1}
+            },
+            "vello en dedos": {
+                "presente": {"dominancia": 1},
+                "ausente": {"dominancia": 0}
+            },
+            "numero de dedos": {
+                "seis": {"dominancia": 1},
+                "cinco": {"dominancia": 0}
+            },
+            "piel entre dedos": {
+                "presente": {"dominancia": 1},
+                "ausente": {"dominancia": 0}
+            }
+        },
+        "piernas": {
+            "numero de dedos": {
+                "seis": {"dominancia": 1},
+                "cinco": {"dominancia": 0}
+            },
+            "pulgar flexible": {
+                "presente": {"dominancia": 0},
+                "ausente": {"dominancia": 1}
+            },
+            "vello en dedos": {
+                "presente": {"dominancia": 1},
+                "ausente": {"dominancia": 0}
+            },
+            "Segundo dedo": {
+                "largo": {"dominancia": 1},
+                "corto": {"dominancia": 0}
+            }
+        },
+        "general": {
+            "vello corporal": {
+                "abundante": {"dominancia": 1},
+                "escaso": {"dominancia": 0}
+            },
+            "pecas": {
+                "presentes": {"dominancia": 1},
+                "ausentes": {"dominancia": 0}
+            },
+            "RH": {
+                "positivo": {"dominancia": 1},
+                "negativo": {"dominancia": 0}
+            },
+            "grupo sanguineo": {
+                "A": {"dominancia": 1, "codominante": 1},
+                "B": {"dominancia": 1, "codominante": 1},
+                "O": {"dominancia": 0}
+            },
+            "altura A": {
+                "alto": {"dominancia": 0},
+                "bajo": {"dominancia": 1}
+            },
+            "altura B": {
+                "alto": {"dominancia": 0},
+                "bajo": {"dominancia": 1}
+            },
+            "altura C": {
+                "alto": {"dominancia": 0},
+                "bajo": {"dominancia": 1}
+            },
+            "altura D": {
+                "alto": {"dominancia": 0},
+                "bajo": {"dominancia": 1}
+            },
+            "altura E": {
+                "alto": {"dominancia": 0},
+                "bajo": {"dominancia": 1}
+            },
+            "piel A": {
+                "clara": {"dominancia": 0},
+                "oscura": {"dominancia": 1}
+            },
+            "piel B": {
+                "clara": {"dominancia": 0},
+                "oscura": {"dominancia": 1}
+            },
+            "piel C": {
+                "clara": {"dominancia": 0},
+                "oscura": {"dominancia": 1}
+            },
+            "piel D": {
+                "clara": {"dominancia": 0},
+                "oscura": {"dominancia": 1}
+            },
+            "piel E": {
+                "clara": {"dominancia": 0},
+                "oscura": {"dominancia": 1}
+            }
+        },
+        "otros": {
+            "Oido absoluto": {
+                "ausente": {"dominancia": 1},
+                "presente": {"dominancia": 0}
+            },
+            "lengua flexible": {
+                "presente": {"dominancia": 1},
+                "ausente": {"dominancia": 0}
+            },
+            "vision": {
+                "astigmatismo": {"dominancia": 1},
+                "sana": {"dominancia": 0}
+            },
+            "somatotipo": {
+                "endomorfo": {"dominancia": 0.25, "incompleto": 1},
+                "ectomorfo": {"dominancia": 0.75, "incompleto": 1}
+            }
+        }
+    }
+}

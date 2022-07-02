@@ -1,0 +1,31 @@
+spending time with people,being away from people,GREGARIOUSNESS,NULL
+drinking,being kept from alcohol,IMMODERATION,SELF-CONTROL
+communing with [deity] / meditation,being unable to pray (to [deity]),TRADITION;LOYALTY,NULL
+staying occupied,being unoccupied,HARD_WORK;ACTIVITY_LEVEL,NULL
+doing something creative,doing nothing creative,ARTWORK,NULL
+doing something exciting,leading an unexciting life,EXCITEMENT_SEEKING,NULL
+learning something,not learning anything,KNOWLEDGE;CURIOUS,NULL
+being with family,being away from family,FAMILY,NULL
+being with friends,being away from friends,FRIENDSHIP,NULL
+hearing eloquent speech,being unable to hear eloquent speech,ELOQUENCE,NULL
+upholding tradition,being away from traditions,TRADITION,NULL
+self-examination,a lack of introspection,INTROSPECTION,NULL
+making merry,being unable to make merry,MERRIMENT;HUMOR,NULL
+practicing a craft,being unable to practice a craft,CRAFTMANSHIP,NULL
+practicing a martial art,being unable to practice a martial art,MARTIAL_PROWESS,NULL
+practicing a skill,being unable to practice a skill,SKILL,NULL
+taking it easy,being unable to take it easy,LEISURE_TIME,NULL
+making romance,being unable to make romance,ROMANCE;LOVE PROPENSITY,NULL
+seeing animals,being away from animals,NATURE,NULL
+seeing a great beast,being away from great beasts,EXCITEMENT_SEEKING;NATURE;CURIOSITY,NULL
+acquiring something,being unable to acquire something,GREED;COMMERCE,NULL
+eating a good meal,a lack of decent meals,IMMODERATION,NULL
+fighting,being unable to fight,VIOLENT,NULL
+causing trouble,a lack of trouble-making,DISCORD,HARMONY
+arguing,being unable to argue,NULL,FRIENDLINESS
+being extravagant,being unable to be extravagant,IMMODESTY,NULL
+wandering,being unable to wander,NATURE;ACTIVITY LEVEL,NULL
+helping somebody,being unable to help anybody,ALTRUISM;SACRIFICE,NULL
+thinking abstractly,a lack of abstract thinking,ABSTRACT_INCLINED,NULL
+admiring art,being unable to admire art,ARTWORK,NULL
+doing horny things,being unable to do horny things,LUST_PROPENSITY;IMMODERATION,NULL
