@@ -5,13 +5,18 @@
             "being away from people",
             [
                 "GREGARIOUSNESS"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
             "drinking",
             "being kept from alcohol",
             [
-                "IMMODERATION",
+                "IMMODERATION"
+            ],
+            [
                 "SELF-CONTROL"
             ]
         ],
@@ -21,6 +26,9 @@
             [
                 "TRADITION",
                 "LOYALTY"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -29,6 +37,9 @@
             [
                 "HARD_WORK",
                 "ACTIVITY_LEVEL"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -36,6 +47,9 @@
             "doing nothing creative",
             [
                 "ARTWORK"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -43,6 +57,9 @@
             "leading an unexciting life",
             [
                 "EXCITEMENT_SEEKING"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -51,6 +68,9 @@
             [
                 "KNOWLEDGE",
                 "CURIOUS"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -58,6 +78,9 @@
             "being away from family",
             [
                 "FAMILY"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -65,6 +88,9 @@
             "being away from friends",
             [
                 "FRIENDSHIP"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -72,6 +98,9 @@
             "being unable to hear eloquent speech",
             [
                 "ELOQUENCE"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -79,6 +108,9 @@
             "being away from traditions",
             [
                 "TRADITION"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -86,6 +118,9 @@
             "a lack of introspection",
             [
                 "INTROSPECTION"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -94,6 +129,9 @@
             [
                 "MERRIMENT",
                 "HUMOR"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -101,6 +139,9 @@
             "being unable to practice a craft",
             [
                 "CRAFTMANSHIP"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -108,6 +149,9 @@
             "being unable to practice a martial art",
             [
                 "MARTIAL_PROWESS"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -115,6 +159,9 @@
             "being unable to practice a skill",
             [
                 "SKILL"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -122,6 +169,9 @@
             "being unable to take it easy",
             [
                 "LEISURE_TIME"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -130,6 +180,9 @@
             [
                 "ROMANCE",
                 "LOVE PROPENSITY"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -137,6 +190,9 @@
             "being away from animals",
             [
                 "NATURE"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -146,6 +202,9 @@
                 "EXCITEMENT_SEEKING",
                 "NATURE",
                 "CURIOSITY"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -154,6 +213,9 @@
             [
                 "GREED",
                 "COMMERCE"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -161,6 +223,9 @@
             "a lack of decent meals",
             [
                 "IMMODERATION"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -168,19 +233,27 @@
             "being unable to fight",
             [
                 "VIOLENT"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
             "causing trouble",
             "a lack of trouble-making",
             [
-                "HARMONY",
                 "DISCORD"
+            ],
+            [
+                "HARMONY"
             ]
         ],
         [
             "arguing",
             "being unable to argue",
+            [
+                "NULL"
+            ],
             [
                 "FRIENDLINESS"
             ]
@@ -190,6 +263,9 @@
             "being unable to be extravagant",
             [
                 "IMMODESTY"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -198,6 +274,9 @@
             [
                 "NATURE",
                 "ACTIVITY LEVEL"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -206,6 +285,9 @@
             [
                 "ALTRUISM",
                 "SACRIFICE"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -213,6 +295,9 @@
             "a lack of abstract thinking",
             [
                 "ABSTRACT_INCLINED"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -220,6 +305,9 @@
             "being unable to admire art",
             [
                 "ARTWORK"
+            ],
+            [
+                "NULL"
             ]
         ],
         [
@@ -228,6 +316,9 @@
             [
                 "LUST_PROPENSITY",
                 "IMMODERATION"
+            ],
+            [
+                "NULL"
             ]
         ]
     ]
