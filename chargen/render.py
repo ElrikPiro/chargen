@@ -6,10 +6,10 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     print("Arreglando placeholders de: " + personaje.file)
 
     familia = personaje.getFamilia()
-    if familia == "PLACEHOLDER":
-        familia = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
+    if familia == "Indefinido":
         id = personaje.getFamiliaId()
-        resetPlaceHolder("config/familias.json", id, familia)
+        personaje.data["familia"] = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
+        resetPlaceHolder("config/familias.json", id, familia, isFamilia=True)
     
     nombre = personaje.getNombre()
     if nombre == "PLACEHOLDER":
@@ -21,13 +21,13 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     if lugarNacimiento["nombre"] == "PLACEHOLDER":
         lugarNacimiento["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de nacimiento, introduce nombre del lugar:" )
         id = personaje.getLugarNacimientoId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento)
+        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento, isLugar=True)
 
     lugarResidencia = personaje.getLugarResidencia()
     if lugarResidencia["nombre"] == "PLACEHOLDER":
         lugarResidencia["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de residencia, introduce nombre del lugar:" )
         id = personaje.getLugarResidenciaId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia)
+        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia, isLugar=True)
 
     claseSocial = personaje.getClaseSocial()
     if claseSocial == "PLACEHOLDER":

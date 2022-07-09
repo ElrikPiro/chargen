@@ -43,7 +43,7 @@ def generateNewNameId():
 def generateNewFamilyId():
     path = "config/familias.json"
     nameDir = loadJson(path)
-    nameId = len(nameDir) + 1
+    nameId = "PLACEHOLDER_{}".format(len(nameDir) + 1)
     nameDir[nameId] = "PLACEHOLDER"
     writeJson(path, nameDir)
     return nameId
@@ -51,17 +51,30 @@ def generateNewFamilyId():
 def generateNewLugar():
     path = "config/localizaciones.json"
     nameDir = loadJson(path)
-    nameId = len(nameDir) + 1
-    nameDir[nameId] = {"nombre" : "PLACEHOLDER", "xyzw" : [0,0,0,0]}
+    nameId = "PLACEHOLDER_{}".format(len(nameDir) + 1)
+    nameDir[nameId] = {"nombre" : "PLACEHOLDER"}
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, id : int, name):
+def resetPlaceHolder(config : str, key : int, value, isLugar : bool = False, isFamilia : bool = False):
     path = config
     nameDir = loadJson(path)
-    nameId = id
-    nameDir[nameId] = name
-    writeJson(path, nameDir)
+    
+    if isLugar:
+        nombre = value["nombre"]
+        #checks if value is already in the dictionary
+        if not (nombre in nameDir):
+            nameDir[nombre] = {"nombre" : nombre}
+
+        nameDir[key] = {"nombre" : nombre}
+        writeJson(path, nameDir)
+    elif isFamilia:
+        nameDir[key] = value
+        nameDir[value] = value
+        writeJson(path, nameDir)
+    else:
+        nameDir[key] = value
+        writeJson(path, nameDir)
 
 class RelationType:
     NONE = 0
