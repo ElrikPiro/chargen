@@ -21,13 +21,13 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     if lugarNacimiento["nombre"] == "PLACEHOLDER":
         lugarNacimiento["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de nacimiento, introduce nombre del lugar:" )
         id = personaje.getLugarNacimientoId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento)
+        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento, isLugar=True)
 
     lugarResidencia = personaje.getLugarResidencia()
     if lugarResidencia["nombre"] == "PLACEHOLDER":
         lugarResidencia["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de residencia, introduce nombre del lugar:" )
         id = personaje.getLugarResidenciaId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia)
+        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia, isLugar=True)
 
     claseSocial = personaje.getClaseSocial()
     if claseSocial == "PLACEHOLDER":

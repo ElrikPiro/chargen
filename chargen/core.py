@@ -51,23 +51,23 @@ def generateNewFamilyId():
 def generateNewLugar():
     path = "config/localizaciones.json"
     nameDir = loadJson(path)
-    nameId = len(nameDir) + 1
-    nameDir[nameId] = {"nombre" : "PLACEHOLDER", "xyzw" : [0,0,0,0]}
+    nameId = "PLACEHOLDER_{}".format(len(nameDir) + 1)
+    nameDir[nameId] = {"nombre" : "PLACEHOLDER"}
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, key : int, value, lugar : bool = False, isFamilia : bool = False):
+def resetPlaceHolder(config : str, key : int, value, isLugar : bool = False, isFamilia : bool = False):
     path = config
     nameDir = loadJson(path)
     
-    if lugar:
+    if isLugar:
         nombre = value["nombre"]
-        items = list(nameDir.items())
-        for item in items:
-            if item[1]["nombre"] == nombre:
-                # TODO redireccionar y detener
-                
-                pass
+        #checks if value is already in the dictionary
+        if not (nombre in nameDir):
+            nameDir[nombre] = {"nombre" : nombre}
+
+        nameDir[key] = {"nombre" : nombre}
+        writeJson(path, nameDir)
     elif isFamilia:
         nameDir[key] = value
         nameDir[value] = value

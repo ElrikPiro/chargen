@@ -288,12 +288,38 @@ class Character:
     def getLugarNacimiento(self):
         lugarId = self.getLugarNacimientoId()
         lugar = loadJson("config/localizaciones.json")
-        return lugar.get(str(lugarId), lugarId)
+
+        # Es un placeholder?
+        isPlaceholder = lugarId.find("PLACEHOLDER") != -1
+
+        if isPlaceholder:
+            redirect = lugar.get(str(lugarId), lugarId)
+            if redirect["nombre"].find("PLACEHOLDER") != -1:
+                return redirect
+            else:
+                self.data["lugar_nacimiento"] = redirect["nombre"]
+                self.save()
+                return lugar.get(str(redirect["nombre"]), redirect)
+        else:
+            return lugar.get(str(lugarId), lugarId)
 
     def getLugarResidencia(self):
         lugarId = self.getLugarResidenciaId()
         lugar = loadJson("config/localizaciones.json")
-        return lugar.get(str(lugarId), lugarId)
+        
+        # Es un placeholder?
+        isPlaceholder = lugarId.find("PLACEHOLDER") != -1
+
+        if isPlaceholder:
+            redirect = lugar.get(str(lugarId), lugarId)
+            if redirect["nombre"].find("PLACEHOLDER") != -1:
+                return redirect
+            else:
+                self.data["lugar_nacimiento"] = redirect["nombre"]
+                self.save()
+                return lugar.get(str(redirect["nombre"]), redirect)
+        else:
+            return lugar.get(str(lugarId), lugarId)
 
     def getClaseSocial(self):
         clase_social = self.data.get("clase_social", nan)
