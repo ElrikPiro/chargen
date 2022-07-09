@@ -43,7 +43,7 @@ def generateNewNameId():
 def generateNewFamilyId():
     path = "config/familias.json"
     nameDir = loadJson(path)
-    nameId = len(nameDir) + 1
+    nameId = "PLACEHOLDER_{}".format(len(nameDir) + 1)
     nameDir[nameId] = "PLACEHOLDER"
     writeJson(path, nameDir)
     return nameId
@@ -56,21 +56,24 @@ def generateNewLugar():
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, id : int, name, lugar : bool = False):
+def resetPlaceHolder(config : str, key : int, value, lugar : bool = False, isFamilia : bool = False):
     path = config
     nameDir = loadJson(path)
-    nameId = id
-    nombre = name["nombre"]
-        
+    
     if lugar:
+        nombre = value["nombre"]
         items = list(nameDir.items())
         for item in items:
             if item[1]["nombre"] == nombre:
                 # TODO redireccionar y detener
+                
                 pass
-        
+    elif isFamilia:
+        nameDir[key] = value
+        nameDir[value] = value
+        writeJson(path, nameDir)
     else:
-        nameDir[nameId] = name
+        nameDir[key] = value
         writeJson(path, nameDir)
 
 class RelationType:

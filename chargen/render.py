@@ -6,10 +6,10 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     print("Arreglando placeholders de: " + personaje.file)
 
     familia = personaje.getFamilia()
-    if familia == "PLACEHOLDER":
-        familia = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
+    if familia == "Indefinido":
         id = personaje.getFamiliaId()
-        resetPlaceHolder("config/familias.json", id, familia)
+        personaje.data["familia"] = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
+        resetPlaceHolder("config/familias.json", id, familia, isFamilia=True)
     
     nombre = personaje.getNombre()
     if nombre == "PLACEHOLDER":

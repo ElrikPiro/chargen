@@ -240,7 +240,20 @@ class Character:
     def getFamilia(self):
         familiaId = self.getFamiliaId()
         familias = loadJson("config/familias.json")
-        return familias.get(str(familiaId), familiaId)
+
+        # Es un placeholder?
+        isPlaceholder = familiaId.find("PLACEHOLDER") != -1
+
+        if isPlaceholder:
+            redirect = familias.get(str(familiaId), familiaId)
+            if redirect.find("PLACEHOLDER") != -1:
+                return "Indefinido"
+            else:
+                self.data["familia"] = redirect
+                self.save()
+                return redirect
+        else:
+            return familiaId
 
     def deducirLugarNacimiento(self):
         if self.hasFather() == 0:
