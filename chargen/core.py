@@ -56,7 +56,7 @@ def generateNewLugar():
     writeJson(path, nameDir)
     return nameId
 
-def resetPlaceHolder(config : str, key : int, value, isLugar : bool = False, isFamilia : bool = False):
+def resetPlaceHolder(config : str, key : str, value, isLugar : bool = False, isFamilia : bool = False):
     path = config
     nameDir = loadJson(path)
     
@@ -64,9 +64,16 @@ def resetPlaceHolder(config : str, key : int, value, isLugar : bool = False, isF
         nombre = value["nombre"]
         #checks if value is already in the dictionary
         if not (nombre in nameDir):
-            nameDir[nombre] = {"nombre" : nombre}
+            nameDir[nombre] = {
+                "nombre": nombre,
+                "tipo": "Indeterminado",
+                "descripcion": "Indeterminado",
+                "enlaces" : {
+                    nombre : 0.1,
+                }
+            }
 
-        nameDir[key] = {"nombre" : nombre}
+        nameDir[key] = { "nombre": nombre }
         writeJson(path, nameDir)
     elif isFamilia:
         nameDir[key] = value

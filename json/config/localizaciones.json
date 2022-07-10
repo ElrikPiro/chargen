@@ -1,11 +1,38 @@
 {
-    "1": {
-        "nombre": "Centro del mundo",
-        "xyzw": [
-            0,
-            0,
-            0,
-            0
-        ]
+    "Alcries": {
+        "nombre": "Alcries",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Valencia": 0.5,
+            "Onda": 0.126
+        }
+    },
+    "Onda": {
+        "nombre": "Onda",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Alcries": 0.126,
+            "Ayodar": 0.126
+        }
+    },
+    "Ayodar": {
+        "nombre": "Ayodar",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Onda": 0.126,
+            "Valencia": 0.75
+        }
+    },
+    "Valencia": {
+        "nombre": "Valencia",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Alcries": 0.5,
+            "Ayodar": 0.75
+        }
     }
 }
