@@ -9,13 +9,13 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     if familia == "Indefinido":
         id = personaje.getFamiliaId()
         personaje.data["familia"] = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
-        resetPlaceHolder("config/familias.json", id, familia, isFamilia=True)
+        resetPlaceHolder("config/familias.json", id, personaje.data["familia"], isFamilia=True)
     
     nombre = personaje.getNombre()
     if nombre == "PLACEHOLDER":
         nombre = input("("+prompt+") PLACEHOLDER en nombre, introduce nombre del personaje:" )
         id = personaje.getNombreId()
-        resetPlaceHolder("config/nombresPropios.json", id, nombre)
+        resetPlaceHolder("config/nombresPropios.json", str(id), nombre)
 
     lugarNacimiento = personaje.getLugarNacimiento()
     if lugarNacimiento["nombre"] == "PLACEHOLDER":

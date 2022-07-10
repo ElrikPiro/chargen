@@ -1,11 +1,10 @@
 {
-    "1": {
-        "nombre": "Centro del mundo",
-        "xyzw": [
-            0,
-            0,
-            0,
-            0
-        ]
+    "Alcries": {
+        "nombre": "Alcries",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Alcries": 0.1
+        }
     }
 }
