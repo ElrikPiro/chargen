@@ -125,6 +125,21 @@ def getSecondHeader(personaje : Character) -> str:
 
     return retval
 
+def getMermaidFamilyTree(personaje : Character, depthUp : int, depthDown : int) -> str:
+
+    personaje.reload()
+    retval = "```mermaid" + linesep
+    retval += "graph TD" + linesep
+
+    #hacer un for each de todos los personajes ascendentes
+
+    #hacer un for each de todos los personajes descendientes
+
+    #imprimir resultados
+
+    retval += "```" + linesep
+    return ""
+
 def getThirdHeader(personaje : Character) -> str:
     """Trasfondo"""
 
@@ -138,6 +153,10 @@ def getThirdHeader(personaje : Character) -> str:
 
     padre = personaje.getPadre()
     madre = personaje.getMadre()
+
+    DEPTH_UP = 1
+    DEPTH_DOWN = 1
+    retval += getMermaidFamilyTree(personaje, DEPTH_UP, DEPTH_DOWN)
 
     retval += "- Padre: [[" + getFullName(padre, "Padre") + "]]" + linesep
     retval += "- Madre: [[" + getFullName(madre, "Madre") + "]]" + linesep
