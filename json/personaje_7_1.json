@@ -1,26 +1,25 @@
 {
-    "nombre": 1,
+    "nombre": 7,
     "eventos": {
-        "nacimiento": NaN,
-        "muerte": NaN,
-        "matrimonio": NaN
+        "nacimiento": 1
     },
     "sexo": NaN,
     "edad": {
         "": NaN
     },
-    "familia": 1,
-    "lugar_nacimiento": 1,
+    "familia": NaN,
+    "lugar_nacimiento": NaN,
     "lugar_residencia": NaN,
-    "clase_social": "Artesano",
+    "clase_social": NaN,
     "parientes": {
         "padre": NaN,
         "madre": NaN,
+        "hermanos": NaN,
         "conyugue": NaN,
         "hijos": {
             "len": NaN,
             "lista": []
         }
     },
-    "personalidad": NaN
+    "dummy": 1
 }

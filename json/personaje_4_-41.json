@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": -20,
+        "nacimiento": -41,
+        "muerte": 9
+    },
+    "sexo": "Hombre",
+    "familia": "Ichiro",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Nobleza",
+    "parientes": {
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_3_-20.json"
+            ]
+        },
+        "conyugue": "personaje_5_-44.json"
+    },
+    "nombre": 4,
+    "lugar_nacimiento": "Shiro Ichiro"
+}

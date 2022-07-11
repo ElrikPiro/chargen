@@ -1,0 +1,16 @@
+{
+    "nombre": 10,
+    "eventos": {
+        "nacimiento": 13,
+        "muerte": 64
+    },
+    "sexo": "Mujer",
+    "familia": "Ichiro",
+    "lugar_nacimiento": "Shiro Ichiro",
+    "clase_social": "Nobleza",
+    "parientes": {
+        "padre": "personaje_3_-20.json",
+        "madre": "personaje_6_-23.json"
+    },
+    "lugar_residencia": "Shiro Ichiro"
+}

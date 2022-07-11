@@ -34,5 +34,41 @@
             "Alcries": 0.5,
             "Ayodar": 0.75
         }
+    },
+    "PLACEHOLDER_5": {
+        "nombre": "Shiro Ichiro"
+    },
+    "Shiro Ichiro": {
+        "nombre": "Shiro Ichiro",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Shiro Ichiro": 0.1
+        }
+    },
+    "PLACEHOLDER_7": {
+        "nombre": "Shiro Ichiro"
+    },
+    "PLACEHOLDER_8": {
+        "nombre": "Shiro Shinjo"
+    },
+    "Shiro Shinjo": {
+        "nombre": "Shiro Shinjo",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Shiro Shinjo": 0.1
+        }
+    },
+    "PLACEHOLDER_10": {
+        "nombre": "Bikami"
+    },
+    "Bikami": {
+        "nombre": "Bikami",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Bikami": 0.1
+        }
     }
 }

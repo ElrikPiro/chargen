@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": -20,
+        "nacimiento": -44,
+        "muerte": 9
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Nobleza",
+    "parientes": {
+        "conyugue": "personaje_4_-41.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_3_-20.json"
+            ]
+        }
+    },
+    "nombre": 5,
+    "familia": "Shinjo",
+    "lugar_nacimiento": "Shiro Shinjo"
+}
