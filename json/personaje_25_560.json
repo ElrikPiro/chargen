@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 578,
+        "nacimiento": 560,
+        "muerte": 598
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shizuka",
+    "clase_social": "Campesino",
+    "parientes": {
+        "conyugue": "personaje_24_554.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_23_578.json"
+            ]
+        }
+    },
+    "nombre": 25,
+    "familia": "Tanabe",
+    "lugar_nacimiento": "Shizuka"
+}

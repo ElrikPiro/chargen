@@ -90,5 +90,25 @@
     },
     "PLACEHOLDER_16": {
         "nombre": "Himitsumachi Higashikaze"
+    },
+    "PLACEHOLDER_17": {
+        "nombre": "Shizuka"
+    },
+    "Shizuka": {
+        "nombre": "Shizuka",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Shizuka": 0.1
+        }
+    },
+    "PLACEHOLDER_19": {
+        "nombre": "Shizuka"
+    },
+    "PLACEHOLDER_20": {
+        "nombre": "Shizuka"
+    },
+    "PLACEHOLDER_21": {
+        "nombre": "Shizuka"
     }
 }

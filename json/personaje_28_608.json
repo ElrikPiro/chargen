@@ -1,0 +1,16 @@
+{
+    "nombre": 28,
+    "eventos": {
+        "nacimiento": 603,
+        "muerte": 664
+    },
+    "sexo": "Hombre",
+    "familia": "Tanaka",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Campesino",
+    "parientes": {
+        "padre": "personaje_26_587.json",
+        "madre": "personaje_23_578.json"
+    },
+    "lugar_residencia": "Shizuka"
+}

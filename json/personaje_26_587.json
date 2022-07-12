@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 603,
+        "nacimiento": 587,
+        "muerte": 642
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "PLACEHOLDER_17",
+    "clase_social": "Campesino",
+    "parientes": {
+        "conyugue": "personaje_23_578.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_28_608.json",
+                "personaje_29_603.json"
+            ]
+        }
+    },
+    "nombre": 26,
+    "familia": "Tanaka",
+    "lugar_nacimiento": "Shizuka"
+}
