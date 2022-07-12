@@ -113,7 +113,7 @@ def getSecondHeader(personaje : Character) -> str:
     retval += getEdadList(personaje) + linesep
 
     retval += "- Familia: [[Familia " + personaje.getFamilia() + "]]" + linesep
-    genoma = personaje.getGenoma()
+    genoma = personaje.getGenoma(fenotipo='config/rokugani.json')
     especies = list(genoma.keys())
     retval += "\t- Especies: " + str(especies) + linesep
     retval += "\t- Clase social: " + personaje.getClaseSocial() + linesep

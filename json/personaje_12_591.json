@@ -1,0 +1,25 @@
+{
+    "eventos": {
+        "matrimonio": 607,
+        "nacimiento": 584,
+        "muerte": 632
+    },
+    "sexo": "Hombre",
+    "familia": "Taiki",
+    "lugar_residencia": "Himitsumachi Higashikaze",
+    "clase_social": "Artesano",
+    "parientes": {
+        "hijos": {
+            "len": 4,
+            "lista": [
+                "personaje_11_614.json",
+                "personaje_14_614.json",
+                "personaje_15_618.json",
+                "personaje_22_613.json"
+            ]
+        },
+        "conyugue": "personaje_13_593.json"
+    },
+    "nombre": 12,
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

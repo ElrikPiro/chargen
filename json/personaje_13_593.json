@@ -1,0 +1,25 @@
+{
+    "eventos": {
+        "matrimonio": 607,
+        "nacimiento": 584,
+        "muerte": 626
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Himitsumachi Higashikaze",
+    "clase_social": "Artesano",
+    "parientes": {
+        "conyugue": "personaje_12_591.json",
+        "hijos": {
+            "len": 4,
+            "lista": [
+                "personaje_11_614.json",
+                "personaje_14_614.json",
+                "personaje_15_618.json",
+                "personaje_22_613.json"
+            ]
+        }
+    },
+    "nombre": 13,
+    "familia": "Shioda",
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

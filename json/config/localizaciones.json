@@ -70,5 +70,25 @@
         "enlaces": {
             "Bikami": 0.1
         }
+    },
+    "PLACEHOLDER_12": {
+        "nombre": "Himitsumachi Higashikaze"
+    },
+    "Himitsumachi Higashikaze": {
+        "nombre": "Himitsumachi Higashikaze",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Himitsumachi Higashikaze": 0.1
+        }
+    },
+    "PLACEHOLDER_14": {
+        "nombre": "Himitsumachi Higashikaze"
+    },
+    "PLACEHOLDER_15": {
+        "nombre": "Himitsumachi Higashikaze"
+    },
+    "PLACEHOLDER_16": {
+        "nombre": "Himitsumachi Higashikaze"
     }
 }

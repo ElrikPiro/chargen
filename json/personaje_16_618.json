@@ -1,0 +1,25 @@
+{
+    "eventos": {
+        "matrimonio": 635,
+        "nacimiento": 618,
+        "muerte": 666
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "PLACEHOLDER_12",
+    "clase_social": "Campesino",
+    "parientes": {
+        "conyugue": "personaje_11_614.json",
+        "hijos": {
+            "len": 4,
+            "lista": [
+                "personaje_18_641.json",
+                "personaje_19_647.json",
+                "personaje_20_652.json",
+                "personaje_21_653.json"
+            ]
+        }
+    },
+    "nombre": 16,
+    "familia": "Misawa",
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

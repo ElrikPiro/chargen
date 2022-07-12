@@ -1,0 +1,16 @@
+{
+    "nombre": 14,
+    "eventos": {
+        "nacimiento": 607,
+        "muerte": 658
+    },
+    "sexo": "Hombre",
+    "familia": "Taiki",
+    "lugar_nacimiento": "Himitsumachi Higashikaze",
+    "clase_social": "Artesano",
+    "parientes": {
+        "padre": "personaje_12_591.json",
+        "madre": "personaje_13_593.json"
+    },
+    "lugar_residencia": "Himitsumachi Higashikaze"
+}
