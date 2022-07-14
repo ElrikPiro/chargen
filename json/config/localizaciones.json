@@ -116,5 +116,25 @@
     },
     "PLACEHOLDER_23": {
         "nombre": "Himitsumachi Higashikaze"
+    },
+    "PLACEHOLDER_24": {
+        "nombre": "Jardines Doji"
+    },
+    "Jardines Doji": {
+        "nombre": "Jardines Doji",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Jardines Doji": 0.1
+        }
+    },
+    "PLACEHOLDER_26": {
+        "nombre": "Shiro Ichiro"
+    },
+    "PLACEHOLDER_27": {
+        "nombre": "Shiro Ichiro"
+    },
+    "PLACEHOLDER_28": {
+        "nombre": "Jardines Doji"
     }
 }

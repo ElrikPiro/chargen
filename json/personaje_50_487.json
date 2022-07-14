@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 511,
+        "nacimiento": 487,
+        "muerte": 532
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "PLACEHOLDER_24",
+    "clase_social": "Artesano",
+    "parientes": {
+        "conyugue": "personaje_47_475.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_53_514.json"
+            ]
+        }
+    },
+    "nombre": 50,
+    "familia": "Takakida",
+    "lugar_nacimiento": "Jardines Doji"
+}

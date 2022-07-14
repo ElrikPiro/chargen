@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 475,
+        "nacimiento": 453,
+        "muerte": 500
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Artesano",
+    "parientes": {
+        "conyugue": "personaje_48_452.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_47_475.json"
+            ]
+        }
+    },
+    "nombre": 49,
+    "familia": "Yurika",
+    "lugar_nacimiento": "Shiro Ichiro"
+}

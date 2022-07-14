@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 475,
+        "nacimiento": 452,
+        "muerte": 486
+    },
+    "sexo": "Hombre",
+    "familia": "Chikyuu",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Artesano",
+    "parientes": {
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_47_475.json"
+            ]
+        },
+        "conyugue": "personaje_49_453.json"
+    },
+    "nombre": 48,
+    "lugar_nacimiento": "Shiro Ichiro"
+}

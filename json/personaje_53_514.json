@@ -1,0 +1,16 @@
+{
+    "nombre": 53,
+    "eventos": {
+        "nacimiento": 511,
+        "muerte": 561
+    },
+    "sexo": "Hombre",
+    "familia": "Takakida",
+    "lugar_nacimiento": "Jardines Doji",
+    "clase_social": "Artesano",
+    "parientes": {
+        "padre": "personaje_50_487.json",
+        "madre": "personaje_47_475.json"
+    },
+    "lugar_residencia": "Jardines Doji"
+}
