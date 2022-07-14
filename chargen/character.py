@@ -440,12 +440,12 @@ class Character:
     def getHijos(self):
         paterna = self if self.getSexo() == "Hombre" else self.getConyugue()
         materna = self if self.getSexo() != "Hombre" else self.getConyugue()
-        if self.getConyugue().hasDescendants() == 1:
-            hijos = self.getConyugue().data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
+        if self.hasDescendants() == 1:
+            hijos = self.data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
             longitud = hijos["len"]
             listaHijos = hijos["lista"]
         else:
-            hijos = self.data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
+            hijos = self.getConyugue().data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
             longitud = hijos["len"]
             listaHijos = hijos["lista"]
         
@@ -479,7 +479,7 @@ class Character:
             
 
     def getHermanos(self):
-        return self.getPadre().getHijos()
+        return self.getMadre().getHijos()
 
     def getPersonalidad(self):
         personalidadDB = loadJson("config/personalidad.json")
