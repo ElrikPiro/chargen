@@ -1,0 +1,16 @@
+{
+    "nombre": 45,
+    "eventos": {
+        "nacimiento": 666,
+        "muerte": 719
+    },
+    "sexo": "Hombre",
+    "familia": "Misawa",
+    "lugar_nacimiento": "Himitsumachi Higashikaze",
+    "clase_social": "Campesino",
+    "parientes": {
+        "padre": "personaje_18_641.json",
+        "madre": "personaje_43_640.json"
+    },
+    "lugar_residencia": "Himitsumachi Higashikaze"
+}

@@ -1,0 +1,25 @@
+{
+    "nombre": 44,
+    "eventos": {
+        "nacimiento": 658
+    },
+    "sexo": NaN,
+    "edad": {
+        "": NaN
+    },
+    "familia": NaN,
+    "lugar_nacimiento": NaN,
+    "lugar_residencia": NaN,
+    "clase_social": NaN,
+    "parientes": {
+        "padre": NaN,
+        "madre": NaN,
+        "hermanos": NaN,
+        "conyugue": NaN,
+        "hijos": {
+            "len": NaN,
+            "lista": []
+        }
+    },
+    "dummy": 1
+}

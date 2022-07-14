@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 658,
+        "nacimiento": 640,
+        "muerte": 689
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Himitsumachi Higashikaze",
+    "clase_social": "Campesino",
+    "parientes": {
+        "conyugue": "personaje_18_641.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_45_666.json",
+                "personaje_46_672.json"
+            ]
+        }
+    },
+    "nombre": 43,
+    "familia": "Miyachi",
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

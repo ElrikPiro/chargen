@@ -1,0 +1,16 @@
+{
+    "nombre": 46,
+    "eventos": {
+        "nacimiento": 672,
+        "muerte": 716
+    },
+    "sexo": "Mujer",
+    "familia": "Misawa",
+    "lugar_nacimiento": "Himitsumachi Higashikaze",
+    "clase_social": "Campesino",
+    "parientes": {
+        "padre": "personaje_18_641.json",
+        "madre": "personaje_43_640.json"
+    },
+    "lugar_residencia": "Himitsumachi Higashikaze"
+}
