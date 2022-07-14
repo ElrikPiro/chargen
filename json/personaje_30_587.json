@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 610,
+        "nacimiento": 587,
+        "muerte": 636
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shizuka",
+    "clase_social": "Artesano",
+    "parientes": {
+        "conyugue": "personaje_12_591.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_31_613.json",
+                "personaje_42_613.json"
+            ]
+        }
+    },
+    "familia": "Hada",
+    "lugar_nacimiento": "Shizuka",
+    "nombre": 30
+}

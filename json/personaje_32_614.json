@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 636,
+        "nacimiento": 614,
+        "muerte": 656
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "Himitsumachi Higashikaze",
+    "clase_social": "Mercader",
+    "parientes": {
+        "conyugue": "personaje_31_613.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_40_636.json"
+            ]
+        }
+    },
+    "nombre": 32,
+    "familia": "Itou",
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

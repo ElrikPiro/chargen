@@ -1,0 +1,16 @@
+{
+    "nombre": 42,
+    "eventos": {
+        "nacimiento": 613,
+        "muerte": 669
+    },
+    "sexo": "Mujer",
+    "familia": "Taiki",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Artesano",
+    "parientes": {
+        "padre": "personaje_12_591.json",
+        "madre": "personaje_30_587.json"
+    },
+    "lugar_residencia": "Shizuka"
+}
