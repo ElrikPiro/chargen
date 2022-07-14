@@ -468,11 +468,9 @@ class Character:
             else:
                 listaHijos.append(self.generateNewChild(paterna, materna, targetYear))
                 
-        self.data["parientes"]["hijos"]["len"] = len(listaHijos)
-        self.data["parientes"]["hijos"]["lista"] = listaHijos
+        self.data["parientes"]["hijos"] = {"len" : len(listaHijos), "lista": listaHijos}
         conyugue = self.getConyugue()
-        conyugue.data["parientes"]["hijos"]["len"] = len(listaHijos)
-        conyugue.data["parientes"]["hijos"]["lista"] = listaHijos
+        conyugue.data["parientes"]["hijos"] = {"len" : len(listaHijos), "lista": listaHijos}
         conyugue.save()
         self.save()
         return listaHijos
