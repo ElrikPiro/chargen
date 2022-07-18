@@ -59,7 +59,8 @@
             },
             "rizado del cabello": {
                 "liso": {"dominancia": 0, "incompleto": 1},
-                "rizado": {"dominancia": 0.5, "incompleto": 1}
+                "rizado": {"dominancia": 0.5, "incompleto": 1},
+                "ondulado": {"dominancia": 1}
             },
             "Matiz ojos": {
                 "Marron": {"dominancia": 1},

@@ -212,7 +212,7 @@
                         }
                     },
                     "materno": {
-                        "rizado": {
+                        "ondulado": {
                             "dominancia": 0.5,
                             "incompleto": 1
                         }
@@ -618,13 +618,13 @@
                 },
                 "piel D": {
                     "paterno": {
-                        "oscura": {
-                            "dominancia": 1
+                        "clara": {
+                            "dominancia": 0
                         }
                     },
                     "materno": {
-                        "oscura": {
-                            "dominancia": 1
+                        "clara": {
+                            "dominancia": 0
                         }
                     }
                 },

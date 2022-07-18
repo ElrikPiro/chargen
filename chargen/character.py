@@ -520,7 +520,7 @@ class Character:
         miGenoma = self.data.get("genoma", {})
         return miGenoma != {}
 
-    def getGenProgenitor(self, database, progenitor, especie, bodypart, alelo, gen) -> str:
+    def getGenProgenitor(self, fenotipo, progenitor, especie, bodypart, alelo, gen) -> str:
         #esta determinado ya?
         miGenoma = self.data.get("genoma", {})
         dato = dict(miGenoma[especie][bodypart][alelo]).get(gen, {})
@@ -529,19 +529,20 @@ class Character:
         
         dato = progenitor.get(especie, {}).get(bodypart, {}).get(alelo, {})
         if dato == {}:
-            clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+            clave = random.choice(list(dict(fenotipo[especie][bodypart][alelo]).keys()))
             return clave
         else:
             valor = random.choice(list(dato.values()))
             if valor == {}:
-                clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+                clave = random.choice(list(dict(fenotipo[especie][bodypart][alelo]).keys()))
                 return clave
             else:
                 return list(valor.keys())[0]
         
 
     def getGenoma(self, fenotipo=''):
-        genomaDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
+        fenotipoDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
+        genomaDatabase = loadJson("config/genoma.json")
         miGenoma = self.data.get("genoma", dict({}))
 
         isPapaGenomico = self.getPadre().data["genoma"] if self.getPadre().hasGenoma() else {}
@@ -560,17 +561,17 @@ class Character:
         #para cada especie comprobamos si existe cada parte del cuerpo y si no la añadimos
         especies = miGenoma.keys()
         for especie in especies:
-            especieDB : dict = genomaDatabase[especie]
+            especieDB : dict = fenotipoDatabase[especie]
             bodyparts = especieDB.keys()
             for part in bodyparts:
-                partDB : dict = genomaDatabase[especie][part]
+                partDB : dict = fenotipoDatabase[especie][part]
                 alelos = partDB.keys()
                 miGenoma[especie][part] = dict(miGenoma[especie]).get(part, {})
                 for alelo in alelos:
                     miGenoma[especie][part][alelo] = dict(miGenoma[especie][part]).get(alelo, {"paterno": {}, "materno": {}})
                     self.data["genoma"] = miGenoma
-                    clavePadre = self.getGenProgenitor(genomaDatabase, isPapaGenomico, especie, part, alelo, "paterno")
-                    claveMadre = self.getGenProgenitor(genomaDatabase, isMamaGenomica, especie, part, alelo, "materno")
+                    clavePadre = self.getGenProgenitor(fenotipoDatabase, isPapaGenomico, especie, part, alelo, "paterno")
+                    claveMadre = self.getGenProgenitor(fenotipoDatabase, isMamaGenomica, especie, part, alelo, "materno")
                     miGenoma[especie][part][alelo]["paterno"][clavePadre] = genomaDatabase[especie][part][alelo][clavePadre]
                     miGenoma[especie][part][alelo]["materno"][claveMadre] = genomaDatabase[especie][part][alelo][claveMadre]
             
