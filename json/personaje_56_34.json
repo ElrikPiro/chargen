@@ -1,0 +1,16 @@
+{
+    "nombre": 56,
+    "eventos": {
+        "nacimiento": 34,
+        "muerte": 86
+    },
+    "sexo": "Hombre",
+    "familia": "Utaku",
+    "lugar_nacimiento": "Shiro Ichiro",
+    "clase_social": "Noble",
+    "parientes": {
+        "padre": "personaje_54_12.json",
+        "madre": "personaje_10_13.json"
+    },
+    "lugar_residencia": "Shiro Ichiro"
+}

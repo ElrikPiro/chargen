@@ -136,5 +136,16 @@
     },
     "PLACEHOLDER_28": {
         "nombre": "Jardines Doji"
+    },
+    "PLACEHOLDER_29": {
+        "nombre": "Castillo Utaku"
+    },
+    "Castillo Utaku": {
+        "nombre": "Castillo Utaku",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Castillo Utaku": 0.1
+        }
     }
 }

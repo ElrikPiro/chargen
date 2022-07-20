@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 34,
+        "nacimiento": 12,
+        "muerte": 70
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Noble",
+    "parientes": {
+        "conyugue": "personaje_10_13.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_56_34.json"
+            ]
+        }
+    },
+    "nombre": 54,
+    "familia": "Utaku",
+    "lugar_nacimiento": "Castillo Utaku"
+}
