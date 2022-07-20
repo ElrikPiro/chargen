@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 679,
+        "nacimiento": 656,
+        "muerte": 702
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shizuka",
+    "clase_social": "Campesino",
+    "parientes": {
+        "conyugue": "personaje_58_659.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_57_679.json",
+                "personaje_60_681.json"
+            ]
+        }
+    },
+    "nombre": 59,
+    "familia": "Takeda",
+    "lugar_nacimiento": "Shizuka"
+}

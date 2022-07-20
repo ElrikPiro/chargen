@@ -1,0 +1,16 @@
+{
+    "nombre": 60,
+    "eventos": {
+        "nacimiento": 681,
+        "muerte": 727
+    },
+    "sexo": "Mujer",
+    "familia": "Ishikawa",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Campesino",
+    "parientes": {
+        "padre": "personaje_58_659.json",
+        "madre": "personaje_59_656.json"
+    },
+    "lugar_residencia": "Shizuka"
+}

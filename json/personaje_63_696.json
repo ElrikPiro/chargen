@@ -1,0 +1,16 @@
+{
+    "nombre": 63,
+    "eventos": {
+        "nacimiento": 695,
+        "muerte": 738
+    },
+    "sexo": "Mujer",
+    "familia": "Honda",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Campesino",
+    "parientes": {
+        "padre": "personaje_61_678.json",
+        "madre": "personaje_57_679.json"
+    },
+    "lugar_residencia": "Shizuka"
+}
