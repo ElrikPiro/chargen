@@ -125,6 +125,51 @@ def getSecondHeader(personaje : Character) -> str:
 
     return retval
 
+def getMermaidFamilyTree(personaje : Character, depthUp : int, depthDown : int) -> str:
+
+    personaje.reload()
+    retval = "```mermaid" + linesep
+    retval += "flowchart TD" + linesep
+
+    #hacer un for each de todos los personajes ascendentes
+    ancestros : list = [personaje]
+    up = depthUp
+    while up > 0:
+        newAncestros : list = []
+        for ancestro in ancestros:
+            newAncestros.append(ancestro.getPadre())
+            newAncestros.append(ancestro.getMadre())
+        ancestros = newAncestros
+        up -= 1
+
+    #imprimir resultados
+    down = depthUp + depthDown
+    matrimonios : dict = {}
+    while down > 0:
+        nextGen : list = []
+        for ancestro in ancestros:
+            value = ancestro if ancestro.getSexo() == "Hombre" else ancestro.getConyugue()
+            marido = value
+            mujer = value.getConyugue()
+            if marido.getNombreId() not in matrimonios:
+                matrimonios[marido.getNombreId()] = mujer.getNombreId()
+                retval += "subgraph mat{0}_{1}[ ]".format(marido.getNombreId(), mujer.getNombreId()) + linesep
+                retval += "\t"+ marido.file + "[" + getFullName(marido, "Personaje nº{0}".format(marido.getNombreId())) + "]" + linesep
+                retval += "\t"+ mujer.file + "[" + getFullName(mujer, "Personaje nº{0}".format(mujer.getNombreId())) + "]" + linesep
+                retval += "end" + linesep
+
+                listaHijos = marido.getHijos()
+                for hijo in listaHijos:
+                    hijoChar = Character({}, hijo)
+                    retval += "mat{0}_{1} --> {2}[{3}]".format(marido.getNombreId(), mujer.getNombreId(), hijo, getFullName(hijoChar, "Personaje nº{0}".format(hijoChar.getNombreId()))) + linesep
+                    nextGen.append(hijoChar)
+        ancestros = nextGen
+        down -= 1
+    
+
+    retval += "```" + linesep
+    return retval
+
 def getThirdHeader(personaje : Character) -> str:
     """Trasfondo"""
 
@@ -179,6 +224,10 @@ def getThirdHeader(personaje : Character) -> str:
     for evento in eventos:
         if evento[0] <= muerte:
             retval += "- [[Año " + str(evento[0]) + "]] : " + evento[1] + linesep
+
+    DEPTH_UP = 1
+    DEPTH_DOWN = 1
+    retval += getMermaidFamilyTree(personaje, DEPTH_UP, DEPTH_DOWN)
 
     personaje.save()
 
