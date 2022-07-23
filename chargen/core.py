@@ -1,21 +1,6 @@
 # -*- coding: utf-8 -*-
-from . import helpers
 import json
 import requests
-
-def get_hmm():
-    """Get a thought."""
-    return 'hmmm...'
-
-
-def hmm():
-    """Contemplation..."""
-    if helpers.get_answer():
-        print(get_hmm())
-
-def helloWorld():
-    hmm()
-    print("Uh, yes, hello world")
 
 def getJsonFromUrl(url : str) -> dict:
     response = requests.get(url)
