@@ -440,12 +440,12 @@ class Character:
     def getHijos(self):
         paterna = self if self.getSexo() == "Hombre" else self.getConyugue()
         materna = self if self.getSexo() != "Hombre" else self.getConyugue()
-        if self.getConyugue().hasDescendants() == 1:
-            hijos = self.getConyugue().data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
+        if self.hasDescendants() == 1:
+            hijos = self.data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
             longitud = hijos["len"]
             listaHijos = hijos["lista"]
         else:
-            hijos = self.data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
+            hijos = self.getConyugue().data.get("parientes", {}).get("hijos", {"len": nan, "lista": []})
             longitud = hijos["len"]
             listaHijos = hijos["lista"]
         
@@ -468,18 +468,16 @@ class Character:
             else:
                 listaHijos.append(self.generateNewChild(paterna, materna, targetYear))
                 
-        self.data["parientes"]["hijos"]["len"] = len(listaHijos)
-        self.data["parientes"]["hijos"]["lista"] = listaHijos
+        self.data["parientes"]["hijos"] = {"len" : len(listaHijos), "lista": listaHijos}
         conyugue = self.getConyugue()
-        conyugue.data["parientes"]["hijos"]["len"] = len(listaHijos)
-        conyugue.data["parientes"]["hijos"]["lista"] = listaHijos
+        conyugue.data["parientes"]["hijos"] = {"len" : len(listaHijos), "lista": listaHijos}
         conyugue.save()
         self.save()
         return listaHijos
             
 
     def getHermanos(self):
-        return self.getPadre().getHijos()
+        return self.getMadre().getHijos()
 
     def getPersonalidad(self):
         personalidadDB = loadJson("config/personalidad.json")
