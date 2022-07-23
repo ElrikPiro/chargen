@@ -156,5 +156,25 @@
     },
     "PLACEHOLDER_33": {
         "nombre": "Shizuka"
+    },
+    "PLACEHOLDER_34": {
+        "nombre": "Ciudad de las llanuras prosperas"
+    },
+    "Ciudad de las llanuras prosperas": {
+        "nombre": "Ciudad de las llanuras prosperas",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Ciudad de las llanuras prosperas": 0.1
+        }
+    },
+    "PLACEHOLDER_36": {
+        "nombre": "Ciudad de las llanuras prosperas"
+    },
+    "PLACEHOLDER_37": {
+        "nombre": "Ciudad de las llanuras prosperas"
+    },
+    "PLACEHOLDER_38": {
+        "nombre": "Ciudad de las llanuras prosperas"
     }
 }

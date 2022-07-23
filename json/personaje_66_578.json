@@ -1,0 +1,24 @@
+{
+    "eventos": {
+        "matrimonio": 598,
+        "nacimiento": 578,
+        "muerte": 626
+    },
+    "sexo": "Hombre",
+    "familia": "Shirata",
+    "lugar_residencia": "Ciudad de las llanuras prosperas",
+    "clase_social": "Mercader",
+    "parientes": {
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_65_598.json",
+                "personaje_68_600.json",
+                "personaje_73_611.json"
+            ]
+        },
+        "conyugue": "personaje_67_578.json"
+    },
+    "nombre": 66,
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}

@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 615,
+        "nacimiento": 595,
+        "muerte": 621
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "PLACEHOLDER_34",
+    "clase_social": "Mercader",
+    "parientes": {
+        "conyugue": "personaje_65_598.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_71_615.json",
+                "personaje_72_617.json"
+            ]
+        }
+    },
+    "nombre": 69,
+    "familia": "Hattori",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}

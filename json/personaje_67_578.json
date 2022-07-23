@@ -1,0 +1,24 @@
+{
+    "eventos": {
+        "matrimonio": 598,
+        "nacimiento": 578,
+        "muerte": 635
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Ciudad de las llanuras prosperas",
+    "clase_social": "Mercader",
+    "parientes": {
+        "conyugue": "personaje_66_578.json",
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_65_598.json",
+                "personaje_68_600.json",
+                "personaje_73_611.json"
+            ]
+        }
+    },
+    "nombre": 67,
+    "familia": "Kimu",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}

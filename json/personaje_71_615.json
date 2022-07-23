@@ -1,0 +1,16 @@
+{
+    "nombre": 71,
+    "eventos": {
+        "nacimiento": 615,
+        "muerte": 662
+    },
+    "sexo": "Hombre",
+    "familia": "Shirata",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas",
+    "clase_social": "Mercader",
+    "parientes": {
+        "padre": "personaje_65_598.json",
+        "madre": "personaje_69_595.json"
+    },
+    "lugar_residencia": "Ciudad de las llanuras prosperas"
+}
