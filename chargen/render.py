@@ -268,6 +268,99 @@ def getFourthHeader(personaje : Character) -> str:
 
     return retval
     
+def getExpresion(genoma : dict, sexo : str, query : str) -> str:
+    """Devuelve que gen va a expresarse"""
+    lista = query.split(";")
+    gen = genoma
+    for step in lista:
+        gen = gen.get(step)
+
+    paterno : dict = gen.get("paterno")
+    paternoKey = list(paterno.keys())[0]
+    paternoFeat : dict = paterno.get(paternoKey)
+    materno : dict = gen.get("materno")
+    maternoKey = list(materno.keys())[0]
+    maternoFeat : dict = materno.get(maternoKey)
+
+    if paternoKey == maternoKey:
+        return paternoKey
+    
+    domPaterno = paternoFeat.get("dominancia")
+    domMaterno = maternoFeat.get("dominancia")
+    if domPaterno == domMaterno:
+        expresado = paternoKey if sexo == "Hombre" else maternoKey
+    else:
+        expresado = paternoKey if domPaterno > domMaterno else maternoKey
+    
+    if paternoFeat.get("incompleto") != None:
+        expresado = "incompleto"
+
+    return expresado
+
+
+
+def generateDescripcion(personaje : Character) -> str:
+    genoma = personaje.getGenoma()
+    nombre = personaje.getNombre()
+    sexo = personaje.getSexo()
+    lutColorPiel = ["pálida", "clara", "bronceada", "de un color marrón claro", "de un color marrón oscuro", "negra"]
+    lutAltura = ["increiblemente pequeña", "notablemente reducida", "media tirando a la baja", "media tirando a lo alto", "notablemente alta", "increiblemente grande"]
+
+    somatotipo = getExpresion(genoma, sexo, "humano;otros;somatotipo")
+
+    query = "humano;general;piel "
+    listaPieles = "ABCDE"
+    color = 0
+    for letra in listaPieles:
+        valor = getExpresion(genoma, sexo, query + letra)
+        color += 1 if valor == "oscura" else 0
+
+    query = "humano;general;altura "
+    listaAlturas = "ABCDE"
+    altura = 0
+    for letra in listaAlturas:
+        valor = getExpresion(genoma, sexo, query + letra)
+        altura += 1 if valor == "alto" else 0
+
+    pecas = getExpresion(genoma, sexo, "humano;general;pecas") == "presentes" and color < 4
+    vello = getExpresion(genoma, sexo, "humano;general;vello corporal") == "abundante" and sexo == "Hombre"
+    abdomen = getExpresion(genoma, sexo, "humano;abdomen;Acumulacion grasa")
+    pecho = getExpresion(genoma, sexo, "humano;torso;Tamaño senos") if sexo == "Mujer" else "ausente"
+
+    descGenero = "un hombre" if sexo == "Hombre" else "una mujer"
+    descConstitucion = "atletica" if somatotipo == "incompleto" else \
+        ("gruesa" if somatotipo == "ectomorfo" else "delgada")
+    descColor = lutColorPiel[color]
+    descEstatura = lutAltura[altura]
+    descPielGeneral = ""
+    if pecas and vello:
+        descPielGeneral = ", llena de pecas y con abundante vello corporal"
+    elif pecas:
+        descPielGeneral = ", llena de pecas"
+    elif vello:
+        descPielGeneral = ", con abundante vello corporal"
+    descAbdomen = "Tiene el vientre curvado" if abdomen == "incompleto" else \
+        ("Tiene el vientre abultado" if abdomen == "Elevada" else "Tiene el vientre recto")
+    descPecho = "." if pecho == "ausente" else \
+        ("y tiene un pecho prominente" if pecho == "Prominente" else \
+            ("y tiene un pecho promedio" if pecho == "incompleto" else "y tiene un pecho escaso"))
+
+    retval = f"{nombre} es {descGenero} de estatura {descEstatura} y constitución {descConstitucion}. "
+    retval += f"Su piel es {descColor}{descPielGeneral}. "
+    retval += f"{descAbdomen}{descPecho}" + linesep
+
+    
+
+    return retval
+
+def getFifthHeader(personaje : Character) -> str:
+    """Aspecto físico"""
+
+    personaje.reload()
+    retval = ""
+    retval += "## Aspecto físico" + linesep
+    retval += f"{generateDescripcion(personaje)}" + linesep
+    return retval
 
 def markdownGenerator(jsonFile : str) -> str:
     endl = linesep
@@ -276,6 +369,7 @@ def markdownGenerator(jsonFile : str) -> str:
     retval = getFirstHeader(personaje) + endl
     retval += getSecondHeader(personaje) + endl
     retval += getThirdHeader(personaje) + endl
-    retval += getFourthHeader(personaje) + endl 
+    retval += getFourthHeader(personaje) + endl
+    retval += getFifthHeader(personaje) + endl
 
     return retval
