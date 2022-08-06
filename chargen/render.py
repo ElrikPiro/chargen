@@ -410,6 +410,26 @@ def getDescOjos_(tamanoOjos, matizOjos, satOjos, claridadOjos, pestanas, cejas, 
 
     return retval
 
+def getMofletesYHoyuelos_(mofletes, hoyuelos):
+    """Obtiene los mofletes y hoyuelos"""
+    retval = ""
+
+    if mofletes == "incompleto" and hoyuelos == "no presente":
+        return ""
+    
+    if hoyuelos == "presente":
+        retval += " con hoyuelos en sus mofletes"
+    else:
+        retval += " con mofletes"
+
+    if mofletes != "incompleto":
+        retval += f" {mofletes}"
+    
+    
+
+
+    return retval
+
 def generateDescripcion(personaje : Character) -> str:
     genoma = personaje.getGenoma()
     nombre = personaje.getNombre()
@@ -451,6 +471,11 @@ def generateDescripcion(personaje : Character) -> str:
     satOjos = getExpresion(genoma, sexo, "humano;cabeza;Saturacion ojos")
     claridadOjos = getExpresion(genoma, sexo, "humano;cabeza;Claridad ojos")
 
+    formaRostro = getExpresion(genoma, sexo, "humano;cabeza;Forma de la cara")
+
+    mofletes = getExpresion(genoma, sexo, "humano;cabeza;Mofletes")
+    hoyuelos = getExpresion(genoma, sexo, "humano;cabeza;hoyuelos")
+
     descGenero = "un hombre" if sexo == "Hombre" else "una mujer"
     descConstitucion = "atletica" if somatotipo == "incompleto" else \
         ("gruesa" if somatotipo == "ectomorfo" else "delgada")
@@ -470,13 +495,20 @@ def generateDescripcion(personaje : Character) -> str:
             ("y tiene un pecho promedio" if pecho == "incompleto" else "y tiene un pecho escaso"))
     descCabello = getDescCabello_(rizado, matizPelo, satPelo, claridadPelo)
     descOjos = getDescOjos_(tamanoOjos, matizOjos, satOjos, claridadOjos, pestanas, cejas, achinaos)
+    descFormaCabeza = {
+        "Cuadrada" : "cuadrado",
+        "Redonda" : "redondo",
+        "incompleto" : "ovalado"
+    }
+    descFormaCabeza = descFormaCabeza.get(formaRostro, formaRostro)
+    descMofletesYHoyuelos = getMofletesYHoyuelos_(mofletes, hoyuelos)
 
     retval = f"{nombre} es {descGenero} de estatura {descEstatura} y constitución {descConstitucion}. "
     retval += f"Su piel es {descColor}{descPielGeneral}. "
     retval += f"{descAbdomen}{descPecho}" + linesep
 
     retval += f"Su cabello es {descCabello} y sus ojos {descOjos}. "
-    retval += f"Tiene el rostro {descFormaCabeza} {descMofletesYHoyuelos}. "
+    retval += f"Tiene el rostro {descFormaCabeza}{descMofletesYHoyuelos}. "
     retval += f"Su nariz es {descNariz} y su boca {descBoca}."  + linesep
 
     return retval
