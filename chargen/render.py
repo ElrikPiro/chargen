@@ -297,7 +297,118 @@ def getExpresion(genoma : dict, sexo : str, query : str) -> str:
 
     return expresado
 
+def getDescCabello_(rizado, matizPelo, satPelo, claridadPelo):
+    """Devuelve la descripcion del cabello"""
+    valorRizado = rizado if rizado != "incompleto" else "ondulado"
+    retval = f"{valorRizado}, "
 
+    posibilidades = {
+        "Marron" : 0,
+        "Rojo" : 1,
+        "Blanco" : 2
+    }
+    valorMatiz = posibilidades.get(matizPelo)
+    
+
+    posibilidades = {
+        "Profundo" : 0,
+        "Neutro" : 1,
+        "incompleto" : 2
+    }
+    valorSaturacion = posibilidades.get(satPelo)
+
+    posibilidades = {
+        "Claro" : 0,
+        "Oscuro" : 1
+    }
+    valorClaridad = posibilidades.get(claridadPelo)
+
+    valor = valorMatiz*100 + valorSaturacion*10 + valorClaridad
+    posibilidades = {
+        0 : "de color castaño claro. ",
+        1 : "de color castaño. ",
+        10 : "de color rubio platino. ",
+        11 : "de color azabache. ",
+        20 : "de color rubio oscuro. ",
+        21 : "de color castaño oscuro. ",
+        100 : "rojo intenso. ",
+        101 : "castaño rojizo. ",
+        110 : "naranja pálido. ",
+        111 : "rojo oscuro. ",
+        120 : "dorado cobrizo. ",
+        121 : "rojo caoba. ",
+        200 : "de color plateado. ",
+        201 : "de color gris ceniza. ",
+        210 : "de color blanco. ",
+        211 : "de color gris oscuro. ",
+        220 : "de color plata. ",
+        221 : "de color gris plata. ",
+    }
+
+    retval += posibilidades.get(valor)
+
+    return retval
+
+def getDescOjos_(tamanoOjos, matizOjos, satOjos, claridadOjos, pestanas, cejas, achinaos):
+    """Obtiene la descripción de los ojos"""
+    retval = f"{tamanoOjos}, " if tamanoOjos != "incompleto" else ""
+    retval += "redondos" if achinaos != "presente" else "rasgados"
+    
+
+    posibilidades = {
+        "Marron" : 0,
+        "Azul" : 1,
+        "Verde" : 2,
+        "Rojos" : 3
+    }
+    valorMatiz = posibilidades.get(matizOjos)
+    
+
+    posibilidades = {
+        "Profundo" : 0,
+        "Neutro" : 1,
+        "incompleto" : 2
+    }
+    valorSaturacion = posibilidades.get(satOjos)
+
+    posibilidades = {
+        "Claros" : 0,
+        "Oscuros" : 1
+    }
+    valorClaridad = posibilidades.get(claridadOjos)
+
+    valor = valorMatiz*100 + valorSaturacion*10 + valorClaridad
+    posibilidades = {
+        0 : "ambar",
+        1 : "cacao",
+        10 : "miel",
+        11 : "ebano",
+        20 : "dorado",
+        21 : "castaños",
+        100 : "azul cielo",
+        101 : "azul marino",
+        110 : "gris pálido",
+        111 : "gris oscuro",
+        120 : "azul pálido",
+        121 : "azul oscuro",
+        200 : "verde vivo",
+        201 : "verde jade",
+        210 : "verde pálido",
+        211 : "verde bosque",
+        220 : "verde esmeralda",
+        221 : "verde oliva",
+        300 : "escarlata",
+        301 : "rojo oscuro",
+        310 : "rosa pálido",
+        311 : "rosa oscuro",
+        320 : "calabaza",
+        321 : "castaño rojizo",
+    }
+    colorOjos = posibilidades.get(valor)
+
+    retval += f" y de color {colorOjos} con pestañas {pestanas} y bajo unas cejas {cejas}. "
+
+    return retval
 
 def generateDescripcion(personaje : Character) -> str:
     genoma = personaje.getGenoma()
@@ -326,6 +437,19 @@ def generateDescripcion(personaje : Character) -> str:
     vello = getExpresion(genoma, sexo, "humano;general;vello corporal") == "abundante" and sexo == "Hombre"
     abdomen = getExpresion(genoma, sexo, "humano;abdomen;Acumulacion grasa")
     pecho = getExpresion(genoma, sexo, "humano;torso;Tamaño senos") if sexo == "Mujer" else "ausente"
+    
+    rizado = getExpresion(genoma, sexo, "humano;cabeza;rizado del cabello")
+    matizPelo = getExpresion(genoma, sexo, "humano;cabeza;Matiz cabello")
+    satPelo = getExpresion(genoma, sexo, "humano;cabeza;Saturacion cabello")
+    claridadPelo = getExpresion(genoma, sexo, "humano;cabeza;Claridad cabello")
+
+    pestanas = getExpresion(genoma, sexo, "humano;cabeza;pestañas") == "largas"
+    cejas = getExpresion(genoma, sexo, "humano;cabeza;cejas") == "pobladas"
+    achinaos = getExpresion(genoma, sexo, "humano;cabeza;pliegue mongoles")
+    tamanoOjos = getExpresion(genoma, sexo, "humano;cabeza;tamaño ojos")
+    matizOjos = getExpresion(genoma, sexo, "humano;cabeza;Matiz ojos")
+    satOjos = getExpresion(genoma, sexo, "humano;cabeza;Saturacion ojos")
+    claridadOjos = getExpresion(genoma, sexo, "humano;cabeza;Claridad ojos")
 
     descGenero = "un hombre" if sexo == "Hombre" else "una mujer"
     descConstitucion = "atletica" if somatotipo == "incompleto" else \
@@ -344,12 +468,16 @@ def generateDescripcion(personaje : Character) -> str:
     descPecho = "." if pecho == "ausente" else \
         ("y tiene un pecho prominente" if pecho == "Prominente" else \
             ("y tiene un pecho promedio" if pecho == "incompleto" else "y tiene un pecho escaso"))
+    descCabello = getDescCabello_(rizado, matizPelo, satPelo, claridadPelo)
+    descOjos = getDescOjos_(tamanoOjos, matizOjos, satOjos, claridadOjos, pestanas, cejas, achinaos)
 
     retval = f"{nombre} es {descGenero} de estatura {descEstatura} y constitución {descConstitucion}. "
     retval += f"Su piel es {descColor}{descPielGeneral}. "
     retval += f"{descAbdomen}{descPecho}" + linesep
 
-    
+    retval += f"Su cabello es {descCabello} y sus ojos {descOjos}. "
+    retval += f"Tiene el rostro {descFormaCabeza} {descMofletesYHoyuelos}. "
+    retval += f"Su nariz es {descNariz} y su boca {descBoca}."  + linesep
 
     return retval
 
