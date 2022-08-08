@@ -476,6 +476,10 @@ def generateDescripcion(personaje : Character) -> str:
     mofletes = getExpresion(genoma, sexo, "humano;cabeza;Mofletes")
     hoyuelos = getExpresion(genoma, sexo, "humano;cabeza;hoyuelos")
 
+    puenteNas = getExpresion(genoma, sexo, "humano;cabeza;puente nariz")
+    anchoNas = getExpresion(genoma, sexo, "humano;cabeza;ancho nariz")
+    tamanoNas = getExpresion(genoma, sexo, "humano;cabeza;tamaño nariz")
+
     descGenero = "un hombre" if sexo == "Hombre" else "una mujer"
     descConstitucion = "atletica" if somatotipo == "incompleto" else \
         ("gruesa" if somatotipo == "ectomorfo" else "delgada")
@@ -502,6 +506,7 @@ def generateDescripcion(personaje : Character) -> str:
     }
     descFormaCabeza = descFormaCabeza.get(formaRostro, formaRostro)
     descMofletesYHoyuelos = getMofletesYHoyuelos_(mofletes, hoyuelos)
+    ##TODO: descNariz
 
     retval = f"{nombre} es {descGenero} de estatura {descEstatura} y constitución {descConstitucion}. "
     retval += f"Su piel es {descColor}{descPielGeneral}. "
