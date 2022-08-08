@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 578,
+        "nacimiento": 562,
+        "muerte": 617
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Ciudad de las llanuras prosperas",
+    "clase_social": "Mercader",
+    "parientes": {
+        "conyugue": "personaje_74_554.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_66_578.json"
+            ]
+        }
+    },
+    "nombre": 75,
+    "familia": "Toyama",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}
