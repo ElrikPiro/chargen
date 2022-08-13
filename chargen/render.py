@@ -494,6 +494,8 @@ def generateDescripcion(personaje : Character) -> str:
     anchoNas = getExpresion(genoma, sexo, "humano;cabeza;ancho nariz")
     tamanoNas = getExpresion(genoma, sexo, "humano;cabeza;tamaño nariz")
 
+    anchoLips = getExpresion(genoma, sexo, "humano;cabeza;ancho de labios")
+
     descGenero = "un hombre" if sexo == "Hombre" else "una mujer"
     descConstitucion = "atletica" if somatotipo == "incompleto" else \
         ("gruesa" if somatotipo == "ectomorfo" else "delgada")
@@ -528,7 +530,7 @@ def generateDescripcion(personaje : Character) -> str:
 
     retval += f"Su cabello es {descCabello} y sus ojos {descOjos}. "
     retval += f"Tiene el rostro {descFormaCabeza}{descMofletesYHoyuelos}. "
-    retval += f"Su nariz es {descNariz} y su boca {descBoca}."  + linesep
+    retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep
 
     return retval
 
