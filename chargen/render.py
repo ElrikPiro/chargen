@@ -430,6 +430,20 @@ def getMofletesYHoyuelos_(mofletes, hoyuelos):
 
     return retval
 
+def getNariz_(puenteNas, anchoNas, tamanoNas):
+    #Puente nariz : aguileña, recta
+    #Ancho : ancha, estrecha
+    #Tamano: grande, pequeña, incompleto
+
+    retval = ""
+    
+    if tamanoNas != "incompleto":
+        retval += f"de tamaño {tamanoNas}, "
+
+    retval += f"con forma {anchoNas} y {puenteNas}"
+
+    return retval
+
 def generateDescripcion(personaje : Character) -> str:
     genoma = personaje.getGenoma()
     nombre = personaje.getNombre()
@@ -506,7 +520,7 @@ def generateDescripcion(personaje : Character) -> str:
     }
     descFormaCabeza = descFormaCabeza.get(formaRostro, formaRostro)
     descMofletesYHoyuelos = getMofletesYHoyuelos_(mofletes, hoyuelos)
-    ##TODO: descNariz
+    descNariz = getNariz_(puenteNas, anchoNas, tamanoNas)#WIP
 
     retval = f"{nombre} es {descGenero} de estatura {descEstatura} y constitución {descConstitucion}. "
     retval += f"Su piel es {descColor}{descPielGeneral}. "
