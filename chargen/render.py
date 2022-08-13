@@ -477,8 +477,8 @@ def generateDescripcion(personaje : Character) -> str:
     satPelo = getExpresion(genoma, sexo, "humano;cabeza;Saturacion cabello")
     claridadPelo = getExpresion(genoma, sexo, "humano;cabeza;Claridad cabello")
 
-    pestanas = getExpresion(genoma, sexo, "humano;cabeza;pestañas") == "largas"
-    cejas = getExpresion(genoma, sexo, "humano;cabeza;cejas") == "pobladas"
+    pestanas = getExpresion(genoma, sexo, "humano;cabeza;pestañas")
+    cejas = getExpresion(genoma, sexo, "humano;cabeza;cejas")
     achinaos = getExpresion(genoma, sexo, "humano;cabeza;pliegue mongoles")
     tamanoOjos = getExpresion(genoma, sexo, "humano;cabeza;tamaño ojos")
     matizOjos = getExpresion(genoma, sexo, "humano;cabeza;Matiz ojos")
