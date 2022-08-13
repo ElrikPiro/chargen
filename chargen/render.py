@@ -528,7 +528,7 @@ def generateDescripcion(personaje : Character) -> str:
     retval += f"Su piel es {descColor}{descPielGeneral}. "
     retval += f"{descAbdomen}{descPecho}" + linesep
 
-    retval += f"Su cabello es {descCabello} y sus ojos {descOjos}. "
+    retval += f"Su cabello es {descCabello} Sus ojos son {descOjos} "
     retval += f"Tiene el rostro {descFormaCabeza}{descMofletesYHoyuelos}. "
     retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep
 
