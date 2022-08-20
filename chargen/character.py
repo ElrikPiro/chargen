@@ -65,7 +65,7 @@ class Character:
             self.updateJsonStruct(deductions, caller)
 
     def generateJsonFileName(self):
-        nombrefichero = "personaje_" + str(self.getNombreId()) + "_" + str(self.getNacimiento())
+        nombrefichero = "personaje_" + str(self.getNombreId())
         self.file = nombrefichero+".json"
 
     def save(self):
