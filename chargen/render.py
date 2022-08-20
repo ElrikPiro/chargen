@@ -470,17 +470,17 @@ def generateDescripcion(personaje : Character) -> str:
     pecas = getExpresion(genoma, sexo, "humano;general;pecas") == "presentes" and color < 4
     vello = getExpresion(genoma, sexo, "humano;general;vello corporal") == "abundante" and sexo == "Hombre"
     abdomen = getExpresion(genoma, sexo, "humano;abdomen;Acumulacion grasa")
-    pecho = getExpresion(genoma, sexo, "humano;torso;Tamaño senos") if sexo == "Mujer" else "ausente"
+    pecho = getExpresion(genoma, sexo, "humano;torso;Tama\u00c3\u00b1o senos") if sexo == "Mujer" else "ausente"
     
     rizado = getExpresion(genoma, sexo, "humano;cabeza;rizado del cabello")
     matizPelo = getExpresion(genoma, sexo, "humano;cabeza;Matiz cabello")
     satPelo = getExpresion(genoma, sexo, "humano;cabeza;Saturacion cabello")
     claridadPelo = getExpresion(genoma, sexo, "humano;cabeza;Claridad cabello")
 
-    pestanas = getExpresion(genoma, sexo, "humano;cabeza;pestañas")
+    pestanas = getExpresion(genoma, sexo, "humano;cabeza;pesta\u00c3\u00b1as")
     cejas = getExpresion(genoma, sexo, "humano;cabeza;cejas")
     achinaos = getExpresion(genoma, sexo, "humano;cabeza;pliegue mongoles")
-    tamanoOjos = getExpresion(genoma, sexo, "humano;cabeza;tamaño ojos")
+    tamanoOjos = getExpresion(genoma, sexo, "humano;cabeza;tama\u00c3\u00b1o ojos")
     matizOjos = getExpresion(genoma, sexo, "humano;cabeza;Matiz ojos")
     satOjos = getExpresion(genoma, sexo, "humano;cabeza;Saturacion ojos")
     claridadOjos = getExpresion(genoma, sexo, "humano;cabeza;Claridad ojos")
@@ -492,7 +492,7 @@ def generateDescripcion(personaje : Character) -> str:
 
     puenteNas = getExpresion(genoma, sexo, "humano;cabeza;puente nariz")
     anchoNas = getExpresion(genoma, sexo, "humano;cabeza;ancho nariz")
-    tamanoNas = getExpresion(genoma, sexo, "humano;cabeza;tamaño nariz")
+    tamanoNas = getExpresion(genoma, sexo, "humano;cabeza;tama\u00c3\u00b1o nariz")
 
     anchoLips = getExpresion(genoma, sexo, "humano;cabeza;ancho de labios")
 
@@ -511,8 +511,8 @@ def generateDescripcion(personaje : Character) -> str:
     descAbdomen = "Tiene el vientre curvado" if abdomen == "incompleto" else \
         ("Tiene el vientre abultado" if abdomen == "Elevada" else "Tiene el vientre recto")
     descPecho = "." if pecho == "ausente" else \
-        ("y tiene un pecho prominente" if pecho == "Prominente" else \
-            ("y tiene un pecho promedio" if pecho == "incompleto" else "y tiene un pecho escaso"))
+        (" y tiene un pecho prominente" if pecho == "Prominente" else \
+            (" y tiene un pecho promedio" if pecho == "incompleto" else " y tiene un pecho escaso"))
     descCabello = getDescCabello_(rizado, matizPelo, satPelo, claridadPelo)
     descOjos = getDescOjos_(tamanoOjos, matizOjos, satOjos, claridadOjos, pestanas, cejas, achinaos)
     descFormaCabeza = {
