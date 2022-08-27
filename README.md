@@ -1,4 +1,4 @@
-# elrikpiro's chargen version 0.1.5
+# elrikpiro's chargen version 0.1.6
 
 chargen es una librería en python para generación procedural de personajes para rol o escritura creativa.
 
