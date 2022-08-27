@@ -412,13 +412,8 @@ class Character:
         else:
             return offset + roll
 
-    def generateNumeroHijos(self, base=0):
-        roll = random.randint(0,3)
-        offset = base
-        if roll == 3:
-            return self.generateNumeroHijos(offset+roll)
-        else:
-            return offset + roll
+    def generateNumeroHijos(self):
+        return int(round(math.fabs(random.normalvariate(2.5, 2))))
 
     def generateNewChild(self, paterna, materna, nacimiento) -> str:
         newChild = Character({
