@@ -1,0 +1,24 @@
+{
+    "nombre": 79,
+    "eventos": {
+        "nacimiento": 603,
+        "muerte": 645,
+        "matrimonio": 622
+    },
+    "sexo": "Hombre",
+    "familia": "Ueda",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_77.json",
+        "madre": "personaje_78.json",
+        "conyugue": "personaje_85.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_86.json"
+            ]
+        }
+    },
+    "lugar_residencia": "Shizuka"
+}

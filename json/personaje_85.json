@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 622,
+        "nacimiento": 602,
+        "muerte": 647
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shizuka",
+    "clase_social": "Media",
+    "parientes": {
+        "conyugue": "personaje_79.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_86.json"
+            ]
+        }
+    },
+    "nombre": 85,
+    "familia": "Chikyuu",
+    "lugar_nacimiento": "Jardines Doji"
+}

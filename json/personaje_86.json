@@ -1,0 +1,15 @@
+{
+    "nombre": 86,
+    "eventos": {
+        "nacimiento": 628
+    },
+    "sexo": "Hombre",
+    "familia": "Ueda",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_79.json",
+        "madre": "personaje_85.json"
+    },
+    "lugar_residencia": "Shizuka"
+}

@@ -1,0 +1,16 @@
+{
+    "nombre": 83,
+    "eventos": {
+        "nacimiento": 626,
+        "muerte": 679
+    },
+    "sexo": "Hombre",
+    "familia": "Kanda",
+    "lugar_nacimiento": "Shizuka",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_80.json",
+        "madre": "personaje_76.json"
+    },
+    "lugar_residencia": "Shizuka"
+}

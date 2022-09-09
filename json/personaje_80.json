@@ -1,0 +1,25 @@
+{
+    "eventos": {
+        "matrimonio": 621,
+        "nacimiento": 601,
+        "muerte": 655
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "Shizuka",
+    "clase_social": "Media",
+    "parientes": {
+        "conyugue": "personaje_76.json",
+        "hijos": {
+            "len": 4,
+            "lista": [
+                "personaje_81.json",
+                "personaje_82.json",
+                "personaje_83.json",
+                "personaje_84.json"
+            ]
+        }
+    },
+    "nombre": 80,
+    "familia": "Kanda",
+    "lugar_nacimiento": "Shizuka"
+}
