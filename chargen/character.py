@@ -65,7 +65,7 @@ class Character:
             self.updateJsonStruct(deductions, caller)
 
     def generateJsonFileName(self):
-        nombrefichero = "personaje_" + str(self.getNombreId()) + "_" + str(self.getNacimiento())
+        nombrefichero = "personaje_" + str(self.getNombreId())
         self.file = nombrefichero+".json"
 
     def save(self):
@@ -412,13 +412,8 @@ class Character:
         else:
             return offset + roll
 
-    def generateNumeroHijos(self, base=0):
-        roll = random.randint(0,3)
-        offset = base
-        if roll == 3:
-            return self.generateNumeroHijos(offset+roll)
-        else:
-            return offset + roll
+    def generateNumeroHijos(self):
+        return int(round(math.fabs(random.normalvariate(2.5, 2))))
 
     def generateNewChild(self, paterna, materna, nacimiento) -> str:
         newChild = Character({
@@ -458,8 +453,8 @@ class Character:
                 materna.getMuerte(), 
                 materna.getNacimiento()+40
             )
-            lastChild = Character({"dummy": 1, "eventos": {"nacimiento": self.getMatrimonio()}}) if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT))
-            currentYear = self.getMatrimonio() if not math.isnan(lastChild.data.get("dummy", nan)) else lastChild.getNacimiento()
+            lastChild = None if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT))
+            currentYear = self.getMatrimonio() if lastChild == None else lastChild.getNacimiento()
             targetYear = currentYear + self.rollOffsetNacimiento()
 
             if targetYear >= deadline:
