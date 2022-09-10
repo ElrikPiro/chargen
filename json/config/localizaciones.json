@@ -221,5 +221,22 @@
     },
     "PLACEHOLDER_53": {
         "nombre": "Ciudad de las llanuras prosperas"
+    },
+    "PLACEHOLDER_54": {
+        "nombre": "Shiro Ichiro"
+    },
+    "PLACEHOLDER_55": {
+        "nombre": "Shiro Ichiro"
+    },
+    "PLACEHOLDER_56": {
+        "nombre": "Kibukito"
+    },
+    "Kibukito": {
+        "nombre": "Kibukito",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+            "Kibukito": 0.1
+        }
     }
 }

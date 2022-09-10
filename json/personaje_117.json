@@ -1,0 +1,23 @@
+{
+    "eventos": {
+        "matrimonio": 490,
+        "nacimiento": 472,
+        "muerte": 518
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Nobleza",
+    "parientes": {
+        "conyugue": "personaje_114.json",
+        "hijos": {
+            "len": 2,
+            "lista": [
+                "personaje_118.json",
+                "personaje_119.json"
+            ]
+        }
+    },
+    "nombre": 117,
+    "familia": "Utaku",
+    "lugar_nacimiento": "Kibukito"
+}

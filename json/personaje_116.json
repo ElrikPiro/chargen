@@ -1,0 +1,22 @@
+{
+    "eventos": {
+        "matrimonio": 470,
+        "nacimiento": 451,
+        "muerte": 510
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Nobleza",
+    "parientes": {
+        "conyugue": "personaje_115.json",
+        "hijos": {
+            "len": 1,
+            "lista": [
+                "personaje_114.json"
+            ]
+        }
+    },
+    "nombre": 116,
+    "familia": "Ichiro",
+    "lugar_nacimiento": "Shiro Ichiro"
+}
