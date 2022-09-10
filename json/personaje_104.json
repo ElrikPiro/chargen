@@ -1,0 +1,24 @@
+{
+    "eventos": {
+        "matrimonio": 562,
+        "nacimiento": 545,
+        "muerte": 592
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Ciudad de las llanuras prosperas",
+    "clase_social": "Mercader",
+    "parientes": {
+        "conyugue": "personaje_103.json",
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_75_562.json",
+                "personaje_105.json",
+                "personaje_106.json"
+            ]
+        }
+    },
+    "nombre": 104,
+    "familia": "Miura",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}

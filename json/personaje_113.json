@@ -1,0 +1,15 @@
+{
+    "nombre": 113,
+    "eventos": {
+        "nacimiento": 592
+    },
+    "sexo": "Hombre",
+    "familia": "Shirata",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_112.json",
+        "madre": "personaje_106.json"
+    },
+    "lugar_residencia": "Ciudad de las llanuras prosperas"
+}

@@ -1,0 +1,25 @@
+{
+    "eventos": {
+        "matrimonio": 581,
+        "nacimiento": 562,
+        "muerte": 606
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "Ciudad de las llanuras prosperas",
+    "clase_social": "Pobre",
+    "parientes": {
+        "conyugue": "personaje_105.json",
+        "hijos": {
+            "len": 4,
+            "lista": [
+                "personaje_108.json",
+                "personaje_109.json",
+                "personaje_110.json",
+                "personaje_111.json"
+            ]
+        }
+    },
+    "nombre": 107,
+    "familia": "Yoshida",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas"
+}

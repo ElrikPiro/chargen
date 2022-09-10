@@ -1,0 +1,15 @@
+{
+    "nombre": 108,
+    "eventos": {
+        "nacimiento": 582
+    },
+    "sexo": "Mujer",
+    "familia": "Yoshida",
+    "lugar_nacimiento": "Ciudad de las llanuras prosperas",
+    "clase_social": "Pobre",
+    "parientes": {
+        "padre": "personaje_107.json",
+        "madre": "personaje_105.json"
+    },
+    "lugar_residencia": "Ciudad de las llanuras prosperas"
+}
