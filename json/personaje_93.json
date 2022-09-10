@@ -1,0 +1,16 @@
+{
+    "nombre": 93,
+    "eventos": {
+        "nacimiento": 603,
+        "muerte": 651
+    },
+    "sexo": "Hombre",
+    "familia": "Isobe",
+    "lugar_nacimiento": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_92.json",
+        "madre": "personaje_87.json"
+    },
+    "lugar_residencia": "Shiro Ichiro"
+}

@@ -1,0 +1,24 @@
+{
+    "eventos": {
+        "matrimonio": 602,
+        "nacimiento": 578,
+        "muerte": 622
+    },
+    "sexo": "Hombre",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "conyugue": "personaje_87.json",
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_93.json",
+                "personaje_94.json",
+                "personaje_95.json"
+            ]
+        }
+    },
+    "nombre": 92,
+    "familia": "Isobe",
+    "lugar_nacimiento": "Himitsumachi Higashikaze"
+}

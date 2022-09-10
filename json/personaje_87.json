@@ -1,0 +1,789 @@
+{
+    "nombre": 87,
+    "eventos": {
+        "nacimiento": 584,
+        "muerte": 637,
+        "matrimonio": 602
+    },
+    "sexo": "Mujer",
+    "edad": {
+        "": NaN
+    },
+    "familia": "Kezuka",
+    "lugar_nacimiento": "Shiro Ichiro",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_88.json",
+        "madre": "personaje_89.json",
+        "conyugue": "personaje_92.json",
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_93.json",
+                "personaje_94.json",
+                "personaje_95.json"
+            ]
+        }
+    },
+    "genoma": {
+        "humano": {
+            "cabeza": {
+                "calvicie": {
+                    "paterno": {
+                        "alopecia masculina": {
+                            "dominancia": 1,
+                            "condicional": 1,
+                            "hombres": 1
+                        }
+                    },
+                    "materno": {
+                        "alopecia masculina": {
+                            "dominancia": 1,
+                            "condicional": 1,
+                            "hombres": 1
+                        }
+                    }
+                },
+                "menton hendido": {
+                    "paterno": {
+                        "no hendido": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "hendido": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "hoyuelos": {
+                    "paterno": {
+                        "no presente": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "presente": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "lobulos oreja": {
+                    "paterno": {
+                        "pegados": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "sueltos": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "pesta\u00c3\u00b1as": {
+                    "paterno": {
+                        "cortas": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "cortas": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "cejas": {
+                    "paterno": {
+                        "finas": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "finas": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "flequillo": {
+                    "paterno": {
+                        "picudo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "redondeado": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "decoloracion cabello": {
+                    "paterno": {
+                        "homogeneo": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "homogeneo": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "ancho de labios": {
+                    "paterno": {
+                        "carnosos": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "finos": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "pliegue mongoles": {
+                    "paterno": {
+                        "presente": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "presente": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "puente nariz": {
+                    "paterno": {
+                        "recta": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "aguile\u00c3\u00b1a": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "ancho nariz": {
+                    "paterno": {
+                        "estrecha": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "estrecha": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "tama\u00c3\u00b1o nariz": {
+                    "paterno": {
+                        "peque\u00c3\u00b1a": {
+                            "dominancia": 0,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "grande": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    }
+                },
+                "tama\u00c3\u00b1o ojos": {
+                    "paterno": {
+                        "peque\u00c3\u00b1os": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "peque\u00c3\u00b1os": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    }
+                },
+                "rizado del cabello": {
+                    "paterno": {
+                        "liso": {
+                            "dominancia": 0,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "ondulado": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "Matiz ojos": {
+                    "paterno": {
+                        "Verde": {
+                            "dominancia": 0.25
+                        }
+                    },
+                    "materno": {
+                        "Azul": {
+                            "dominancia": 0.5
+                        }
+                    }
+                },
+                "Saturacion ojos": {
+                    "paterno": {
+                        "Neutro": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "Profundo": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    }
+                },
+                "Claridad ojos": {
+                    "paterno": {
+                        "Oscuros": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "Claros": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "Matiz cabello": {
+                    "paterno": {
+                        "Marron": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "Marron": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "Saturacion cabello": {
+                    "paterno": {
+                        "Neutro": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "Neutro": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    }
+                },
+                "Claridad cabello": {
+                    "paterno": {
+                        "Claro": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "Claro": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "Mofletes": {
+                    "paterno": {
+                        "Rechonchos": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "Rechonchos": {
+                            "dominancia": 0.5,
+                            "incompleto": 1
+                        }
+                    }
+                },
+                "Forma de la cara": {
+                    "paterno": {
+                        "Redonda": {
+                            "dominancia": 0,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "Redonda": {
+                            "dominancia": 0,
+                            "incompleto": 1
+                        }
+                    }
+                }
+            },
+            "torso": {
+                "Tama\u00c3\u00b1o senos": {
+                    "paterno": {
+                        "Prominente": {
+                            "dominancia": 0,
+                            "incompleto": 1,
+                            "condicional": 1,
+                            "mujeres": 1
+                        }
+                    },
+                    "materno": {
+                        "Prominente": {
+                            "dominancia": 0,
+                            "incompleto": 1,
+                            "condicional": 1,
+                            "mujeres": 1
+                        }
+                    }
+                }
+            },
+            "abdomen": {
+                "Acumulacion grasa": {
+                    "paterno": {
+                        "Elevada": {
+                            "dominancia": 0,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "Escasa": {
+                            "dominancia": 1,
+                            "incompleto": 1
+                        }
+                    }
+                }
+            },
+            "brazos": {
+                "mano habil": {
+                    "paterno": {
+                        "izquierda": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "izquierda": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "pulgar flexible": {
+                    "paterno": {
+                        "presente": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "vello en dedos": {
+                    "paterno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "numero de dedos": {
+                    "paterno": {
+                        "cinco": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "cinco": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "piel entre dedos": {
+                    "paterno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    }
+                }
+            },
+            "piernas": {
+                "numero de dedos": {
+                    "paterno": {
+                        "cinco": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "cinco": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "pulgar flexible": {
+                    "paterno": {
+                        "presente": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "vello en dedos": {
+                    "paterno": {
+                        "presente": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "Segundo dedo": {
+                    "paterno": {
+                        "largo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "largo": {
+                            "dominancia": 1
+                        }
+                    }
+                }
+            },
+            "general": {
+                "vello corporal": {
+                    "paterno": {
+                        "escaso": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "escaso": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "pecas": {
+                    "paterno": {
+                        "presentes": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "presentes": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "RH": {
+                    "paterno": {
+                        "negativo": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "negativo": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "grupo sanguineo": {
+                    "paterno": {
+                        "A": {
+                            "dominancia": 1,
+                            "codominante": 1
+                        }
+                    },
+                    "materno": {
+                        "A": {
+                            "dominancia": 1,
+                            "codominante": 1
+                        }
+                    }
+                },
+                "altura A": {
+                    "paterno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "altura B": {
+                    "paterno": {
+                        "alto": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "alto": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "altura C": {
+                    "paterno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "altura D": {
+                    "paterno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "altura E": {
+                    "paterno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "bajo": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "piel A": {
+                    "paterno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "piel B": {
+                    "paterno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "oscura": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "piel C": {
+                    "paterno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "piel D": {
+                    "paterno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "piel E": {
+                    "paterno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    },
+                    "materno": {
+                        "clara": {
+                            "dominancia": 0
+                        }
+                    }
+                }
+            },
+            "otros": {
+                "Oido absoluto": {
+                    "paterno": {
+                        "ausente": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "presente": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "lengua flexible": {
+                    "paterno": {
+                        "presente": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "ausente": {
+                            "dominancia": 0
+                        }
+                    }
+                },
+                "vision": {
+                    "paterno": {
+                        "astigmatismo": {
+                            "dominancia": 1
+                        }
+                    },
+                    "materno": {
+                        "astigmatismo": {
+                            "dominancia": 1
+                        }
+                    }
+                },
+                "somatotipo": {
+                    "paterno": {
+                        "ectomorfo": {
+                            "dominancia": 0.75,
+                            "incompleto": 1
+                        }
+                    },
+                    "materno": {
+                        "endomorfo": {
+                            "dominancia": 0.25,
+                            "incompleto": 1
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "personalidad": {
+        "facetas": {
+            "PERSEVERANCE": 9.920004522591263,
+            "CHEER_PROPENSITY": 10.647242764284968,
+            "IMMODERATION": -5.441495562851522,
+            "SINGLEMINDED": 19.260287068213728,
+            "POLITENESS": -5.457172999198384,
+            "LUST_PROPENSITY": -0.5951152387814886,
+            "LOVE_PROPENSITY": -25.810183746257586,
+            "GREED": 5.374414654150314,
+            "THOUGHTLESSNESS": 7.190308650115149,
+            "HUMOR": 5.732671793565714,
+            "STRESS_VULNERABILITY": 13.540420995473525,
+            "CONFIDENCE": -17.030579717393188,
+            "HATE_PROPENSITY": -1.9665492253294445,
+            "PRIDE": -22.479796705524485,
+            "TRUST": 9.87283167362716,
+            "ART_INCLINED": 3.7099751529692213,
+            "DUTIFULNESS": -14.887985259873382,
+            "WASTEFULNESS": -6.951805629820541,
+            "IMAGINATION": 13.867761072819228,
+            "EMOTIONALLY_OBSESSIVE": 13.594086226966837,
+            "PERFECTIONIST": 15.368502021184256,
+            "BRAVERY": 0.9404505046213956,
+            "DISCORD": -6.285636712873874,
+            "VIOLENT": -21.515045876732465,
+            "SWAYED_BY_EMOTIONS": 17.290903581243583,
+            "CURIOUS": 4.603614833112225,
+            "ABSTRACT_INCLINED": 7.235057556463062,
+            "IMMODESTY": -20.33007022871267,
+            "VANITY": 0.8657160117243592,
+            "ENVY_PROPENSITY": 9.167848025569128,
+            "FRIENDLINESS": -4.0635064740121365,
+            "PRIVACY": -2.8194117170296025,
+            "ANGER_PROPENSITY": -14.540632225913633,
+            "AMBITION": 1.113395323236574,
+            "TOLERANT": 11.513110031830955,
+            "VENGEFUL": 10.416257946011022,
+            "ACTIVITY_LEVEL": 13.459575683989364,
+            "DISDAIN_ADVICE": -7.812086750441054,
+            "BASHFUL": -0.509989378304887,
+            "ANXIETY_PROPENSITY": 14.36813840358775,
+            "DEPRESSION_PROPENSITY": -6.182181793951898,
+            "HOPEFUL": -4.16331259218358,
+            "CLOSEMINDED": 18.112130064424775,
+            "GREGARIOUSNESS": -23.900282153373976,
+            "ORDERLINESS": -8.370683616150743,
+            "EXCITEMENT_SEEKING": 17.974328621438318,
+            "GRATITUDE": 14.922682270258605,
+            "ALTRUISM": 9.182996873680992,
+            "CRUELTY": 4.480043132937098,
+            "ASSERTIVENESS": -2.350335938902404
+        },
+        "opiniones": {
+            "FAIRNESS": -5.838862086018494,
+            "LAW": 7.109187010520543,
+            "ELOQUENCE": -12.638869136032973,
+            "SKILL": 0.1726061501578613,
+            "COOPERATION": 5.686102566330298,
+            "FRIENDSHIP": -6.902230988632567,
+            "PERSEVERANCE": 13.336821680195754,
+            "ARTWORK": 6.129017433649743,
+            "POWER": -16.26673734679087,
+            "CRAFTSMANSHIP": -2.3789087602451318,
+            "ROMANCE": -12.88093065833533,
+            "SELF_CONTROL": -17.72776238155327,
+            "NATURE": -6.554511921757225,
+            "TRANQUILITY": 6.360653429777628,
+            "COMPETITION": -9.28447148985095,
+            "KNOWLEDGE": -5.522839841624133,
+            "STOICISM": 13.074247143959084,
+            "INTROSPECTION": 5.0844374492399,
+            "LEISURE_TIME": -21.279696761546308,
+            "MERRIMENT": -13.66437205405763,
+            "INDEPENDENCE": 5.738566609257646,
+            "TRUTH": 1.0569193339526919,
+            "COMMERCE": 19.782241157000513,
+            "HARD_WORK": 0.15540261399693378,
+            "LOYALTY": -3.8750979195245563,
+            "HARMONY": -28.742899611832083,
+            "FAMILY": 4.733166995485938,
+            "PEACE": 0.2510963706513252,
+            "CUNNING": -0.10099107488804293,
+            "TRADITION": 1.0161893213941013,
+            "SACRIFICE": -23.397321206588423,
+            "DECORUM": -12.137233271261657,
+            "MARTIAL_PROWESS": 16.400698298539268
+        }
+    }
+}

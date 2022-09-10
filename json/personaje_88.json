@@ -1,0 +1,24 @@
+{
+    "eventos": {
+        "matrimonio": 584,
+        "nacimiento": 561,
+        "muerte": 613
+    },
+    "sexo": "Hombre",
+    "familia": "Kezuka",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "hijos": {
+            "len": 3,
+            "lista": [
+                "personaje_87.json",
+                "personaje_90.json",
+                "personaje_91.json"
+            ]
+        },
+        "conyugue": "personaje_89.json"
+    },
+    "nombre": 88,
+    "lugar_nacimiento": "Shiro Ichiro"
+}

@@ -1,0 +1,15 @@
+{
+    "nombre": 102,
+    "eventos": {
+        "nacimiento": 633
+    },
+    "sexo": "Hombre",
+    "familia": "Kezuka",
+    "lugar_nacimiento": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "padre": "personaje_91.json",
+        "madre": "personaje_97.json"
+    },
+    "lugar_residencia": "Shiro Ichiro"
+}

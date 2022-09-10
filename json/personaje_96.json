@@ -1,0 +1,18 @@
+{
+    "eventos": {
+        "matrimonio": 607
+    },
+    "sexo": "Mujer",
+    "lugar_residencia": "Shiro Ichiro",
+    "clase_social": "Media",
+    "parientes": {
+        "conyugue": "personaje_90.json",
+        "hijos": {
+            "len": 0,
+            "lista": []
+        }
+    },
+    "nombre": 96,
+    "familia": "",
+    "lugar_nacimiento": "Shiro Ichiro"
+}
