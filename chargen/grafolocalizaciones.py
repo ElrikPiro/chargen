@@ -1,5 +1,7 @@
 import dijkstra
 
+from chargen.core import loadJson
+
 # grafo modelos de localizaciones
 def mockup_localizacion():
     return {
@@ -44,6 +46,10 @@ class GrafoLocalizaciones():
 
     def __init__(self):
         self.nodos = {}
+
+    def __init__(self, json="config/localizaciones.json"):
+        nodos = loadJson(json)
+        for nodo in nodos.keys()
 
     def setNodo(self, nodo : LocalizacionesNodo):
         self.nodos[nodo.nombre] = nodo

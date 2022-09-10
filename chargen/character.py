@@ -370,6 +370,26 @@ class Character:
             self.save()
             return padre
     
+    def setConyugue(self, c):
+        conyugue = Character(
+                {
+                    "eventos": {
+                        "matrimonio": self.getMatrimonio()
+                    },
+                    "sexo": "Mujer" if self.getSexo()=="Hombre" else "Hombre",
+                    "lugar_residencia": self.getLugarResidenciaId(),
+                    "clase_social": self.getClaseSocial() if self.getSexo()=="Hombre" else nan,
+                    "parientes": {
+                        "conyugue": self.file,
+                        "hijos" : self.data["parientes"].get("hijos", {"len": nan, "lista": []})
+                    }
+                },
+                c.file,
+                Caller(self.file, RelationType.SPOUSE)
+            )
+        self.data["parientes"]["conyugue"] = conyugue.file
+        self.save()
+
     def getConyugue(self):
         if self.hasSpouse() == 1:
             return Character({}, self.data["parientes"]["conyugue"])
