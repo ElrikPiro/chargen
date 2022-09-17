@@ -49,7 +49,6 @@ class GrafoLocalizaciones():
 
     def __init__(self, json="config/localizaciones.json"):
         nodos = loadJson(json)
-        for nodo in nodos.keys()
 
     def setNodo(self, nodo : LocalizacionesNodo):
         self.nodos[nodo.nombre] = nodo

@@ -2,21 +2,32 @@ import math
 import random
 from . import character
 from . import loadJson
-from .render import getExpresion
-from character import Character
+from .render import getExpresion, getFullName
+from .character import Character
 
 class Casamentera:
     
     poblacion_ : list[int]
     year_ : int
     end_ : int
+    debug_ : bool
 
-    def __init__(self, poblacion : list[int], begin : int, end : int):
+    def __init__(self, poblacion : list[int], begin : int, end : int, debug : bool = False):
         self.poblacion_ = poblacion
         self.year_ = begin
         self.end_ = end
+        self.debug_ = debug
+
+    def log(self, msg : str):
+        if self.debug_:
+            print(msg + '\n')
 
     def iterar(self):
+        
+        log = self.log
+        log(f"Iterando sobre el año {self.year_}")
+
+        self.cleanPopulation()
         poblacionValida : tuple[list[Character], list[int]] = self.getPoblacionValida(self.year_)
 
         #Evaluar la deseabilidad absoluta:
@@ -25,15 +36,19 @@ class Casamentera:
         
         #para cada personaje en la lista de deseabilidad
             
-        for cIdx in list(listaDeseabilidades.items()):
-            
+        for cIdx in list(reversed(list(listaDeseabilidades.keys()))):
+
             #Si el personaje ya esta fuera del mercado, nos lo saltamos
             if self.poblacion_.count(cIdx) == 0 or listaDivas.count(cIdx) > 0:
                 continue
 
             #   se calcula la fecha de matrimonio
-            c : Character = poblacionValida[0][cIdx]
+            c : Character = Character({}, f"personaje_{cIdx}.json")
             fechaMatrimonio = c.getMatrimonio()
+            if fechaMatrimonio is str:
+                continue
+            if self.debug_:
+                log(f"\tEvaluando al candidato {getFullName(c)}")
             
             #   se hace una lista similar para esa fecha, pero descartando al mismo sexo 
             # y a aquellos con una deseabilidad por debajo de la mitad de la del individuo evaluado
@@ -48,29 +63,34 @@ class Casamentera:
             random.shuffle(randomDeseabilidadesAbsIdx)
             nSampleCandidates = int(len(randomDeseabilidadesAbsIdx)/math.e)
             
+            log(f"\tEvaluando la deseabilidad relativa de los primeros n/e candidatos")
             minRequiredCandidate : int = 0
             for idx in range(nSampleCandidates):
-                max(minRequiredCandidate, self.getDeseabilidadRelativa(cIdx, idx))
-                randomDeseabilidadesAbsIdx.remove(idx)
+                minRequiredCandidate = max(minRequiredCandidate, self.getDeseabilidadRelativa(cIdx, randomDeseabilidadesAbsIdx[idx]))
+                randomDeseabilidadesAbsIdx.remove(randomDeseabilidadesAbsIdx[idx])
 
+            log(f"\tLos estandares son ahora una relativa de {minRequiredCandidate}")
             #   se busca el primer candidato que supere el valor minimo marcado
             #   Ese será el candidato escogido
             candidato = None
             for idx in randomDeseabilidadesAbsIdx:
-                if self.getDeseabilidadRelativa(cIdx, idx) > minRequiredCandidate:
-                    candidato = poblacionValida[0][idx]
+                if self.getDeseabilidadRelativa(cIdx, idx) > minRequiredCandidate and cIdx != idx:
+                    log(f"\tSe selecciona al candidato.")
+                    candidato = Character({}, f"personaje_{idx}.json")
                     break
             
             # se casan, se añaden los hijos a la poblacion
             # y se elimina a ambos conyugues de la lista de candidatos
             if candidato != None:
                 self.poblacion_.remove(cIdx)
-                self.poblacion_.remove(candidato)
+                self.poblacion_.remove(candidato.getNombreId())
                 c.setConyugue(candidato)
                 listaHijos = c.getHijos()
+                log(f"\tSe casan y tienen {len(listaHijos)} hijo/s.")
                 for hijoFile in listaHijos:
                     self.poblacion_.append(Character({}, hijoFile).getNombreId())
             else:
+                log(f"\tEl personaje se queda sin candidatos por diva.")
                 listaDivas.append(cIdx)
             
             continue
@@ -78,11 +98,15 @@ class Casamentera:
         #   desde el año actual+1 hasta 10 años en adelante se busca la fecha con el máximo
         # de población válida y se designa ese año como año actual
 
+        log(f"Se evalúa cual debe ser el próximo año de iteración.")
         selectedYearAndCandidates : tuple(int, int) = (self.year_, 0)
         for candidateYear in range(self.year_+1, self.year_+11):
             nCandidatos = len(self.getPoblacionValida(candidateYear)[1])
             if selectedYearAndCandidates[1] <= nCandidatos:
                 selectedYearAndCandidates = (candidateYear, nCandidatos)
+
+        log(f"Con {selectedYearAndCandidates[1]} candidatos, el próximo año en ser evaluado será {selectedYearAndCandidates[0]}.")
+        self.year_ = selectedYearAndCandidates[0]
 
         pass
 
@@ -92,6 +116,9 @@ class Casamentera:
                 #   Se buscará que expresen el mismo nivel de recisividad en sus genes (1), mejor recisividad (2) o peor (0.5)
                 c = Character({}, f"personaje_{entrevistador}.json")
                 d = Character({}, f"personaje_{entrevistado}.json")
+                log = self.log
+                if self.debug_:
+                    log(f"\t\t\tEvaluando deseabilidad relativa de {getFullName(d)} frente a {getFullName(c)}")
 
                 genomaDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
 
@@ -108,8 +135,8 @@ class Casamentera:
                         for alelo in alelos:
                             expresionC = getExpresion(genoma, c.getSexo(), f"{especie};{part};{alelo}")
                             expresionD = getExpresion(genoma, d.getSexo(), f"{especie};{part};{alelo}")
-                            valueC = 0.5 if expresionC == "incompleto" else genomaDatabase[especie][part][alelo]["dominancia"]
-                            valueD = 0.5 if expresionD == "incompleto" else genomaDatabase[especie][part][alelo]["dominancia"]
+                            valueC = 0.5 if expresionC == "incompleto" else genomaDatabase[especie][part][alelo][expresionC]["dominancia"]
+                            valueD = 0.5 if expresionD == "incompleto" else genomaDatabase[especie][part][alelo][expresionD]["dominancia"]
                             atraccionGenetica *= 1 if valueC == valueD else 2 if valueC < valueD else 0.5
 
                 #   Se buscará que las opiniones y las facetas sean coincidentes
@@ -127,10 +154,10 @@ class Casamentera:
                 facetasC : dict = personalidadC["facetas"]
                 facetasD : dict = personalidadD["facetas"]
                 atraccionTemperamento : float = 1.0
-                for faceta in list(opinionesC.keys()):
+                for faceta in list(facetasC.keys()):
                     valueC = facetasC[faceta]
                     valueD = facetasD[faceta]
-                    atraccionTemperamento *= 2.0-abs(valueC-valueD) if math.copysign(1, valueC) == math.copysign(1, valueD) else 1.0-abs(valueC-valueD)/100.0
+                    atraccionTemperamento *= 1.0-abs(valueC-valueD)/100.0 if math.copysign(1, valueC) == math.copysign(1, valueD) else 1.0-abs(valueC-valueD)/100.0
 
                 
                 #   Se evaluará la consanguinidad: 0.25 hermanos, 0.5 padres e hijos, 0.75 abuelos, tios, primos y nietos
@@ -147,21 +174,23 @@ class Casamentera:
                     c.getPadre().getNombreId(),
                     c.getMadre().getNombreId()
                 ]
-                listaHijos = c.getHijos()
+                
+                listaHijos = c.getHijos() if c.hasDescendants() else []
                 for hijo in listaHijos:
                     listaPadreHijosIdx.append(Character({}, hijo).getNombreId())
 
                     #Es tio o primo?
+                
                 listaTios : list(str) = []
-                listaTios.append(c.getPadre().getHermanos())
-                listaTios.append(c.getMadre().getHermanos())
+                listaTios += (c.getPadre().getHermanos()) if c.getPadre().hasMother() else []
+                listaTios += (c.getMadre().getHermanos()) if c.getMadre().hasMother() else []
                 listaPrimos : list(str) = []
                 listaPrimosTiosIdx : list(int) = []
                 for tio in listaTios:
                     cTio = Character({}, tio)
                     listaPrimosTiosIdx.append(cTio.getNombreId())
                     if cTio.hasDescendants():
-                        listaPrimos.append(cTio.getHijos())
+                        listaPrimos += (cTio.getHijos())
 
                 for primo in listaPrimos:
                     cPrimo = Character({}, primo)
@@ -177,11 +206,15 @@ class Casamentera:
                 if entrevistado in listaPrimosTiosIdx:
                     consanginidad = 0.75
 
-                
+                log(f"\t\t\t consanguinidad={consanginidad} temperamento={atraccionTemperamento} ideologia={atraccionIdeologica} genetica={atraccionGenetica}")
+                log(f"\t\t\t total={consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)}")
                 return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)
 
     def getDeseabilidadAbsoluta(self, lista : list[Character], fenotipo = '', min : float = 0):
         
+        log = self.log
+        log(f"\tEvaluando deseabilidad absoluta de la población {lista} con fenotipo={fenotipo} y un valor mínimo de {min}")
+
         CLASES_SOCIALES_PONDERACION : dict = {
             "Noble" : 3,
             "Alta" : 2,
@@ -211,6 +244,11 @@ class Casamentera:
 
         
         for c in lista:
+            
+            idxStr = f"Personaje nº{c.getNombreId()}"
+            if self.debug_:
+                log(f"\t\tEvaluando deseabilidad absoluta de {getFullName(c, idxStr)}")
+            
             sexo = c.getSexo()
             genoma = c.getGenoma()
             personalidad = c.getPersonalidad()
@@ -229,12 +267,14 @@ class Casamentera:
                     for alelo in alelos:
                         expresion = getExpresion(genoma, sexo, f"{especie};{part};{alelo}")
                         genCount += 1
-                        genTot += 0.5 if expresion == "incompleto" else genomaDatabase[especie][part][alelo]["dominancia"]
+                        genTot += 0.5 if expresion == "incompleto" else genomaDatabase[especie][part][alelo][expresion]["dominancia"]
 
             GEN = genTot / genCount
 
             # clase social (3 nobleza, 2 clase alta, 1 clase media, 0.5 clase pobre, 0.25 paria) CLASE
-            CLASE = float(CLASES_SOCIALES_PONDERACION[c.getClaseSocial()])
+            claseDeclarada = c.getPadre().getClaseSocial() if CLASES_SOCIALES_PONDERACION.get(c.getClaseSocial(), None) == None else c.getClaseSocial()
+
+            CLASE = float(CLASES_SOCIALES_PONDERACION[claseDeclarada])
 
             # productorio de facetas relevantes normalizadas entre 0.5 y 2
             FACETA = 1
@@ -247,15 +287,22 @@ class Casamentera:
                 OPINION *= (float(personalidad["opiniones"][opinion]) * OPINIONES_RELEVANTES_PONDERACION[opinion] + 50)*1.5/100 + 0.5
 
             formula = GEN * CLASE * (FACETA + OPINION)
+            log(f"\t\t\tGen={GEN} Clase={CLASE} Faceta={FACETA} Opinion={OPINION} Resultado={formula}.")
             if formula > min:
                 listaDeseabilidades[c.getNombreId()] = formula
+            else:
+                log(f"\t\t\tDeseabilidad insuficiente, descartado.")
 
         #con la deseabilidad absoluta evaluada se hace un mapa de personaje/deseabilidad y se ordena
+        log(f"\tOrdenando lista de desabilidades absolutas")
         listaDeseabilidades = dict(sorted(listaDeseabilidades.items(), key=lambda item: item[1]))
 
         return listaDeseabilidades
 
     def getPoblacionValida(self, year, sexoCandidato = "") -> tuple[list[Character], list[int]]:
+
+        log = self.log
+        log(f"Evaluando población válida en el año {year}")
 
         EDAD_FERTILIDAD_HOMBRE = 16
         EDAD_FERTILIDAD_MUJER = 14
@@ -265,26 +312,60 @@ class Casamentera:
         newPoblacion : list[int] = []
         
         for it in self.poblacion_:
+            log(f"\tEvaluando personaje nº{it}")
+            c = Character({}, f"personaje_{it}.json")
+            fechaMuerte = c.getMuerte()
+            if fechaMuerte <= year:
+                log(f"\t\tDescartado por estar muerto")
+                continue
+
+            fechaNacimiento = c.getNacimiento()
+            sexo = c.getSexo()
+            minFertilidad = fechaNacimiento + (EDAD_FERTILIDAD_HOMBRE if sexo else EDAD_FERTILIDAD_MUJER)
+            maxFertilidad = fechaNacimiento + (fechaMuerte if sexo else EDAD_MENOPAUSIA)
+            if year < minFertilidad or year >= maxFertilidad:
+                log(f"\t\tDescartado por no ser fertil. {year} no está en rango [{minFertilidad},{maxFertilidad}]")
+                continue
+
+            if sexoCandidato != "" and sexoCandidato == sexo:
+                log(f"\t\tDescartado por no ser del sexo contario.")
+                continue
+
+            if c.hasSpouse():
+                log(f"\t\tDescartado por estar ya casado.")
+                continue
+
+            poblacionValida.append(c)
+            newPoblacion.append(it)
+            log(f"\t\tPersonaje aceptado.")
+
+        return (poblacionValida, newPoblacion)
+
+    def cleanPopulation(self):
+
+        EDAD_FERTILIDAD_HOMBRE = 16
+        EDAD_FERTILIDAD_MUJER = 14
+        EDAD_MENOPAUSIA = 40
+
+        poblacion : list[int] = []
+
+        year = self.year_
+        
+        for it in self.poblacion_:
             c = Character({}, f"personaje_{it}.json")
             fechaMuerte = c.getMuerte()
             if fechaMuerte <= year:
                 continue
 
             fechaNacimiento = c.getNacimiento()
-            edad = year - fechaNacimiento
             sexo = c.getSexo() == "Hombre"
-            minFertilidad = fechaNacimiento + (EDAD_FERTILIDAD_HOMBRE if sexo else EDAD_FERTILIDAD_MUJER)
             maxFertilidad = fechaNacimiento + (fechaMuerte if sexo else EDAD_MENOPAUSIA)
-            if year < minFertilidad or year >= maxFertilidad:
-                continue
-
-            if sexoCandidato != "" and sexoCandidato == sexo:
+            if year >= maxFertilidad:
                 continue
 
             if c.hasSpouse():
                 continue
 
-            poblacionValida.append(c)
-            newPoblacion.append(it)
-
-        return (poblacionValida, newPoblacion)
+            poblacion.append(it)
+        
+        self.poblacion_ = poblacion

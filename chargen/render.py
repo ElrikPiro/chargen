@@ -36,7 +36,7 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     personaje.save()
 
 
-def getFullName(personaje : Character, prompt : str) -> str:
+def getFullName(personaje : Character, prompt : str = "") -> str:
     fixPlaceholders(personaje, "default", prompt)
     return personaje.getFamilia() + " " + personaje.getNombre()
 

@@ -373,20 +373,32 @@ class Character:
     def setConyugue(self, c):
         conyugue = Character(
                 {
-                    "eventos": {
-                        "matrimonio": self.getMatrimonio()
-                    },
-                    "sexo": "Mujer" if self.getSexo()=="Hombre" else "Hombre",
-                    "lugar_residencia": self.getLugarResidenciaId(),
-                    "clase_social": self.getClaseSocial() if self.getSexo()=="Hombre" else nan,
-                    "parientes": {
-                        "conyugue": self.file,
-                        "hijos" : self.data["parientes"].get("hijos", {"len": nan, "lista": []})
-                    }
+                    # "eventos": {
+                    #     "matrimonio": self.getMatrimonio()
+                    # },
+                    # "lugar_residencia": self.getLugarResidenciaId(),
+                    # "clase_social": self.getClaseSocial() if self.getSexo()=="Hombre" else nan,
+                    # "parientes": {
+                    #     "conyugue": self.file,
+                    #     "hijos" : self.data["parientes"].get("hijos", {"len": nan, "lista": []})
+                    # }
                 },
-                c.file,
-                Caller(self.file, RelationType.SPOUSE)
+                c.file#,
+                # Caller(self.file, RelationType.SPOUSE)
             )
+        conData = conyugue.data
+        eventos = conData.get("eventos", {})
+        eventos["matrimonio"] = self.getMatrimonio()
+        conData["eventos"] = eventos
+        conData["lugar_residencia"] = self.getLugarResidenciaId()
+        conData["clase_social"] = self.getClaseSocial() if self.getSexo()=="Hombre" else conData.get("clase_social", nan)
+        parientes = conData.get("parientes", {})
+        parientes["conyugue"] = self.file
+        parientes["hijos"] = self.data["parientes"].get("hijos", {"len": nan, "lista": []})
+        conData["parientes"] = parientes
+        conyugue.data = conData
+        conyugue.save()
+
         self.data["parientes"]["conyugue"] = conyugue.file
         self.save()
 
