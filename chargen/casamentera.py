@@ -87,7 +87,6 @@ class Casamentera:
         pass
 
     def getDeseabilidadRelativa(self, entrevistador, entrevistado, fenotipo=''):
-        #TODO
          #   NOTA:
             #   como evaluar la deseabilidad relativa
                 #   Se buscará que expresen el mismo nivel de recisividad en sus genes (1), mejor recisividad (2) o peor (0.5)
@@ -143,10 +142,40 @@ class Casamentera:
                 for hermano in listaHermanos:
                     listaHermanosIdx.append(Character({}, hermano).getNombreId())
                 
-                    #Es tio o primo? TODO
+                    #Es padre o hijo
+                listaPadreHijosIdx : list = [
+                    c.getPadre().getNombreId(),
+                    c.getMadre().getNombreId()
+                ]
+                listaHijos = c.getHijos()
+                for hijo in listaHijos:
+                    listaPadreHijosIdx.append(Character({}, hijo).getNombreId())
+
+                    #Es tio o primo?
+                listaTios : list(str) = []
+                listaTios.append(c.getPadre().getHermanos())
+                listaTios.append(c.getMadre().getHermanos())
+                listaPrimos : list(str) = []
+                listaPrimosTiosIdx : list(int) = []
+                for tio in listaTios:
+                    cTio = Character({}, tio)
+                    listaPrimosTiosIdx.append(cTio.getNombreId())
+                    if cTio.hasDescendants():
+                        listaPrimos.append(cTio.getHijos())
+
+                for primo in listaPrimos:
+                    cPrimo = Character({}, primo)
+                    listaPrimosTiosIdx.append(cPrimo.getNombreId())
+
 
                 if entrevistado in listaHermanosIdx:
                     consanginidad = 0.25
+
+                if entrevistado in listaPadreHijosIdx:
+                    consanginidad = 0.5
+
+                if entrevistado in listaPrimosTiosIdx:
+                    consanginidad = 0.75
 
                 
                 return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)
