@@ -1,3 +1,4 @@
+from cmath import nan
 import math
 import random
 from . import character
@@ -36,7 +37,7 @@ class Casamentera:
         
         #para cada personaje en la lista de deseabilidad
             
-        for cIdx in list(reversed(list(listaDeseabilidades.keys()))):
+        for cIdx in list(listaDeseabilidades.keys()):
 
             #Si el personaje ya esta fuera del mercado, nos lo saltamos
             if self.poblacion_.count(cIdx) == 0 or listaDivas.count(cIdx) > 0:
@@ -60,6 +61,8 @@ class Casamentera:
             # del resto de la lista que supere ese valor, si se queda sin valores, el personaje
             # los primeros len(lista)/e quedandonos con el maximo valor.
             randomDeseabilidadesAbsIdx = list(deseabilidadAbsCandidatos.keys())
+            for diva in listaDivas:
+                randomDeseabilidadesAbsIdx.remove(diva)
             random.shuffle(randomDeseabilidadesAbsIdx)
             nSampleCandidates = int(len(randomDeseabilidadesAbsIdx)/math.e)
             
@@ -92,6 +95,11 @@ class Casamentera:
             else:
                 log(f"\tEl personaje se queda sin candidatos por diva.")
                 listaDivas.append(cIdx)
+                c : Character = Character({}, f"personaje_{cIdx}.json")
+                eventos : dict = c.data["eventos"]
+                eventos["matrimonio"] = nan
+                c.data["eventos"] = eventos
+                c.save()
             
             continue
             
@@ -295,7 +303,7 @@ class Casamentera:
 
         #con la deseabilidad absoluta evaluada se hace un mapa de personaje/deseabilidad y se ordena
         log(f"\tOrdenando lista de desabilidades absolutas")
-        listaDeseabilidades = dict(sorted(listaDeseabilidades.items(), key=lambda item: item[1]))
+        listaDeseabilidades = dict(sorted(listaDeseabilidades.items(), key=lambda item: -item[1]))
 
         return listaDeseabilidades
 
