@@ -13,7 +13,7 @@ class Casamentera:
     end_ : int
     debug_ : bool
 
-    def __init__(self, poblacion : list[int], begin : int, end : int, debug : bool = False):
+    def __init__(self, poblacion : list[int], begin : int, end : int, debug : bool = False, usarLocalizaciones : bool = False):
         self.poblacion_ = poblacion
         self.year_ = begin
         self.end_ = end
@@ -312,7 +312,7 @@ class Casamentera:
 
         return listaDeseabilidades
 
-    def getPoblacionValida(self, year, sexoCandidato = "") -> tuple[list[Character], list[int]]:
+    def getPoblacionValida(self, year, sexoCandidato = "", localizacion : str = "") -> tuple[list[Character], list[int]]:
 
         log = self.log
         log(f"Evaluando población válida en el año {year}")
