@@ -41,6 +41,29 @@ class casamenteraTest(unittest.TestCase):
         self.assertFalse(divaMatrimonio == divaMatrimonio, 
             "La diva tiene fecha de matrimonio cuando nunca debería haberse casado"
         )
+
+    def test_iterar_edadesMuyDiferentesPeroPosible_terminanCasados(self):
+        
+        voteAndRepeat : int = 0
+
+        for i in range(0,9):
+            sexo = random.choice(["Hombre", "Mujer"])
+            contrario = "Hombre" if sexo == "Mujer" else "Mujer"
+            diva = generateChar(sexo, id=-1, clase="Media")
+            tirillas = generateChar(contrario, id=-2, clase="Media", nacimiento=10)
+
+            casamentera = Casamentera([-1, -2], 20, 30, False)
+            while casamentera.year_ < casamentera.end_:
+                casamentera.iterar()
+
+            diva = Character({}, diva.file)
+            divaParientes : dict = diva.data.get("parientes")
+            self.assertIsNotNone(divaParientes)
+            divaConyugue : str = divaParientes.get("conyugue")
+
+            voteAndRepeat += 1 if divaConyugue == tirillas.file else 0
+
+        self.assertGreaterEqual(voteAndRepeat, 5)
         
 
 

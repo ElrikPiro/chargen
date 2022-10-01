@@ -45,7 +45,7 @@ class Casamentera:
 
             #   se calcula la fecha de matrimonio
             c : Character = Character({}, f"personaje_{cIdx}.json")
-            fechaMatrimonio = c.getMatrimonio()
+            fechaMatrimonio = self.year_
             if fechaMatrimonio is str:
                 continue
             if self.debug_:
@@ -85,6 +85,11 @@ class Casamentera:
             # se casan, se añaden los hijos a la poblacion
             # y se elimina a ambos conyugues de la lista de candidatos
             if candidato != None:
+                c : Character = Character({}, f"personaje_{cIdx}.json")
+                eventos : dict = c.data["eventos"]
+                eventos["matrimonio"] = fechaMatrimonio
+                c.data["eventos"] = eventos
+                c.save()
                 self.poblacion_.remove(cIdx)
                 self.poblacion_.remove(candidato.getNombreId())
                 c.setConyugue(candidato)
@@ -110,7 +115,7 @@ class Casamentera:
         selectedYearAndCandidates : tuple(int, int) = (self.year_, 0)
         for candidateYear in range(self.year_+1, self.year_+11):
             nCandidatos = len(self.getPoblacionValida(candidateYear)[1])
-            if selectedYearAndCandidates[1] <= nCandidatos:
+            if selectedYearAndCandidates[1] < nCandidatos or selectedYearAndCandidates[1] <= 1:
                 selectedYearAndCandidates = (candidateYear, nCandidatos)
 
         log(f"Con {selectedYearAndCandidates[1]} candidatos, el próximo año en ser evaluado será {selectedYearAndCandidates[0]}.")
