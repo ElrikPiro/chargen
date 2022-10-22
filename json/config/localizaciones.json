@@ -34,5 +34,19 @@
             "Alcries": 0.5,
             "Ayodar": 0.75
         }
+    },
+    "Ciudad": {
+        "nombre": "Ciudad",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+        }
+    },
+    "Pueblo": {
+        "nombre": "Pueblo",
+        "tipo": "Indeterminado",
+        "descripcion": "Indeterminado",
+        "enlaces": {
+        }
     }
 }

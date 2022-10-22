@@ -84,7 +84,7 @@ class casamenteraTest(unittest.TestCase):
         pueblo = generateChar(contrario, id=-3, clase="Media", localizacion="Pueblo")
 
         casamentera = Casamentera([-1, -2, -3], 20, 30, False, usarLocalizaciones=True)
-        tuplalistas = casamentera.getPoblacionValida(casamentera.year_, contrario, localizacion="Ciudad")
+        tuplalistas = casamentera.getPoblacionValida(casamentera.year_, sexo, localizacion="Ciudad")
         idx : list[int] = tuplalistas[1]
 
         voteAndRepeat += 0 if idx.count(-3) else 1
@@ -101,8 +101,8 @@ class casamenteraTest(unittest.TestCase):
         for i in range(0,10):
             sexo = random.choice(["Hombre", "Mujer"])
             contrario = "Hombre" if sexo == "Mujer" else "Mujer"
-            diva = generateChar(sexo, id=-1, clase="Media")
-            tirillas = generateChar(contrario, id=-2, clase="Media")
+            diva = generateChar(sexo, id=-1, clase="Media", localizacion="Ciudad")
+            tirillas = generateChar(contrario, id=-2, clase="Media", localizacion="Pueblo")
 
             casamentera = Casamentera([-1, -2], 20, 30, False, usarLocalizaciones=True)
             casamentera.iterar()

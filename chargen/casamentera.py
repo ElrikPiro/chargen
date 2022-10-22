@@ -5,6 +5,16 @@ from . import character
 from . import loadJson
 from .render import getExpresion, getFullName
 from .character import Character
+from .grafolocalizaciones import GrafoLocalizaciones
+
+def isReachable(localizacionA : str, localizacionB : str) -> bool:
+
+        grafo = GrafoLocalizaciones(json="config/localizaciones.json")
+
+        if localizacionA == localizacionB:
+            return True
+
+        return grafo.getShortestPath(localizacionA, localizacionB)[1] >= 0.0
 
 class Casamentera:
     
@@ -12,12 +22,14 @@ class Casamentera:
     year_ : int
     end_ : int
     debug_ : bool
+    usarLocalizaciones_ : bool
 
     def __init__(self, poblacion : list[int], begin : int, end : int, debug : bool = False, usarLocalizaciones : bool = False):
         self.poblacion_ = poblacion
         self.year_ = begin
         self.end_ = end
         self.debug_ = debug
+        self.usarLocalizaciones_ = usarLocalizaciones
 
     def log(self, msg : str):
         if self.debug_:
@@ -53,7 +65,8 @@ class Casamentera:
             
             #   se hace una lista similar para esa fecha, pero descartando al mismo sexo 
             # y a aquellos con una deseabilidad por debajo de la mitad de la del individuo evaluado
-            poblacionApta = self.getPoblacionValida(fechaMatrimonio, c.getSexo())
+            locChar = "" if not self.usarLocalizaciones_ else c.getLugarNacimientoId() 
+            poblacionApta = self.getPoblacionValida(fechaMatrimonio, c.getSexo(), localizacion=locChar)
             deseabilidadAbsCandidatos = self.getDeseabilidadAbsoluta(poblacionApta[0], min=float(listaDeseabilidades[cIdx])/2)
             
             
@@ -62,7 +75,8 @@ class Casamentera:
             # los primeros len(lista)/e quedandonos con el maximo valor.
             randomDeseabilidadesAbsIdx = list(deseabilidadAbsCandidatos.keys())
             for diva in listaDivas:
-                randomDeseabilidadesAbsIdx.remove(diva)
+                if diva in randomDeseabilidadesAbsIdx:
+                    randomDeseabilidadesAbsIdx.remove(diva)
             random.shuffle(randomDeseabilidadesAbsIdx)
             nSampleCandidates = int(len(randomDeseabilidadesAbsIdx)/math.e)
             
@@ -346,6 +360,12 @@ class Casamentera:
 
             if c.hasSpouse():
                 log(f"\t\tDescartado por estar ya casado.")
+                continue
+
+            miLocalizacion = c.getLugarNacimientoId()
+
+            if localizacion != "" and not isReachable(miLocalizacion, localizacion):
+                log(f"\t\tDescartado por no ser localizable")
                 continue
 
             poblacionValida.append(c)
