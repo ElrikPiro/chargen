@@ -25,7 +25,29 @@ def generateChar(
             "lugar_nacimiento" : localizacion
         }
     )
+
+    char.getPersonalidad()
+    char.getGenoma()
+
+    char.save()
+
     return char
+
+def copyChar(
+        copiable : chargen.Character,
+        id : int,
+        localizacion : str,
+                                ) -> chargen.Character:
+
+    dato = copiable.data
+    dato["nombre"] = id
+    dato["lugar_nacimiento"] = localizacion
+
+    candidato = Character(dato)
+
+    candidato.save()
+
+    return candidato
 
 class casamenteraTest(unittest.TestCase):
 
@@ -117,6 +139,23 @@ class casamenteraTest(unittest.TestCase):
         self.assertEqual(voteAndRepeat, 0)
 
         pass
+
+    #La gente pierde con la distancia
+
+    def test_getDeseabilidadRelativa_mismoCandidatoDistintaDistancia_distintaDeseabilidad(self):
+        voteAndRepeat : int = 0
+        
+        sexo = random.choice(["Hombre", "Mujer"])
+        contrario = "Hombre" if sexo == "Mujer" else "Mujer"
+        baselina = generateChar(sexo, id=-1, clase="Media", localizacion="Ayodar")
+        candidatoSerca = generateChar(contrario, id=-2, clase="Media", localizacion="Ayodar")
+        candidatoLejos = copyChar(candidatoSerca, id=-3, localizacion="Valencia")
+
+        casamentera = Casamentera([-1, -2, -3], 20, 30, False, usarLocalizaciones=True)
+        deseabilidadSerca = casamentera.getDeseabilidadRelativa(-1, -2)
+        deseabilidadLejos = casamentera.getDeseabilidadRelativa(-1, -3)
+
+        self.assertGreater(deseabilidadSerca, deseabilidadLejos)
 
     #La gente pierde con la edad
 

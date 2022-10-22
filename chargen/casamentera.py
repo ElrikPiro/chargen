@@ -16,6 +16,18 @@ def isReachable(localizacionA : str, localizacionB : str) -> bool:
 
         return grafo.getShortestPath(localizacionA, localizacionB)[1] >= 0.0
 
+def getDistanciaSocial(a : Character, b : Character) -> float:
+    
+    grafo = GrafoLocalizaciones(json="config/localizaciones.json")
+    localizacionA = a.getLugarNacimientoId()
+    localizacionB = b.getLugarNacimientoId()
+
+    if localizacionA == localizacionB:
+        return 0
+
+    return grafo.getShortestPath(localizacionA, localizacionB)[1]
+
+
 class Casamentera:
     
     poblacion_ : list[int]
@@ -233,9 +245,11 @@ class Casamentera:
                 if entrevistado in listaPrimosTiosIdx:
                     consanginidad = 0.75
 
+                distanciamiento = getDistanciaSocial(c, d) / 10.0 if self.usarLocalizaciones_ else 0.0
+
                 log(f"\t\t\t consanguinidad={consanginidad} temperamento={atraccionTemperamento} ideologia={atraccionIdeologica} genetica={atraccionGenetica}")
                 log(f"\t\t\t total={consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)}")
-                return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)
+                return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica) - distanciamiento
 
     def getDeseabilidadAbsoluta(self, lista : list[Character], fenotipo = '', min : float = 0):
         
