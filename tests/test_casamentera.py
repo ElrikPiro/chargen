@@ -37,11 +37,13 @@ def copyChar(
         copiable : chargen.Character,
         id : int,
         localizacion : str,
+        nacimiento : int = 0,
                                 ) -> chargen.Character:
 
     dato = copiable.data
     dato["nombre"] = id
     dato["lugar_nacimiento"] = localizacion
+    dato["eventos"]["nacimiento"] = nacimiento
 
     candidato = Character(dato)
 
@@ -140,16 +142,14 @@ class casamenteraTest(unittest.TestCase):
 
         pass
 
-    #La gente pierde con la distancia
-
     def test_getDeseabilidadRelativa_mismoCandidatoDistintaDistancia_distintaDeseabilidad(self):
         voteAndRepeat : int = 0
         
         sexo = random.choice(["Hombre", "Mujer"])
         contrario = "Hombre" if sexo == "Mujer" else "Mujer"
-        baselina = generateChar(sexo, id=-1, clase="Media", localizacion="Ayodar")
+        generateChar(sexo, id=-1, clase="Media", localizacion="Ayodar")
         candidatoSerca = generateChar(contrario, id=-2, clase="Media", localizacion="Ayodar")
-        candidatoLejos = copyChar(candidatoSerca, id=-3, localizacion="Valencia")
+        copyChar(candidatoSerca, id=-3, localizacion="Valencia")
 
         casamentera = Casamentera([-1, -2, -3], 20, 30, False, usarLocalizaciones=True)
         deseabilidadSerca = casamentera.getDeseabilidadRelativa(-1, -2)
@@ -157,7 +157,20 @@ class casamenteraTest(unittest.TestCase):
 
         self.assertGreater(deseabilidadSerca, deseabilidadLejos)
 
-    #La gente pierde con la edad
+    def test_getDeseabilidadRelativa_mismoCandidatoDistintaEdad_distintaDeseabilidad(self):
+        voteAndRepeat : int = 0
+        
+        sexo = random.choice(["Hombre", "Mujer"])
+        contrario = "Hombre" if sexo == "Mujer" else "Mujer"
+        generateChar(sexo, id=-1, clase="Media", localizacion="Ayodar")
+        candidatoJoven = generateChar(contrario, id=-2, clase="Media", localizacion="Ayodar")
+        copyChar(candidatoJoven, id=-3, nacimiento=10, localizacion="Ayodar")
+
+        casamentera = Casamentera([-1, -2, -3], 20, 30, False, usarLocalizaciones=False)
+        deseabilidadJoven = casamentera.getDeseabilidadRelativa(-1, -3)
+        deseabilidadViejo = casamentera.getDeseabilidadRelativa(-1, -2)
+
+        self.assertGreater(deseabilidadJoven, deseabilidadViejo)
 
     #refactorizacion
 

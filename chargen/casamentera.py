@@ -247,9 +247,11 @@ class Casamentera:
 
                 distanciamiento = getDistanciaSocial(c, d) / 10.0 if self.usarLocalizaciones_ else 0.0
 
+                diferenciaEdad = (c.getNacimiento() - d.getNacimiento()) / 20.0
+
                 log(f"\t\t\t consanguinidad={consanginidad} temperamento={atraccionTemperamento} ideologia={atraccionIdeologica} genetica={atraccionGenetica}")
                 log(f"\t\t\t total={consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica)}")
-                return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica) - distanciamiento
+                return consanginidad * (atraccionTemperamento + atraccionIdeologica + atraccionGenetica) - distanciamiento - diferenciaEdad
 
     def getDeseabilidadAbsoluta(self, lista : list[Character], fenotipo = '', min : float = 0):
         
