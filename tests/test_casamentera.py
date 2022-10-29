@@ -172,9 +172,6 @@ class casamenteraTest(unittest.TestCase):
 
         self.assertGreater(deseabilidadJoven, deseabilidadViejo)
 
-    #blackboxtests de las funciones
-        
-
 
 if __name__ == '__main__':
     unittest.main()
