@@ -172,8 +172,6 @@ class casamenteraTest(unittest.TestCase):
 
         self.assertGreater(deseabilidadJoven, deseabilidadViejo)
 
-    #refactorizacion
-
     #blackboxtests de las funciones
         
 

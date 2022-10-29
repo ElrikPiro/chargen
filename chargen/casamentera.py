@@ -70,8 +70,7 @@ class Casamentera:
             #   se calcula la fecha de matrimonio
             c : Character = Character({}, f"personaje_{cIdx}.json")
             fechaMatrimonio = self.year_
-            if fechaMatrimonio is str:
-                continue
+
             if self.debug_:
                 log(f"\tEvaluando al candidato {getFullName(c)}")
             
@@ -94,9 +93,10 @@ class Casamentera:
             
             log(f"\tEvaluando la deseabilidad relativa de los primeros n/e candidatos")
             minRequiredCandidate : int = 0
+            aux = randomDeseabilidadesAbsIdx.copy()
             for idx in range(nSampleCandidates):
-                minRequiredCandidate = max(minRequiredCandidate, self.getDeseabilidadRelativa(cIdx, randomDeseabilidadesAbsIdx[idx]))
-                randomDeseabilidadesAbsIdx.remove(randomDeseabilidadesAbsIdx[idx])
+                minRequiredCandidate = max(minRequiredCandidate, self.getDeseabilidadRelativa(cIdx, aux[idx]))
+                randomDeseabilidadesAbsIdx.remove(aux[idx])
 
             log(f"\tLos estandares son ahora una relativa de {minRequiredCandidate}")
             #   se busca el primer candidato que supere el valor minimo marcado
@@ -392,8 +392,6 @@ class Casamentera:
 
     def cleanPopulation(self):
 
-        EDAD_FERTILIDAD_HOMBRE = 16
-        EDAD_FERTILIDAD_MUJER = 14
         EDAD_MENOPAUSIA = 40
 
         poblacion : list[int] = []
