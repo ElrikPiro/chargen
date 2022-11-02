@@ -1,5 +1,7 @@
 import dijkstra
 
+from chargen.core import loadJson
+
 # grafo modelos de localizaciones
 def mockup_localizacion():
     return {
@@ -45,6 +47,9 @@ class GrafoLocalizaciones():
     def __init__(self):
         self.nodos = {}
 
+    def __init__(self, json="config/localizaciones.json"):
+        self.nodos = loadJson(json)
+
     def setNodo(self, nodo : LocalizacionesNodo):
         self.nodos[nodo.nombre] = nodo
 
@@ -55,10 +60,15 @@ class GrafoLocalizaciones():
         grafo = dijkstra.Graph()
 
         for nodo in self.nodos.values():
-            nodo : LocalizacionesNodo = nodo
+            nodo : LocalizacionesNodo = LocalizacionesNodo(nodo)
             origin = nodo.nombre
+            grafo.add_edge(origin, origin, 0)
             for destination in nodo.getEnlaces().keys():
                 grafo.add_edge(origin, destination, nodo.getEnlaces()[destination])
 
         spf = dijkstra.DijkstraSPF(grafo, origen)
-        return [spf.get_path(destino), spf.get_distance(destino)]
+
+        try:
+            return [spf.get_path(destino), spf.get_distance(destino)]
+        except:
+            return [[], float(-1.0)]

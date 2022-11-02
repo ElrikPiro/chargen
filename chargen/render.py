@@ -2,6 +2,9 @@ from .character import Character
 from . import resetPlaceHolder, loadJson
 from os import linesep
 
+DEPTH_UP = 1
+DEPTH_DOWN = 1
+
 def fixPlaceholders(personaje : Character, methodology = "default", prompt = ""):
     print("Arreglando placeholders de: " + personaje.file)
 
@@ -36,7 +39,7 @@ def fixPlaceholders(personaje : Character, methodology = "default", prompt = "")
     personaje.save()
 
 
-def getFullName(personaje : Character, prompt : str) -> str:
+def getFullName(personaje : Character, prompt : str = "") -> str:
     fixPlaceholders(personaje, "default", prompt)
     return personaje.getFamilia() + " " + personaje.getNombre()
 
@@ -225,8 +228,6 @@ def getThirdHeader(personaje : Character) -> str:
         if evento[0] <= muerte:
             retval += "- [[Año " + str(evento[0]) + "]] : " + evento[1] + linesep
 
-    DEPTH_UP = 1
-    DEPTH_DOWN = 1
     retval += getMermaidFamilyTree(personaje, DEPTH_UP, DEPTH_DOWN)
 
     personaje.save()
