@@ -262,6 +262,7 @@ class Casamentera:
             "Noble" : 3,
             "Alta" : 2,
             "Media" : 1,
+            "Ciudadano" : 1,
             "Pobre" : 0.5,
             "Paria" : 0.25
         }
