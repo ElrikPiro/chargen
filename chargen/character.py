@@ -547,24 +547,35 @@ class Character:
         miGenoma = self.data.get("genoma", {})
         return miGenoma != {}
 
-    def getGenProgenitor(self, database, progenitor, especie, bodypart, alelo, gen) -> str:
+    def getGenProgenitor(self, database, progenitor, especie, bodypart, alelo, gen, getHashParameter=False) -> str:
         #esta determinado ya?
         miGenoma = self.data.get("genoma", {})
         dato = dict(miGenoma[especie][bodypart][alelo]).get(gen, {})
         if dato != {}:
-            return list(dato.keys())[0]
+            clave = list(dato.keys())[0]
+            hasher = dato.get("hash","")
+            if getHashParameter:
+                clave = f"{clave};{hasher}"
+            return clave
         
         dato = progenitor.get(especie, {}).get(bodypart, {}).get(alelo, {})
         if dato == {}:
             clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+            if getHashParameter:
+                clave = f"{clave};{random.randint(0,1000000)}"
             return clave
         else:
             valor = random.choice(list(dato.values()))
             if valor == {}:
                 clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+                if getHashParameter:
+                    clave = f"{clave};{random.randint(0,1000000)}"
                 return clave
             else:
-                return list(valor.keys())[0]
+                clave = list(valor.keys())[0]
+                if getHashParameter:
+                    clave = f"{clave};{random.randint(0,1000000)}"
+                return clave
         
 
     def getGenoma(self, fenotipo=''):

@@ -1,0 +1,50 @@
+from context import chargen
+import unittest
+
+def generateChar(
+        sexo : str, 
+        id : int, 
+        clase : str = "Media", 
+        nacimiento : int = 0,
+        localizacion : str = "PLACEHOLDER"
+                                ) -> chargen.Character:
+    char = chargen.Character({
+            "nombre": id,
+            "sexo": sexo,
+            "clase_social": clase,
+            "eventos": {
+                "nacimiento": nacimiento
+            },
+            "lugar_nacimiento" : localizacion
+        }
+    )
+
+    char.getPersonalidad()
+    char.getGenoma()
+
+    char.save()
+
+    return char
+
+class characterTest(unittest.TestCase):
+
+    def test_getGenProgenitor_getHashParameterTrue_returnsASemiColonSeparatedStr(self):
+        testChar = generateChar(sexo="Hombre", id=-1)
+        genProgenitor = testChar.getGenProgenitor(
+            chargen.loadJson("config/genoma.json"),
+            testChar.getPadre().data["genoma"] if testChar.getPadre().hasGenoma() else {},
+            "humano", "cabeza", "calvicie", 
+            "paterno",
+            True
+        )
+
+        listData = genProgenitor.split(";")
+        self.assertEqual(len(listData), 2, "Should be 2")
+
+        pass
+
+    def test_getGenoma_newCharacter_everyGeneHasHash(self):
+        pass
+
+if __name__ == '__main__':
+    unittest.main()
