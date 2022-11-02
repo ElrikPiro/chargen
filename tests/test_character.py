@@ -59,5 +59,44 @@ class characterTest(unittest.TestCase):
 
         pass
 
+    def test_getGenProgenitor_hasParents_HashInherithed(self):
+        testChar = generateChar(sexo="Hombre", id=-1)
+        testChar.data["parientes"] = {"hijos" : {"len": 1, "lista" : []}}
+        testHijoFile = testChar.getHijos()[0]
+
+        listaGenesPadre : list = list()
+        listaGenesPadre.append(
+            testChar.getGenProgenitor(
+                chargen.loadJson("config/genoma.json"),
+                testChar.getPadre().data["genoma"] if testChar.getPadre().hasGenoma() else {},
+                "humano", "cabeza", "calvicie", 
+                "paterno",
+                True
+            ).split(";")[1]
+        )
+        listaGenesPadre.append(
+            testChar.getGenProgenitor(
+                chargen.loadJson("config/genoma.json"),
+                testChar.getPadre().data["genoma"] if testChar.getPadre().hasGenoma() else {},
+                "humano", "cabeza", "calvicie", 
+                "materno",
+                True
+            ).split(";")[1]
+        )
+
+        testHijo = chargen.Character({}, testHijoFile)
+        testHijo.getGenoma()
+        genPadre = testChar.getGenProgenitor(
+            chargen.loadJson("config/genoma.json"),
+            testHijo.getPadre().data["genoma"] if testChar.getPadre().hasGenoma() else {},
+            "humano", "cabeza", "calvicie", 
+            "materno",
+            True
+        ).split(";")[1]
+
+        self.assertTrue(genPadre in listaGenesPadre)
+
+        pass
+
 if __name__ == '__main__':
     unittest.main()
