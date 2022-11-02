@@ -43,7 +43,20 @@ class characterTest(unittest.TestCase):
 
         pass
 
-    def test_getGenoma_newCharacter_everyGeneHasHash(self):
+    def test_getGenProgenitor_hasGenoma_getsHash(self):
+        testChar = generateChar(sexo="Hombre", id=-1)
+        genProgenitor = testChar.getGenProgenitor(
+            chargen.loadJson("config/genoma.json"),
+            testChar.getPadre().data["genoma"] if testChar.getPadre().hasGenoma() else {},
+            "humano", "cabeza", "calvicie", 
+            "paterno",
+            True
+        )
+
+        listData = genProgenitor.split(";")
+
+        self.assertIsNot(int(listData[1]), 0)
+
         pass
 
 if __name__ == '__main__':

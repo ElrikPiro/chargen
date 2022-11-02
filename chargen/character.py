@@ -607,10 +607,12 @@ class Character:
                 for alelo in alelos:
                     miGenoma[especie][part][alelo] = dict(miGenoma[especie][part]).get(alelo, {"paterno": {}, "materno": {}})
                     self.data["genoma"] = miGenoma
-                    clavePadre = self.getGenProgenitor(genomaDatabase, isPapaGenomico, especie, part, alelo, "paterno")
-                    claveMadre = self.getGenProgenitor(genomaDatabase, isMamaGenomica, especie, part, alelo, "materno")
-                    miGenoma[especie][part][alelo]["paterno"][clavePadre] = genomaDatabase[especie][part][alelo][clavePadre]
-                    miGenoma[especie][part][alelo]["materno"][claveMadre] = genomaDatabase[especie][part][alelo][claveMadre]
+                    clavePadre = self.getGenProgenitor(genomaDatabase, isPapaGenomico, especie, part, alelo, "paterno", True).split(";")
+                    claveMadre = self.getGenProgenitor(genomaDatabase, isMamaGenomica, especie, part, alelo, "materno", True).split(";")
+                    miGenoma[especie][part][alelo]["paterno"][clavePadre[0]] = genomaDatabase[especie][part][alelo][clavePadre[0]]
+                    miGenoma[especie][part][alelo]["materno"][claveMadre[0]] = genomaDatabase[especie][part][alelo][claveMadre[0]]
+                    miGenoma[especie][part][alelo]["paterno"]["hash"] = clavePadre[1]
+                    miGenoma[especie][part][alelo]["materno"]["hash"] = claveMadre[1]
             
         self.data["genoma"] = miGenoma
         self.save()
