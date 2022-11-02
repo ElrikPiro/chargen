@@ -2,8 +2,8 @@ from .character import Character
 from . import resetPlaceHolder, loadJson
 from os import linesep
 
-DEPTH_UP = 0
-DEPTH_DOWN = 0
+DEPTH_UP = 1
+DEPTH_DOWN = 1
 
 def fixPlaceholders(personaje : Character, methodology = "default", prompt = ""):
     print("Arreglando placeholders de: " + personaje.file)
