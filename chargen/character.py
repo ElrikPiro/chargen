@@ -630,3 +630,23 @@ class Character:
 
         return miGenoma
 
+    def getAleloList(self):
+        retval : list[dict] = list[dict]()
+        miGenoma : dict = self.getGenoma()
+        especies = miGenoma.keys()
+        
+        for especie in especies:
+            especieDB : dict = miGenoma[especie]
+            bodyparts = especieDB.keys()
+            for part in bodyparts:
+                partDB : dict = miGenoma[especie][part]
+                alelos = partDB.keys()
+                miGenoma[especie][part] = dict(miGenoma[especie]).get(part, {})
+                for alelo in alelos:
+                    entry = {
+                        alelo : miGenoma[especie][part][alelo]
+                    }
+                    retval.append(entry)
+
+        return retval
+

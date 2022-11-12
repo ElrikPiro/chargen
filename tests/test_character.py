@@ -118,5 +118,9 @@ class characterTest(unittest.TestCase):
 
         pass
 
+    def test_getAleloList_hasGenoma_returnsListDict(self):
+        testChar = generateChar(sexo="Hombre", id=-1)
+        self.assertIsNotNone(testChar.getAleloList())
+
 if __name__ == '__main__':
     unittest.main()
