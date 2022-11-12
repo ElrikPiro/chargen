@@ -98,5 +98,25 @@ class characterTest(unittest.TestCase):
 
         pass
 
+    def test_hasDeformation_twoSameGenes_True(self):
+        alelo : dict = {
+            "materno" : {
+                "no presente": {
+                    "dominancia": 0
+                },
+                "hash": 1
+            },
+            "paterno": {
+                "no presente": {
+                    "dominancia": 0
+                },
+                "hash": 1
+            }
+        }
+
+        self.assertTrue(chargen.character.hasDeformation(alelo))
+
+        pass
+
 if __name__ == '__main__':
     unittest.main()

@@ -5,6 +5,17 @@ import math
 
 nan = float("nan")
 
+def hasDeformation(alelo : dict) -> bool:
+        genMaterno : dict = alelo["materno"]
+        genPaterno : dict = alelo["paterno"]
+        hashMaterno : int = int(genMaterno.get("hash", -1))
+        hashPaterno : int = int(genPaterno.get("hash", -1))
+
+        if hashMaterno < 0 or hashPaterno < 0:
+            return False
+
+        return hashMaterno == hashPaterno
+
 class Caller:
     def __init__(self, file='', relation=RelationType.NONE):
         self.file = file
