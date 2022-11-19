@@ -5,6 +5,17 @@ import math
 
 nan = float("nan")
 
+def hasDeformation(alelo : dict) -> bool:
+        genMaterno : dict = alelo["materno"]
+        genPaterno : dict = alelo["paterno"]
+        hashMaterno : int = int(genMaterno.get("hash", -1))
+        hashPaterno : int = int(genPaterno.get("hash", -1))
+
+        if hashMaterno < 0 or hashPaterno < 0:
+            return False
+
+        return hashMaterno == hashPaterno
+
 class Caller:
     def __init__(self, file='', relation=RelationType.NONE):
         self.file = file
@@ -547,24 +558,35 @@ class Character:
         miGenoma = self.data.get("genoma", {})
         return miGenoma != {}
 
-    def getGenProgenitor(self, database, progenitor, especie, bodypart, alelo, gen) -> str:
+    def getGenProgenitor(self, database, progenitor, especie, bodypart, alelo, gen, getHashParameter=False) -> str:
         #esta determinado ya?
         miGenoma = self.data.get("genoma", {})
         dato = dict(miGenoma[especie][bodypart][alelo]).get(gen, {})
         if dato != {}:
-            return list(dato.keys())[0]
+            clave = list(dato.keys())[0]
+            hasher = dato.get("hash","")
+            if getHashParameter:
+                clave = f"{clave};{hasher}"
+            return clave
         
         dato = progenitor.get(especie, {}).get(bodypart, {}).get(alelo, {})
         if dato == {}:
             clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+            if getHashParameter:
+                clave = f"{clave};{random.randint(0,1000000)}"
             return clave
         else:
             valor = random.choice(list(dato.values()))
             if valor == {}:
                 clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+                if getHashParameter:
+                    clave = f"{clave};{random.randint(0,1000000)}"
                 return clave
             else:
-                return list(valor.keys())[0]
+                clave = list(valor.keys())[0]
+                if getHashParameter:
+                    clave = f"{clave};{random.randint(0,1000000)}"
+                return clave
         
 
     def getGenoma(self, fenotipo=''):
@@ -596,13 +618,35 @@ class Character:
                 for alelo in alelos:
                     miGenoma[especie][part][alelo] = dict(miGenoma[especie][part]).get(alelo, {"paterno": {}, "materno": {}})
                     self.data["genoma"] = miGenoma
-                    clavePadre = self.getGenProgenitor(genomaDatabase, isPapaGenomico, especie, part, alelo, "paterno")
-                    claveMadre = self.getGenProgenitor(genomaDatabase, isMamaGenomica, especie, part, alelo, "materno")
-                    miGenoma[especie][part][alelo]["paterno"][clavePadre] = genomaDatabase[especie][part][alelo][clavePadre]
-                    miGenoma[especie][part][alelo]["materno"][claveMadre] = genomaDatabase[especie][part][alelo][claveMadre]
+                    clavePadre = self.getGenProgenitor(genomaDatabase, isPapaGenomico, especie, part, alelo, "paterno", True).split(";")
+                    claveMadre = self.getGenProgenitor(genomaDatabase, isMamaGenomica, especie, part, alelo, "materno", True).split(";")
+                    miGenoma[especie][part][alelo]["paterno"][clavePadre[0]] = genomaDatabase[especie][part][alelo][clavePadre[0]]
+                    miGenoma[especie][part][alelo]["materno"][claveMadre[0]] = genomaDatabase[especie][part][alelo][claveMadre[0]]
+                    miGenoma[especie][part][alelo]["paterno"]["hash"] = clavePadre[1]
+                    miGenoma[especie][part][alelo]["materno"]["hash"] = claveMadre[1]
             
         self.data["genoma"] = miGenoma
         self.save()
 
         return miGenoma
+
+    def getAleloList(self):
+        retval : list[dict] = list[dict]()
+        miGenoma : dict = self.getGenoma()
+        especies = miGenoma.keys()
+        
+        for especie in especies:
+            especieDB : dict = miGenoma[especie]
+            bodyparts = especieDB.keys()
+            for part in bodyparts:
+                partDB : dict = miGenoma[especie][part]
+                alelos = partDB.keys()
+                miGenoma[especie][part] = dict(miGenoma[especie]).get(part, {})
+                for alelo in alelos:
+                    entry = {
+                        alelo : miGenoma[especie][part][alelo]
+                    }
+                    retval.append(entry)
+
+        return retval
 
