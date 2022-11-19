@@ -26,6 +26,13 @@ def generateChar(
 
     return char
 
+def addDeformity(c : chargen.Character):
+    hashed = 1
+    genoma = c.getGenoma()
+    genoma["humano"]["cabeza"]["calvicie"]["paterno"]["hash"] = hashed
+    genoma["humano"]["cabeza"]["calvicie"]["materno"]["hash"] = hashed
+
+
 class characterTest(unittest.TestCase):
 
     def test_generateDeformityText_noDeformities_expectedText(self):
@@ -35,5 +42,8 @@ class characterTest(unittest.TestCase):
         pass
 
     def test_generateDeformityText_deformity_notUnexpectedText(self):
-        #comprueba que no te diga que no tiene signos de deformidad
+        testChar = generateChar(sexo="Hombre", id=-1)
+        addDeformity(testChar)
+        text = chargen.render.generateDeformityText(testChar)
+        self.assertNotEqual(text, "No tiene signos de deformidad.")
         pass
