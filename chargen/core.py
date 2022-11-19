@@ -73,4 +73,3 @@ class RelationType:
     PARENT = 1
     SPOUSE = 2
     DESCENDANT = 3
-    GOD = 4
