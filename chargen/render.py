@@ -1,9 +1,21 @@
-from .character import Character
+from .character import Character, hasDeformation
 from . import resetPlaceHolder, loadJson
 from os import linesep
 
 DEPTH_UP = 1
 DEPTH_DOWN = 1
+
+def generateDeformityText(character : Character):
+    aleloList : list[dict] = character.getAleloList()
+    retval : str = "Deformidades: "
+
+    for alelo in aleloList:
+        aleloName = list(alelo.keys())[0]
+        if hasDeformation(alelo[aleloName]):
+            retval += f"\ttiene una deformación en los genes asociados a `{aleloName}`\n"
+
+    return "No tiene signos de deformidad." if retval == "Deformidades: " else retval
+
 
 def fixPlaceholders(personaje : Character, methodology = "default", prompt = ""):
     print("Arreglando placeholders de: " + personaje.file)
@@ -531,7 +543,10 @@ def generateDescripcion(personaje : Character) -> str:
 
     retval += f"Su cabello es {descCabello} Sus ojos son {descOjos} "
     retval += f"Tiene el rostro {descFormaCabeza}{descMofletesYHoyuelos}. "
-    retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep
+    retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep + linesep
+    retval += generateDeformityText(personaje)
+
+
 
     return retval
 
