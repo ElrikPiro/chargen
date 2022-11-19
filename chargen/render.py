@@ -543,7 +543,8 @@ def generateDescripcion(personaje : Character) -> str:
 
     retval += f"Su cabello es {descCabello} Sus ojos son {descOjos} "
     retval += f"Tiene el rostro {descFormaCabeza}{descMofletesYHoyuelos}. "
-    retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep
+    retval += f"Su nariz es {descNariz} y su boca tiene unos labios {anchoLips}."  + linesep + linesep
+    retval += generateDeformityText(personaje)
 
 
 
