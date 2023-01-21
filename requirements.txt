@@ -1,5 +1,4 @@
 nose
 sphinx
 blessed
-request
 dijkstra
