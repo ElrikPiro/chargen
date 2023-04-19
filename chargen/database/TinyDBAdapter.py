@@ -3,13 +3,18 @@
 ## WORK IN PROGRESS
 
 from . import IDBAdapter
+from tinydb import TinyDB, Query
 
 class TinyDBAdapter(IDBAdapter.IDBAdapter):
 
+    db_ : TinyDB = None
+    databaseId_ : dict = None
+
     def __init__(self, databaseId : dict):
-        super().__init__(databaseId)
+        self.databaseId_ = databaseId
 
     def connect(self):
+        self.db_ = TinyDB(self.databaseId_["path"])
         pass
 
     def query(self, query : dict) -> dict:
