@@ -21,6 +21,13 @@ class TinyDBAdapter(IDBAdapter.IDBAdapter):
         pass
 
     def query(self, query : dict) -> dict:
+        queryType = query["queryType"]
+        queryContent = query["query"]
+        tinyDBQuery = Query()
+        if queryType == "get":
+            for key in queryContent:
+                tinyDBQuery = tinyDBQuery & (tinyDBQuery[key] == queryContent[key])
+            return self.db_.get(Query().id == query["query"]["id"])
         pass
 
     #private methods

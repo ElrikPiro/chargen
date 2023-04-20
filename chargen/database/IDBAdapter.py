@@ -4,8 +4,8 @@
 from abc import abstractmethod
 
 
-queriesTypeList : list[dict] = [
-    {}
+queriesTypeList : list[str] = [
+    "get",
 ]
 
 queryModel : dict = {

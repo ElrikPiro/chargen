@@ -2,6 +2,7 @@
 
 from .context import chargen
 from chargen import TinyDBAdapter
+from tinydb import TinyDB, Query
 
 import unittest
 
@@ -37,9 +38,19 @@ class TinyDBAdapterTest(unittest.TestCase):
         with self.assertRaises(Exception):
             tinyDBAdapter.connect()
 
-    def test_query(self):
-        self.assertTrue(True)
-
+    def test_query_getById_success(self):
+        """Test that the inserted object is returned when queried by id."""
+        db = TinyDB("test.json")
+        db.truncate()
+        db.insert({"id" : 253, "name" : "test"})
+        db.insert({"id" : 254, "name" : "test"})
+        databaseId = {"path" : "test.json"}
+        tinyDBAdapter = TinyDBAdapter.TinyDBAdapter(databaseId)
+        tinyDBAdapter.connect()
+        query = {"queryType" : "get", "query" : {"id" : 253}}
+        result = tinyDBAdapter.query(query)
+        self.assertEqual(result["name"], "test")
+        db.truncate()
 
 if __name__ == '__main__':
     unittest.main()
