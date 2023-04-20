@@ -16,6 +16,13 @@ class TinyDBAdapterTest(unittest.TestCase):
         tinyDBAdapter.connect()
         self.assertIsNotNone(tinyDBAdapter.db_)
 
+    def test_connect_noPathInDatabaseId_throwsException(self):
+        """Test that the db attribute is not None after a successful connect call."""
+        databaseId = {}
+        tinyDBAdapter = TinyDBAdapter.TinyDBAdapter(databaseId)
+        with self.assertRaises(Exception):
+            tinyDBAdapter.connect()
+
     def test_query(self):
         self.assertTrue(True)
 
