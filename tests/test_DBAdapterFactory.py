@@ -14,5 +14,12 @@ class DBAdapterFactoryTest(unittest.TestCase):
         self.assertEqual(dbAdapter.__class__.__name__, "TinyDBAdapter")
         pass
 
+    def test_createAdapterInvalid_exception(self):
+        """Test on an invalid adapter type, an exception is thrown."""
+        databaseId = {"type" : "invalid", "path" : "test.json"}
+        with self.assertRaises(Exception):
+            dbAdapter = DBAdapterFactory.createAdapter(databaseId)
+        pass
+
 if __name__ == '__main__':
     unittest.main()

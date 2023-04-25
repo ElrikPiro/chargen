@@ -11,4 +11,6 @@ class DBAdapterFactory():
         if databaseId["type"] == "tinyDB":
             from chargen.database.TinyDBAdapter import TinyDBAdapter
             return TinyDBAdapter(databaseId)
+        else:
+            raise Exception("Invalid database type")
         pass
