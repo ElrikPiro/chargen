@@ -15,10 +15,6 @@ queryModel : dict = {
 
 class IDBAdapter():
 
-    def __init__(self, databaseId : dict):
-        databaseId_ = databaseId
-        pass
-
     @abstractmethod
     def connect(self):
         pass
