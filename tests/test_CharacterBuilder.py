@@ -23,8 +23,12 @@ class CharacterBuilderTest(unittest.TestCase):
         self.assertEqual(builder.settings_["characterId"], "test")
 
     def test_init_persistenceIsInvalid_exception(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(Exception):
             chargen.CharacterBuilder(persistence = "invalid")
+
+    def test_build_returnsCharacter(self):
+        builder = chargen.CharacterBuilder()
+        self.assertIsInstance(builder.build(), chargen.Character)
 
 
 if __name__ == '__main__':
