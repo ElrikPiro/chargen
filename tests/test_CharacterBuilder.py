@@ -30,6 +30,10 @@ class CharacterBuilderTest(unittest.TestCase):
         builder = chargen.CharacterBuilder()
         self.assertIsInstance(builder.build(), chargen.Character)
 
+    def test_build_characterHasId(self):
+        builder = chargen.CharacterBuilder()
+        self.assertIsNotNone(builder.build().id_)
+
 
 if __name__ == '__main__':
     unittest.main()

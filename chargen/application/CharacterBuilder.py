@@ -7,6 +7,7 @@ class CharacterBuilder:
     
     settings_ : dict
     database_ : IDBAdapter
+    character_ : Character
 
     def __init__(self, characterId : str = None, persistence : str = "tinyDB", modules : dict = {}) -> None:
 
@@ -25,5 +26,6 @@ class CharacterBuilder:
         pass
 
     def build(self) -> Character:
-        return Character()
+        self.character_ = Character(self.settings_["characterId"])
+        return self.character_
     
