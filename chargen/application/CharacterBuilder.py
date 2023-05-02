@@ -29,3 +29,7 @@ class CharacterBuilder:
         self.character_ = Character(self.settings_["characterId"])
         return self.character_
     
+    def save(self):
+        self.database_.query({"queryType" : "insert", "query" : self.character_.__dict__})
+        pass
+    

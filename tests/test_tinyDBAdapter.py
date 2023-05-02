@@ -42,13 +42,26 @@ class TinyDBAdapterTest(unittest.TestCase):
         """Test that the inserted object is returned when queried by id."""
         db = TinyDB("test.json")
         db.truncate()
-        db.insert({"id" : 253, "name" : "test"})
-        db.insert({"id" : 254, "name" : "test"})
+        db.insert({"id_" : 253, "name" : "test"})
+        db.insert({"id_" : 254, "name" : "test"})
         databaseId = {"path" : "test.json"}
         tinyDBAdapter = TinyDBAdapter(databaseId)
         tinyDBAdapter.connect()
-        query = {"queryType" : "get", "query" : {"id" : 253}}
+        query = {"queryType" : "get", "query" : {"id_" : 253}}
         result = tinyDBAdapter.query(query)
+        self.assertEqual(result["name"], "test")
+        db.truncate()
+
+    def test_query_insert_success(self):
+        """Test that the inserted object is returned when queried by id."""
+        db = TinyDB("test.json")
+        db.truncate()
+        databaseId = {"path" : "test.json"}
+        tinyDBAdapter = TinyDBAdapter(databaseId)
+        tinyDBAdapter.connect()
+        query = {"queryType" : "insert", "query" : {"id" : 253, "name" : "test"}}
+        tinyDBAdapter.query(query)
+        result = db.get(Query().id == 253)
         self.assertEqual(result["name"], "test")
         db.truncate()
 

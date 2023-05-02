@@ -27,7 +27,10 @@ class TinyDBAdapter(IDBAdapter.IDBAdapter):
         if queryType == "get":
             for key in queryContent:
                 tinyDBQuery = tinyDBQuery & (tinyDBQuery[key] == queryContent[key])
-            return self.db_.get(Query().id == query["query"]["id"])
+            return self.db_.get(Query().id_ == query["query"]["id_"])
+        elif queryType == "insert":
+            self.db_.insert(queryContent)
+            return queryContent
         pass
 
     #private methods

@@ -34,6 +34,16 @@ class CharacterBuilderTest(unittest.TestCase):
         builder = chargen.CharacterBuilder()
         self.assertIsNotNone(builder.build().id_)
 
+    def test_build_characterHasCorrectId(self):
+        builder = chargen.CharacterBuilder(characterId = "test")
+        self.assertEqual(builder.build().id_, "test")
+
+    def test_save_characterIsSaved(self):
+        builder = chargen.CharacterBuilder()
+        character = builder.build()
+        builder.save()
+        self.assertEqual(builder.database_.query({"queryType" : "get", "query" : {"id_" : character.id_}}), character.__dict__)
+
 
 if __name__ == '__main__':
     unittest.main()
