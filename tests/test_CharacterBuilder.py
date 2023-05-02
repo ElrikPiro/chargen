@@ -38,6 +38,10 @@ class CharacterBuilderTest(unittest.TestCase):
         builder = chargen.CharacterBuilder(characterId = "test")
         self.assertEqual(builder.build().id_, "test")
 
+    def test_build_characterModulesIsNotNone(self):
+        builder = chargen.CharacterBuilder()
+        self.assertIsNotNone(builder.build().modules_)
+
     def test_save_characterIsSaved(self):
         builder = chargen.CharacterBuilder()
         character = builder.build()

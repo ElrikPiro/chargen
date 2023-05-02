@@ -15,6 +15,10 @@ class CharacterBuilder:
             """If no characterId is provided, use the current time as the characterId"""
             characterId = datetime.now().strftime("%Y%m%d%H%M%S")
 
+        if modules is None:
+            """If no modules are provided, use an empty dictionary"""
+            modules = {}
+
         self.settings_ = {"persistence" : persistence, "characterId" : characterId, "modules" : modules}
         self.database_ = DBAdapterFactory.createAdapter(
             {
@@ -26,7 +30,7 @@ class CharacterBuilder:
         pass
 
     def build(self) -> Character:
-        self.character_ = Character(self.settings_["characterId"])
+        self.character_ = Character(self.settings_["characterId"], self.settings_["modules"])
         return self.character_
     
     def save(self):
