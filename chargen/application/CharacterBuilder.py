@@ -36,4 +36,8 @@ class CharacterBuilder:
     def save(self):
         self.database_.query({"queryType" : "insert", "query" : self.character_.__dict__})
         pass
+
+    def build(self) -> tuple[bool, str]:
+        """Instantiates all the modules and tries to resolve them"""
+        return [False, "Not implemented"]
     
