@@ -26,25 +26,25 @@ class CharacterBuilderTest(unittest.TestCase):
         with self.assertRaises(Exception):
             chargen.CharacterBuilder(persistence = "invalid")
 
-    def test_build_returnsCharacter(self):
+    def test_get_returnsCharacter(self):
         builder = chargen.CharacterBuilder()
-        self.assertIsInstance(builder.build(), chargen.Character)
+        self.assertIsInstance(builder.get(), chargen.Character)
 
-    def test_build_characterHasId(self):
+    def test_get_characterHasId(self):
         builder = chargen.CharacterBuilder()
-        self.assertIsNotNone(builder.build().id_)
+        self.assertIsNotNone(builder.get().id_)
 
-    def test_build_characterHasCorrectId(self):
+    def test_get_characterHasCorrectId(self):
         builder = chargen.CharacterBuilder(characterId = "test")
-        self.assertEqual(builder.build().id_, "test")
+        self.assertEqual(builder.get().id_, "test")
 
-    def test_build_characterModulesIsNotNone(self):
+    def test_get_characterModulesIsNotNone(self):
         builder = chargen.CharacterBuilder()
-        self.assertIsNotNone(builder.build().modules_)
+        self.assertIsNotNone(builder.get().modules_)
 
     def test_save_characterIsSaved(self):
         builder = chargen.CharacterBuilder()
-        character = builder.build()
+        character = builder.get()
         builder.save()
         self.assertEqual(builder.database_.query({"queryType" : "get", "query" : {"id_" : character.id_}}), character.__dict__)
 

@@ -29,7 +29,7 @@ class CharacterBuilder:
         self.database_.connect()
         pass
 
-    def build(self) -> Character:
+    def get(self) -> Character:
         self.character_ = Character(self.settings_["characterId"], self.settings_["modules"])
         return self.character_
     
