@@ -17,6 +17,12 @@ class ModuleFactoryTest(unittest.TestCase):
         factory = chargen.ModuleFactory()
         factory.buildModule("MockModuleStatic")
 
+    def test_buildModuleModuleDoesntExist_exception(self):
+        """Test that the buildModule function throws an exception when the module doesn't exist."""
+        factory = chargen.ModuleFactory()
+        with self.assertRaises(KeyError):
+            factory.buildModule("DoesntExist")
+
 
 if __name__ == '__main__':
     unittest.main()
