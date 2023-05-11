@@ -11,7 +11,7 @@ class ModuleFactory:
             "MockModuleStatic": mockup.MockModuleStatic,
         }
 
-    def buildModule(self, module : str):
+    def buildModule(self, module : str) -> IModule:
         """Builds a module."""
         return self.moduleTypes_[module]()
 

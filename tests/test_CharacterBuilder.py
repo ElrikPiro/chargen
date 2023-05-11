@@ -48,6 +48,10 @@ class CharacterBuilderTest(unittest.TestCase):
         builder.save()
         self.assertEqual(builder.database_.query({"queryType" : "get", "query" : {"id_" : character.id_}}), character.__dict__)
 
+    def test_build_withStaticMockup_returnsTrue(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"mockKey" : "mockValue"}})
+        self.assertTrue(builder.build()[0])
+
 
 if __name__ == '__main__':
     unittest.main()

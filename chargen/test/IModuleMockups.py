@@ -27,5 +27,6 @@ class MockModuleStatic(IModule):
 
     def resolve(self, character):
         """Resolves the module."""
-        pass
+        return True
+
     pass

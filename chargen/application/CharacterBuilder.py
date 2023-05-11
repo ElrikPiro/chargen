@@ -1,6 +1,8 @@
 from chargen import Character
 from chargen import DBAdapterFactory
 from chargen import IDBAdapter
+from chargen import ModuleFactory
+from chargen import IModule
 from datetime import datetime
 
 class CharacterBuilder:
@@ -39,5 +41,18 @@ class CharacterBuilder:
 
     def build(self) -> tuple[bool, str]:
         """Instantiates all the modules and tries to resolve them"""
-        return [False, "Not implemented"]
+        factory = ModuleFactory()
+        character = self.get()
+        retval : bool = True
+        comment : str = ""
+
+        for moduleKey in character.modules_:
+            module : IModule = factory.buildModule(moduleKey)
+            resolved = module.resolve(character)
+            if not resolved:
+                comment += f"Module {moduleKey} could not be resolved\n"
+            retval = retval and resolved
+
+
+        return [retval, comment]
     
