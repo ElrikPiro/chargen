@@ -1,6 +1,7 @@
 """Interface for the modules."""
 
 from abc import ABC, abstractmethod
+from chargen.domain.Character import Character
 
 class IModule(ABC):
     """Interface for the modules."""
@@ -41,6 +42,6 @@ class IModule(ABC):
         pass
 
     @abstractmethod
-    def resolve(self, character) -> bool:
+    def resolve(self, character : Character) -> bool:
         """Resolves the module."""
         pass

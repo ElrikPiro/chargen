@@ -42,6 +42,15 @@ class CharacterBuilderTest(unittest.TestCase):
         builder = chargen.CharacterBuilder()
         self.assertIsNotNone(builder.get().modules_)
 
+    def test_get_characterModulesIsEmpty(self):
+        builder = chargen.CharacterBuilder()
+        self.assertEqual(builder.get().modules_, {})
+
+    def test_get_characterModulesIsCorrect(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"mockKey" : "mockValue"}})
+        builder.build()
+        self.assertTrue(builder.get().modules_["MockModuleStatic"]["cached"] == "mockValue")
+
     def test_save_characterIsSaved(self):
         builder = chargen.CharacterBuilder()
         character = builder.get()
@@ -51,6 +60,19 @@ class CharacterBuilderTest(unittest.TestCase):
     def test_build_withStaticMockup_returnsTrue(self):
         builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"mockKey" : "mockValue"}})
         self.assertTrue(builder.build()[0])
+
+    def test_build_withStaticMockup_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"mockKey" : "mockValue"}})
+        self.assertEqual(builder.build()[1], "")
+
+    def test_build_withStaticMockupAndInvalidKey_returnsFalse(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"invalid" : "mockValue"}})
+        self.assertFalse(builder.build()[0])
+
+    def test_build_withStaticMockupAndInvalidKey_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"invalid" : "mockValue"}})
+        self.assertEqual(builder.build()[1], "Module MockModuleStatic could not be resolved\n")
+
 
 
 if __name__ == '__main__':
