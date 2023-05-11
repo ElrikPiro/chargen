@@ -7,4 +7,5 @@ from .domain.Character import Character
 from .application.CharacterBuilder import CharacterBuilder
 
 from .application.modules.IModule import IModule
+from .test import IModuleMockups
 from .application.ModuleFactory import ModuleFactory
