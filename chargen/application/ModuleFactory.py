@@ -9,6 +9,7 @@ class ModuleFactory:
         """Initializes the factory."""
         self.moduleTypes_ = {
             "MockModuleStatic": mockup.MockModuleStatic,
+            "MockModuleDynamic": mockup.MockModuleDynamic,
         }
 
     def buildModule(self, module : str) -> IModule:

@@ -1,5 +1,6 @@
 from .context import chargen
 
+from random import randint
 import unittest
 
 
@@ -72,6 +73,36 @@ class CharacterBuilderTest(unittest.TestCase):
     def test_build_withStaticMockupAndInvalidKey_returnsComment(self):
         builder = chargen.CharacterBuilder(modules={"MockModuleStatic" : {"invalid" : "mockValue"}})
         self.assertEqual(builder.build()[1], "Module MockModuleStatic could not be resolved\n")
+
+    def test_build_withDynamicMockup_returnsTrue(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"mockKey" : 1}})
+        self.assertTrue(builder.build()[0])
+
+    def test_build_withDynamicMockup_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"mockKey" : 1}})
+        self.assertEqual(builder.build()[1], "")
+
+    def test_build_withDynamicMockupAndInvalidKey_returnsFalse(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"invalid" : 1}})
+        self.assertFalse(builder.build()[0])
+
+    def test_build_withDynamicMockupAndInvalidKey_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"invalid" : 1}})
+        self.assertEqual(builder.build()[1], "Module MockModuleDynamic could not be resolved\n")
+
+    def test_build_withDynamicMockupAndInvalidValue_returnsFalse(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"mockKey" : "invalid"}})
+        self.assertFalse(builder.build()[0])
+
+    def test_build_withDynamicMockupAndInvalidValue_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"mockKey" : "invalid"}})
+        self.assertEqual(builder.build()[1], "Module MockModuleDynamic could not be resolved\n")
+
+    def test_get_characterModulesDynamicIsCorrect(self):
+        param = randint(0, 100)
+        builder = chargen.CharacterBuilder(modules={"MockModuleDynamic" : {"mockKey" : param}})
+        builder.build()
+        self.assertTrue(builder.get().modules_["MockModuleDynamic"]["cached"] == param*2)
 
 
 
