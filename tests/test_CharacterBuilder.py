@@ -3,6 +3,12 @@ from .context import chargen
 from random import randint
 import unittest
 
+def getTestModules():
+    return {
+        "MockModuleStatic" : {"mockKey" : "mockValue"},
+        "MockModuleDynamic" : {"mockKey" : 1},
+        "MockSubmodule" : {"mockKey" : "Sample text"}
+    }
 
 class CharacterBuilderTest(unittest.TestCase):
     """CharacterBuilder test cases."""
@@ -104,6 +110,18 @@ class CharacterBuilderTest(unittest.TestCase):
         builder.build()
         self.assertTrue(builder.get().modules_["MockModuleDynamic"]["cached"] == param*2)
 
+    def test_build_withMockupSubmodule_returnsTrue(self):
+        builder = chargen.CharacterBuilder(modules=getTestModules())
+        self.assertTrue(builder.build()[0])
+
+    def test_build_withMockupSubmodule_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules=getTestModules())
+        self.assertEqual(builder.build()[1], "")
+
+    def test_build_withMockupSubmoduleAndInvalidKey_returnsFalse(self):
+        builder = chargen.CharacterBuilder(modules=getTestModules())
+        builder.modules_["MockSubmodule"]["invalid"] = "invalid"
+        self.assertFalse(builder.build()[0])
 
 
 if __name__ == '__main__':

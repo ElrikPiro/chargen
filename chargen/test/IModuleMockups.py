@@ -91,3 +91,39 @@ class MockModuleDynamic(IModule):
         return True
 
 pass
+
+class MockSubmodule(IModule):
+    """This mockup fails if the character has both MockModuleStatic and MockModuleDynamic."""
+    
+    def getFieldInterface(self):
+        """Returns the field interface."""
+        pass
+    
+    def getInstanceType(self):
+        """Returns the instance type."""
+        return "MockSubmodule"
+    
+    def getParams(self):
+            """Returns the params."""
+            pass
+    
+    def getDependencies(self):
+            """Returns the dependencies."""
+            return ["MockModuleStatic", "MockModuleDynamic"]
+    
+    def setParams(self, params):
+            """Sets the params."""
+            pass
+    
+    def resolve(self, character):
+            params = character.modules_[self.getInstanceType()]
+            
+            try:
+                mockStatic = character.modules_["MockModuleStatic"]
+                mockDynamic = character.modules_["MockModuleDynamic"]
+            except KeyError:
+                return False
+    
+            character.modules_[self.getInstanceType()] = self.__dict__()
+    
+            return True

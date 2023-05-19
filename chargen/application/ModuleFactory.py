@@ -10,6 +10,7 @@ class ModuleFactory:
         self.moduleTypes_ = {
             "MockModuleStatic": mockup.MockModuleStatic,
             "MockModuleDynamic": mockup.MockModuleDynamic,
+            "MockSubmodule": mockup.MockSubmodule,
         }
 
     def buildModule(self, module : str) -> IModule:
