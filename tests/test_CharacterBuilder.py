@@ -120,8 +120,18 @@ class CharacterBuilderTest(unittest.TestCase):
 
     def test_build_withMockupSubmoduleAndInvalidKey_returnsFalse(self):
         builder = chargen.CharacterBuilder(modules=getTestModules())
-        builder.modules_["MockSubmodule"]["invalid"] = "invalid"
+        builder.settings_["modules"]["MockSubmodule"]["mockKey"] = None
         self.assertFalse(builder.build()[0])
+
+    def test_build_withMockupSubmoduleAndInvalidKey_returnsComment(self):
+        builder = chargen.CharacterBuilder(modules=getTestModules())
+        builder.settings_["modules"]["MockSubmodule"]["mockKey"] = None
+        self.assertEqual(builder.build()[1], "Module MockSubmodule could not be resolved\n")
+
+    def test_build_withMockupSubmodule_resultIsAllParamsAppended(self):
+        builder = chargen.CharacterBuilder(modules=getTestModules())
+        builder.build()
+        self.assertTrue(builder.get().modules_["MockSubmodule"]["cached"] == "mockValue1Sample text")
 
 
 if __name__ == '__main__':
