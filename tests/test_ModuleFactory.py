@@ -23,6 +23,11 @@ class ModuleFactoryTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             factory.buildModule("DoesntExist")
 
+    def test_buildInputNameModule_noExcept(self):
+        """Test that the buildInputNameModule function does not throw an exception."""
+        factory = chargen.ModuleFactory()
+        factory.buildModule("InputNameModule")
+
 
 if __name__ == '__main__':
     unittest.main()

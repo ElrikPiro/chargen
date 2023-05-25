@@ -5,6 +5,8 @@ from .database.TinyDBAdapter import TinyDBAdapter
 from .database.DBAdapterFactory import DBAdapterFactory
 
 from .application.modules.IModule import IModule
+from .application.modules.INameModule import INameModule
 from .test import IModuleMockups
 from .application.ModuleFactory import ModuleFactory
+
 from .application.CharacterBuilder import CharacterBuilder
