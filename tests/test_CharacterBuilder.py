@@ -131,7 +131,7 @@ class CharacterBuilderTest(unittest.TestCase):
     def test_build_withMockupSubmodule_resultIsAllParamsAppended(self):
         builder = chargen.CharacterBuilder(modules=getTestModules())
         builder.build()
-        self.assertTrue(builder.get().modules_["MockSubmodule"]["cached"] == "mockValue1Sample text")
+        self.assertTrue(builder.get().modules_["MockSubmodule"]["cached"] == "mockValue2Sample text")
 
 
 if __name__ == '__main__':

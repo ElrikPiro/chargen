@@ -105,7 +105,7 @@ class MockSubmodule(IModule):
     """This mockup fails if the character has both MockModuleStatic and MockModuleDynamic."""
     
     mockKey_ : str = None
-    mockValue_ : int = None
+    mockValue_ : str = None
     cached_ : str = None
 
     def getFieldInterface(self):
@@ -154,8 +154,11 @@ class MockSubmodule(IModule):
                         character.modules_["MockModuleDynamic"] = auxMockDynamic.__dict__()
                 mockDynamicValue = character.modules_["MockModuleDynamic"]["cached"]
 
-                self.mockValue_ = character.modules_["MockSubmodule"]["mockValue"]
-                self.cached_ = mockStaticValue + mockDynamicValue + self.mockValue_
+                self.mockValue_ = character.modules_["MockSubmodule"]["mockKey"]
+                if self.mockValue_ == None:
+                    return False
+                
+                self.cached_ = mockStaticValue + str(mockDynamicValue) + self.mockValue_
                 
             except KeyError:
                 return False
