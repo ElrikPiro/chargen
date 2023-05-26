@@ -12,20 +12,16 @@ class InputNameModule(INameModule):
     name_ : str = None
 
     def getFieldInterface(self) -> str:
-        # return "INameModule"
-        pass
+        return "INameModule"
 
     def getInstanceType(self) -> str:
-        # return "InputNameModule"
-        pass
+        return "InputNameModule"
 
     def getParams(self) -> dict:
-        # return {"name" : self.name_}
-        pass
+        return {"name" : self.name_}
 
     def getDependencies(self) -> list[str]:
-        # return []
-        pass
+        return []
 
     def setParams(self, params) -> None:
         # self.name_ = params["name"]
