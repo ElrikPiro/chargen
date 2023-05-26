@@ -11,30 +11,35 @@ class InputNameModule(INameModule):
 
     name_ : str = None
 
-    # def getFieldInterface(self) -> str:
-    #     return "INameModule"
+    def getFieldInterface(self) -> str:
+        # return "INameModule"
+        pass
 
-    # def getInstanceType(self) -> str:
-    #     return "InputNameModule"
+    def getInstanceType(self) -> str:
+        # return "InputNameModule"
+        pass
 
-    # def getParams(self) -> dict:
-    #     return {"name" : self.name_}
+    def getParams(self) -> dict:
+        # return {"name" : self.name_}
+        pass
 
-    # def getDependencies(self) -> list[str]:
-    #     return []
+    def getDependencies(self) -> list[str]:
+        # return []
+        pass
 
-    # def setParams(self, params) -> None:
-    #     self.name_ = params["name"]
-    #     pass
+    def setParams(self, params) -> None:
+        # self.name_ = params["name"]
+        pass
 
-    # def __dict__(self) -> dict:
-    #     return {"fieldInterface_" : self.fieldInterface_, "instanceType_" : self.instanceType_, "params_" : self.params_, "dependencies" : self.dependencies}
+    def __dict__(self) -> dict:
+        # return {"fieldInterface_" : self.fieldInterface_, "instanceType_" : self.instanceType_, "params_" : self.params_, "dependencies" : self.dependencies}
+        pass
 
-    # def resolve(self, character : Character) -> bool:
-    #     """Resolves the module."""
-    #     module : INameModule = character.modules_[self.getInstanceType()]
-    #     pass
+    def resolve(self, character : Character) -> bool:
+        """Resolves the module."""
+        # module : INameModule = character.modules_[self.getInstanceType()]
+        pass
 
-    # def getName(self) -> str:
-    #     """Returns the name."""
-    #     pass
+    def getName(self) -> str:
+        """Returns the name."""
+        pass

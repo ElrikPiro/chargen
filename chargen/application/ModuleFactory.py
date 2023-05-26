@@ -2,6 +2,7 @@
 
 from chargen import IModule
 from chargen import IModuleMockups as mockup
+from chargen.application.modules.InputNameModule import InputNameModule
 
 class ModuleFactory:
 
@@ -11,6 +12,7 @@ class ModuleFactory:
             "MockModuleStatic": mockup.MockModuleStatic,
             "MockModuleDynamic": mockup.MockModuleDynamic,
             "MockSubmodule": mockup.MockSubmodule,
+            "InputNameModule": InputNameModule
         }
 
     def buildModule(self, module : str) -> IModule:

@@ -9,5 +9,3 @@ Debemos poder buildear un personaje que le pasemos un parametro "name" y nos dev
 
 stack
 - TDD inputNameModule
-    - Necesitamos que la factoría lo pueda construir
-        - TDD constructo de InputNameModule en la factoria
