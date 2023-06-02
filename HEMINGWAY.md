@@ -8,7 +8,6 @@ obsidian://open?vault=content&file=SecondBrain%2FPARA%2F1.%20Projects%2FSIDEPROJ
 Debemos poder buildear un personaje que le pasemos un parametro "name" y nos devuelva como cached el valor de ese parametro. InputName, vaya.
 
 stack
-- Definir ICultureModule(IModule)
 - Definir una MockupCultureModule que implemente ICultureModule
 - Definir una CulturalNameModule que implemente INameModule
 - Despues de esto ya podemos hacer un test de integracion que use la MockupCultureModule y la CulturalNameModule a nivel de CharacterBuilder
