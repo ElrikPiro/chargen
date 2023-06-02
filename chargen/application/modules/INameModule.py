@@ -7,10 +7,10 @@ from abc import ABC, abstractmethod
 class INameModule(IModule):
     """Interface for the name generating modules."""
 
-    fieldInterface_ : str = None
-    instanceType_ : str = None
-    params_ : dict = None
-    dependencies : list[str] = None
+    fieldInterface_ : str = "INameModule"
+    instanceType_ : str = None  # type: ignore
+    params_ : dict = {"name" : None}
+    dependencies : list[str] = []
 
     @abstractmethod
     def getFieldInterface(self) -> str:
