@@ -2,7 +2,9 @@
 
 from chargen import IModule
 from chargen import IModuleMockups as mockup
+from chargen.test.MockupCulture import MockupCulture
 from chargen.application.modules.InputNameModule import InputNameModule
+from chargen.application.modules.CulturalNameModule import CulturalNameModule
 
 class ModuleFactory:
 
@@ -12,7 +14,9 @@ class ModuleFactory:
             "MockModuleStatic": mockup.MockModuleStatic,
             "MockModuleDynamic": mockup.MockModuleDynamic,
             "MockSubmodule": mockup.MockSubmodule,
-            "InputNameModule": InputNameModule
+            "MockupCulture": MockupCulture,
+            "InputNameModule": InputNameModule,
+            "CulturalNameModule": CulturalNameModule,
         }
 
     def buildModule(self, module : str) -> IModule:
