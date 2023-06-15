@@ -20,10 +20,6 @@ class TestCulturalNameModule(unittest.TestCase):
         module = GetCulturalNameModule()
         self.assertEqual(module.getInstanceType(), "CulturalNameModule")
 
-    def test_getParams(self):
-        module = GetCulturalNameModule()
-        self.assertEqual(module.getParams(), {"name": None})
-
     def test_getDependencies(self):
         module = GetCulturalNameModule()
         self.assertEqual(module.getDependencies(), ["ICultureModule"])

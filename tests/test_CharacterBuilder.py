@@ -133,6 +133,13 @@ class CharacterBuilderTest(unittest.TestCase):
         builder.build()
         self.assertTrue(builder.get().modules_["MockSubmodule"]["cached"] == "mockValue2Sample text")
 
+    def test_integration_getCulturalName_returnsName(self):
+        builder : chargen.CharacterBuilder = chargen.CharacterBuilder()
+        builder.settings_["modules"] = {
+            "CulturalNameModule" : {"name" : None},
+            "MockupCulture" : 
+        }
+
 
 if __name__ == '__main__':
     unittest.main()
