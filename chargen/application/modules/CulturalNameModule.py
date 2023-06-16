@@ -36,13 +36,16 @@ class CulturalNameModule(INameModule):
 
     def resolve(self, character : Character) -> bool:
         """Resolves the module."""
-        module : dict = character.modules_[self.getInstanceType()].__dict__()
+        from ..ModuleFactory import ModuleFactory
+        factory : ModuleFactory = ModuleFactory()
+        
+        module : dict = character.modules_[self.getInstanceType()]
         params : dict = module.get("params_", {})
 
         cultureModule : ICultureModule = None
-        for module in character.modules_.values():
-            if module.__dict__().get("fieldInterface_", "") == "ICultureModule":
-                cultureModule : ICultureModule = module
+        for module in character.modules_.keys():
+            if module.get("fieldInterface_", "") == "ICultureModule":
+                cultureModule : ICultureModule = factory.buildModule(module.get("instanceType_", None))
                 break
 
         if cultureModule == None:
@@ -50,8 +53,12 @@ class CulturalNameModule(INameModule):
 
         if params["name"] == None or params["name"] == "":
             self.setParams({"name" : cultureModule.generateName()})
-
-        return params["name"] != None and params["name"] != "" and isinstance(params["name"], str)
+        
+        if params["name"] != None and params["name"] != "" and isinstance(params["name"], str):
+            character.modules_[self.getInstanceType()] = self.__dict__()
+            return True
+        else:
+            return False
 
     def getName(self) -> str:
         return self.params_["name"]

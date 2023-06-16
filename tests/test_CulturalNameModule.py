@@ -8,7 +8,7 @@ def GetCulturalNameModule():
 
 def GetCharacter():
     """Returns a character"""
-    return CharacterBuilder("TestCulturalNameModule", modules={"MockupCulture": ModuleFactory().buildModule("MockupCulture")}).get()
+    return CharacterBuilder("TestCulturalNameModule", modules={"MockupCulture": ModuleFactory().buildModule("MockupCulture").__dict__()}).get()
 
 class TestCulturalNameModule(unittest.TestCase):
 
@@ -32,7 +32,7 @@ class TestCulturalNameModule(unittest.TestCase):
     def test_resolve_returnsFalseIfCultureModuleIsNone(self):
         module = GetCulturalNameModule()
         character = GetCharacter()
-        character.modules_[module.getInstanceType()] = module
+        character.modules_[module.getInstanceType()] = module.__dict__()
         character.modules_.pop("MockupCulture")
         self.assertFalse(module.resolve(character))
 
@@ -40,7 +40,7 @@ class TestCulturalNameModule(unittest.TestCase):
         module = GetCulturalNameModule()
         character = GetCharacter()
         module.setParams({"name": None})
-        character.modules_[module.getInstanceType()] = module
+        character.modules_[module.getInstanceType()] = module.__dict__()
         module.resolve(character)
         self.assertNotEqual(module.getName(), None)
 
@@ -48,21 +48,21 @@ class TestCulturalNameModule(unittest.TestCase):
         module = GetCulturalNameModule()
         character = GetCharacter()
         module.setParams({"name": "John"})
-        character.modules_[module.getInstanceType()] = module
+        character.modules_[module.getInstanceType()] = module.__dict__()
         self.assertTrue(module.resolve(character))
 
     def test_resolve_returnsTrueIfNameIsEmptyString(self):
         module = GetCulturalNameModule()
         character = GetCharacter()
         module.setParams({"name": ""})
-        character.modules_[module.getInstanceType()] = module
+        character.modules_[module.getInstanceType()] = module.__dict__()
         self.assertTrue(module.resolve(character))
 
     def test_resolve_returnsFalseIfNameIsNotString(self):
         module = GetCulturalNameModule()
         character = GetCharacter()
         module.setParams({"name": 123})
-        character.modules_[module.getInstanceType()] = module
+        character.modules_[module.getInstanceType()] = module.__dict__()
         self.assertFalse(module.resolve(character))
 
     def test_getName(self):

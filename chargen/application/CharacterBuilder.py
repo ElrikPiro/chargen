@@ -48,6 +48,7 @@ class CharacterBuilder:
 
         for moduleKey in character.modules_:
             module : IModule = factory.buildModule(moduleKey)
+            module.setParams(character.modules_[moduleKey])
             resolved = module.resolve(character)
             if not resolved:
                 comment += f"Module {moduleKey} could not be resolved\n"
