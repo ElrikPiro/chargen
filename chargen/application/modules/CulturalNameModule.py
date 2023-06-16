@@ -5,7 +5,6 @@ CulturalNameModule module: contains the CulturalNameModule class that implements
 from chargen import INameModule
 from chargen import Character
 from chargen import ICultureModule
-from chargen import CultureModuleFactory
 
 class CulturalNameModule(INameModule):
     """Interface for the name generating modules."""
@@ -37,10 +36,10 @@ class CulturalNameModule(INameModule):
 
     def resolve(self, character : Character) -> bool:
         """Resolves the module."""
-        module : dict = character.modules_[self.getInstanceType()]
+        module : dict = character.modules_[self.getInstanceType()].__dict__()
         params : dict = module.get("params_", {})
 
-        cultureModule : ICultureModule = 
+        cultureModule : ICultureModule = None
         for module in character.modules_.values():
             if module.__dict__().get("fieldInterface_", "") == "ICultureModule":
                 cultureModule : ICultureModule = module

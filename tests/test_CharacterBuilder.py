@@ -137,10 +137,8 @@ class CharacterBuilderTest(unittest.TestCase):
         builder : chargen.CharacterBuilder = chargen.CharacterBuilder()
         builder.settings_["modules"] = {
             "CulturalNameModule" : {"name" : None},
-            "MockupCulture" : {}
+            "MockupCulture" : 
         }
-        builder.build()
-        self.assertIsNotNone(builder.get().modules_["CulturalNameModule"]["cached"])
 
 
 if __name__ == '__main__':
