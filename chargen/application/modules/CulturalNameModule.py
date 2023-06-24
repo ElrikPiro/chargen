@@ -51,10 +51,11 @@ class CulturalNameModule(INameModule):
         if cultureModule == None:
             return False
 
-        if params["name"] == None or params["name"] == "":
+        if params.get("name", None) == None or params["name"] == "":
             self.setParams({"name" : cultureModule.generateName()})
+            self.setParams({"cached" : self.params_["name"]})
         
-        if params["name"] != None and params["name"] != "" and isinstance(params["name"], str):
+        if self.params_["name"] != None and self.params_["name"] != "" and isinstance(self.params_["name"], str):
             character.modules_[self.getInstanceType()] = self.__dict__()
             return True
         else:

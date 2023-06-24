@@ -27,7 +27,7 @@ class TestCulturalNameModule(unittest.TestCase):
     def test_setParams(self):
         module = GetCulturalNameModule()
         module.setParams({"name": "John"})
-        self.assertEqual(module.getParams(), {"name": "John"})
+        self.assertEqual(module.getParams().get("name"), "John")
 
     def test_resolve_returnsFalseIfCultureModuleIsNone(self):
         module = GetCulturalNameModule()

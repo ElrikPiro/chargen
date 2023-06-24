@@ -9,7 +9,7 @@ class IModule(ABC):
     fieldInterface_ : str = None
     instanceType_ : str = None
     params_ : dict = None
-    dependencies : list[str] = None
+    dependencies : list[str] = {}
 
     @abstractmethod
     def getFieldInterface(self) -> str:

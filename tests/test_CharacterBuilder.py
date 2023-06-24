@@ -142,6 +142,21 @@ class CharacterBuilderTest(unittest.TestCase):
         builder.build()
         self.assertIsNotNone(builder.get().modules_["CulturalNameModule"]["params_"]["cached"])
 
+    def test_integration_getCulturalName_returnsComment(self):
+        builder : chargen.CharacterBuilder = chargen.CharacterBuilder()
+        builder.settings_["modules"] = {
+            "CulturalNameModule" : {"name" : None},
+        }
+        comment = builder.build()[1]
+        self.assertNotEqual(comment, "")
+
+    def test_integration_getCulturalName_returnsFalse(self):
+        builder : chargen.CharacterBuilder = chargen.CharacterBuilder()
+        builder.settings_["modules"] = {
+            "CulturalNameModule" : {"name" : None},
+        }
+        self.assertFalse(builder.build()[0])
+
 
 if __name__ == '__main__':
     unittest.main()

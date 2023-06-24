@@ -16,7 +16,7 @@ class MockModuleStatic(IModule):
 
     def getFieldInterface(self):
         """Returns the field interface."""
-        pass
+        return "MockModuleStatic"
 
     def getInstanceType(self):
         """Returns the instance type."""
@@ -28,7 +28,7 @@ class MockModuleStatic(IModule):
 
     def getDependencies(self):
         """Returns the dependencies."""
-        pass
+        return {}
 
     def setParams(self, params):
         """Sets the params."""
@@ -61,7 +61,7 @@ class MockModuleDynamic(IModule):
 
     def getFieldInterface(self):
         """Returns the field interface."""
-        pass
+        return "MockModuleDynamic"
 
     def getInstanceType(self):
         """Returns the instance type."""
@@ -73,7 +73,7 @@ class MockModuleDynamic(IModule):
 
     def getDependencies(self):
         """Returns the dependencies."""
-        pass
+        return {}
 
     def setParams(self, params):
         """Sets the params."""
