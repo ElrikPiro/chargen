@@ -43,7 +43,7 @@ class CulturalNameModule(INameModule):
         params : dict = module.get("params_", {})
 
         cultureModule : ICultureModule = None
-        for module in character.modules_.keys():
+        for module in character.modules_.values():
             if module.get("fieldInterface_", "") == "ICultureModule":
                 cultureModule : ICultureModule = factory.buildModule(module.get("instanceType_", None))
                 break

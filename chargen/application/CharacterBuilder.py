@@ -49,6 +49,23 @@ class CharacterBuilder:
         for moduleKey in character.modules_:
             module : IModule = factory.buildModule(moduleKey)
             module.setParams(character.modules_[moduleKey])
+            """If the module has dependencies, resolve them first"""
+            for dependency in module.getDependencies():
+                compliantDependencies = list(filter(lambda x : factory.buildModule(x).getFieldInterface() == dependency, character.modules_.keys()))
+                
+                if len(compliantDependencies) == 0:
+                    """Fail fast"""
+                    comment += f"Module {moduleKey} has dependency {dependency} which is not present in the character\n"
+                    retval = False
+                else:
+                    """If the character has the dependency, resolve it first"""
+                    dependencyModule : IModule = factory.buildModule(compliantDependencies.pop())
+                    dependencyModule.setParams(character.modules_[dependencyModule.getInstanceType()])
+                    resolved = dependencyModule.resolve(character)
+                    if not resolved:
+                        comment += f"Module {dependency} could not be resolved\n"
+                    retval = retval and resolved
+
             resolved = module.resolve(character)
             if not resolved:
                 comment += f"Module {moduleKey} could not be resolved\n"
