@@ -8,6 +8,6 @@ obsidian://open?vault=content&file=SecondBrain%2FPARA%2F1.%20Projects%2FSIDEPROJ
 Debemos poder buildear un personaje que le pasemos un parametro "name" y nos devuelva como cached el valor de ese parametro. InputName, vaya.
 
 stack
-- Despues de esto ya podemos hacer un test de integracion que use la MockupCultureModule y la CulturalNameModule a nivel de CharacterBuilder
 - Luego hará falta definir una API que utilice el módulo que estamos desarrollando para hacer un servicio web
+    - La API será FastAPI
 - Una vez tengamos servicio web, podremos hacer un cliente web que use el servicio web
