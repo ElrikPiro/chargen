@@ -9,13 +9,18 @@ class CharacterBuilder:
     
     settings_ : dict
     database_ : IDBAdapter
-    character_ : Character
+    character_ : Character = None
 
     def __init__(self, characterId : str = None, persistence : str = "tinyDB", modules : dict = {}) -> None:
 
+        readDb : bool = False
         if characterId is None:
             """If no characterId is provided, use the current time as the characterId"""
             characterId = datetime.now().strftime("%Y%m%d%H%M%S")
+        else:
+            """If a characterId is provided, use it"""
+            readDb = True
+            
 
         if modules is None:
             """If no modules are provided, use an empty dictionary"""
@@ -29,10 +34,18 @@ class CharacterBuilder:
             }
         )
         self.database_.connect()
+        queryResult = self.database_.query({"queryType" : "get", "query" : {"id_" : characterId}})
+        if readDb and queryResult is not None:
+            self.settings_["modules"] = queryResult["modules_"]
+            self.character_ = Character(
+                self.settings_["characterId"], 
+                self.settings_["modules"]
+            )
         pass
 
     def get(self) -> Character:
-        self.character_ = Character(self.settings_["characterId"], self.settings_["modules"])
+        if self.character_ is None:
+            self.character_ = Character(self.settings_["characterId"], self.settings_["modules"])
         return self.character_
     
     def save(self):
