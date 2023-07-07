@@ -52,5 +52,5 @@ class MockupCulture(ICultureModule):
 
     def resolve(self, character : Character) -> bool:
         """Resolves the module."""
-        character.modules_[self.getInstanceType()] = self.__dict__()
+        character.modules_[self.getInstanceType()] = self.getParams()
         return True

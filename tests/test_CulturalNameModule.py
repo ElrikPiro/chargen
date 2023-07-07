@@ -62,7 +62,7 @@ class TestCulturalNameModule(unittest.TestCase):
         module = GetCulturalNameModule()
         character = GetCharacter()
         module.setParams({"name": 123})
-        character.modules_[module.getInstanceType()] = module.__dict__()
+        character.modules_[module.getInstanceType()] = module.getParams()
         self.assertFalse(module.resolve(character))
 
     def test_getName(self):

@@ -23,8 +23,7 @@ class MockModuleStatic(IModule):
         return "MockModuleStatic"
 
     def getParams(self):
-        """Returns the params."""
-        pass
+        return self.__dict__()
 
     def getDependencies(self):
         """Returns the dependencies."""
@@ -69,7 +68,7 @@ class MockModuleDynamic(IModule):
 
     def getParams(self):
         """Returns the params."""
-        pass
+        return self.__dict__()
 
     def getDependencies(self):
         """Returns the dependencies."""
@@ -118,7 +117,7 @@ class MockSubmodule(IModule):
     
     def getParams(self):
             """Returns the params."""
-            pass
+            return self.__dict__()
     
     def getDependencies(self):
             """Returns the dependencies."""

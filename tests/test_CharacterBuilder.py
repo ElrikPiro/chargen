@@ -140,7 +140,7 @@ class CharacterBuilderTest(unittest.TestCase):
             "MockupCulture" : {}
         }
         builder.build()
-        self.assertIsNotNone(builder.get().modules_["CulturalNameModule"]["params_"]["cached"])
+        self.assertIsNotNone(builder.get().modules_["CulturalNameModule"]["cached"])
 
     def test_integration_getCulturalName_returnsComment(self):
         builder : chargen.CharacterBuilder = chargen.CharacterBuilder()

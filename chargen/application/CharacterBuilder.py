@@ -49,13 +49,14 @@ class CharacterBuilder:
         return self.character_
     
     def save(self):
-        self.database_.query({"queryType" : "insert", "query" : self.character_.__dict__})
+        self.database_.query({"queryType" : "insert", "query" : {"id_" : self.character_.id_, "modules_" : self.character_.modules_}}) 
         pass
 
     def build(self) -> tuple[bool, str]:
         """Instantiates all the modules and tries to resolve them"""
         factory = ModuleFactory()
         character = self.get()
+        self.character_.id_ = character.id_
         retval : bool = True
         comment : str = ""
 
@@ -82,8 +83,8 @@ class CharacterBuilder:
             resolved = module.resolve(character)
             if not resolved:
                 comment += f"Module {moduleKey} could not be resolved\n"
+            self.character_.modules_[moduleKey].update(module.getParams())
             retval = retval and resolved
-
 
         return [retval, comment]
     

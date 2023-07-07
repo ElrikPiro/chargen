@@ -39,13 +39,14 @@ class CulturalNameModule(INameModule):
         from ..ModuleFactory import ModuleFactory
         factory : ModuleFactory = ModuleFactory()
         
-        module : dict = character.modules_[self.getInstanceType()]
-        params : dict = module.get("params_", {})
+        module : dict = self.__dict__()
+        params : dict = character.modules_[self.getInstanceType()]
 
         cultureModule : ICultureModule = None
-        for module in character.modules_.values():
-            if module.get("fieldInterface_", "") == "ICultureModule":
-                cultureModule : ICultureModule = factory.buildModule(module.get("instanceType_", None))
+        for key in list(character.modules_.keys()):
+            candidate = factory.buildModule(key)
+            if issubclass(candidate.__class__, ICultureModule):
+                cultureModule : ICultureModule = candidate
                 break
 
         if cultureModule == None:
@@ -56,7 +57,7 @@ class CulturalNameModule(INameModule):
             self.setParams({"cached" : self.params_["name"]})
         
         if self.params_["name"] != None and self.params_["name"] != "" and isinstance(self.params_["name"], str):
-            character.modules_[self.getInstanceType()] = self.__dict__()
+            character.modules_[self.getInstanceType()] = self.getParams()
             return True
         else:
             return False
