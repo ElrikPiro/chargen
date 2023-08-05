@@ -31,6 +31,10 @@ class TinyDBAdapter(IDBAdapter.IDBAdapter):
         elif queryType == "insert":
             self.db_.insert(queryContent)
             return queryContent
+        elif queryType == "getAllIds":
+            db = self.db_.all()
+            # it must be a list of strings where each string is an id_
+            return [str(item["id_"]) for item in db]
         pass
 
     #private methods

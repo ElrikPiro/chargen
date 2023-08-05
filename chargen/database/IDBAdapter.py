@@ -7,6 +7,7 @@ from abc import abstractmethod
 queriesTypeList : list[str] = [
     "get",
     "insert",
+    "getAllIds",
 ]
 
 queryModel : dict = {

@@ -65,5 +65,21 @@ class TinyDBAdapterTest(unittest.TestCase):
         self.assertEqual(result["name"], "test")
         db.truncate()
 
+    def test_query_getAllIds_success(self):
+        """Test that the inserted object is returned when queried by id."""
+        db = TinyDB("test.json")
+        db.truncate()
+        db.insert({"id_" : 253, "name" : "test"})
+        db.insert({"id_" : 254, "name" : "test"})
+        databaseId = {"path" : "test.json"}
+        tinyDBAdapter = TinyDBAdapter(databaseId)
+        tinyDBAdapter.connect()
+        query = {"queryType" : "getAllIds", "query" : {}}
+        result = tinyDBAdapter.query(query)
+        self.assertEqual(len(result), 2)
+        # Check that it should return a list of ids and ONLY ids
+        self.assertTrue(all(isinstance(x, str) for x in result))
+        db.truncate()
+
 if __name__ == '__main__':
     unittest.main()

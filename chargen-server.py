@@ -25,7 +25,7 @@ async def getCharacter(id_ : str):
         characterBuilder = CharacterBuilder(id_)
         return formatCharacter(characterBuilder.get())
     except Exception as e:
-        raise e
+        #raise e
         return {"error" : str(e)}
     
 @app.post("/buildCharacter")
@@ -38,5 +38,13 @@ async def buildCharacter(character : dict):
             raise Exception(BuildResult[1])
         return formatCharacter(characterBuilder.get())
     except Exception as e:
-        raise e
+        #raise e
+        return {"error" : str(e)}
+    
+@app.get("/getCharacterIds")
+async def getCharacterIds():
+    try:
+        return characterBuilder.getCharacterIds()
+    except Exception as e:
+        #raise e
         return {"error" : str(e)}

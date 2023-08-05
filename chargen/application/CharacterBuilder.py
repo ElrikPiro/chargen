@@ -88,3 +88,6 @@ class CharacterBuilder:
 
         return [retval, comment]
     
+    def getCharacterIds(self) -> list[str]:
+        return self.database_.query({"queryType" : "getAllIds", "query" : {}})
+    

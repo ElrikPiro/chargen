@@ -133,6 +133,11 @@ class CharacterBuilderTest(unittest.TestCase):
         builder.build()
         self.assertTrue(builder.get().modules_["MockSubmodule"]["cached"] == "mockValue2Sample text")
 
+    def test_getcharacterIds_returnsList(self):
+        builder = chargen.CharacterBuilder()
+        ids = builder.getCharacterIds()
+        self.assertIsInstance(ids, list)
+
     def test_integration_getCulturalName_returnsName(self):
         builder : chargen.CharacterBuilder = chargen.CharacterBuilder()
         builder.settings_["modules"] = {
