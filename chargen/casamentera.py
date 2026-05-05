@@ -1,13 +1,14 @@
 from cmath import nan
 import math
 import random
+from typing import Any
 from . import character
 from . import loadJson
 from .render import getExpresion, getFullName
 from .character import Character
 from .grafolocalizaciones import GrafoLocalizaciones
 
-def isReachable(localizacionA : str, localizacionB : str, graph_factory=GrafoLocalizaciones, io=None) -> bool:
+def isReachable(localizacionA : str, localizacionB : str, graph_factory: Any = GrafoLocalizaciones, io=None) -> bool:
 
         grafo = graph_factory(json="config/localizaciones.json", io=io)
 
@@ -16,7 +17,7 @@ def isReachable(localizacionA : str, localizacionB : str, graph_factory=GrafoLoc
 
         return grafo.getShortestPath(localizacionA, localizacionB)[1] >= 0.0
 
-def getDistanciaSocial(a : Character, b : Character, graph_factory=GrafoLocalizaciones, io=None) -> float:
+def getDistanciaSocial(a : Character, b : Character, graph_factory: Any = GrafoLocalizaciones, io=None) -> float:
     
     grafo = graph_factory(json="config/localizaciones.json", io=io)
     localizacionA = a.getLugarNacimientoId()
