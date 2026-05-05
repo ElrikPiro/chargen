@@ -22,9 +22,12 @@ class Caller:
         self.relation = relation
 
 class Character:
-    def __init__(self, deductions, jsonRef='', caller=Caller()):
+    def __init__(self, deductions, jsonRef='', caller=Caller(), io=None, rng=None, prompt_func=None):
+        self.io = io
+        self.rng = random if rng is None else rng
+        self.prompt_func = input if prompt_func is None else prompt_func
         if jsonRef != '':
-            self.data = loadJson(jsonRef)
+            self.data = loadJson(jsonRef, self.io)
             self.file = jsonRef
             if caller.relation != RelationType.NONE:
                 self.updateJsonStruct(deductions, caller)
@@ -37,7 +40,7 @@ class Character:
         return
     
     def reload(self):
-        self.data = loadJson(self.file)
+        self.data = loadJson(self.file, self.io)
         return self.data
 
     def updateJsonStruct(self, deductions, caller=Caller()):
@@ -80,12 +83,12 @@ class Character:
         self.file = nombrefichero+".json"
 
     def save(self):
-        writeJson(self.file, self.data)
+        writeJson(self.file, self.data, self.io)
 
     def getNombreId(self):
         nombre = self.data.get("nombre", nan)
         if nombre != nombre:
-            nombre = generateNewNameId()
+            nombre = generateNewNameId(self.io)
             self.data["nombre"] = nombre
         return nombre
 
@@ -108,7 +111,7 @@ class Character:
         return 1
 
     def rollEdadMuerte(self, base=40, sign=1):
-        roll = random.randint(1,20)
+        roll = self.rng.randint(1,20)
         muerte = base
         if roll == 1:
             return muerte + self.rollEdadMuerte(0, -1)
@@ -132,7 +135,7 @@ class Character:
         return self.data["eventos"]["muerte"]
 
     def rollEdadMatrimonio(self, base=16, sign=1):
-        roll = random.randint(0,9)
+        roll = self.rng.randint(0,9)
         matrimonio = base
         if roll == 9:
             return matrimonio + self.rollEdadMatrimonio(0, 1)
@@ -182,17 +185,17 @@ class Character:
     def generateNacimiento(self):
         if self.hasMother():
             madre = self.data["parientes"]["madre"]
-            madre = Character({}, madre)
+            madre = Character({}, madre, io=self.io, rng=self.rng, prompt_func=self.prompt_func)
             self.data["eventos"]["nacimiento"] = madre.getMatrimonio()
         elif self.hasSpouse():
             self.data["eventos"]["nacimiento"] = self.getMatrimonio() - self.rollEdadMatrimonio()
         elif self.hasDescendants():
             primogenito = self.data["parientes"]["hijos"]["lista"][0]
-            primogenito = Character({}, primogenito)
+            primogenito = Character({}, primogenito, io=self.io, rng=self.rng, prompt_func=self.prompt_func)
             self.data["eventos"]["nacimiento"] = primogenito.getNacimiento() - self.rollEdadMatrimonio()
         else:
             print("Datos insuficientes para fecha de nacimiento")
-            self.data["eventos"]["nacimiento"] =  int(input("Introduzca manualmente la fecha preferida: "))
+            self.data["eventos"]["nacimiento"] =  int(self.prompt_func("Introduzca manualmente la fecha preferida: "))
 
     def getNacimiento(self):
         eventos = self.data.get("eventos", nan)
@@ -207,12 +210,13 @@ class Character:
         sexo = self.data.get("sexo", nan)
         if sexo != sexo:
             opciones = ["Mujer", "Hombre"]
-            sexo = random.choice(opciones)
+            sexo = self.rng.choice(opciones)
+            self.data["sexo"] = sexo
             self.save()
         return sexo
 
     def getEdad(self, obra : str):
-        obras = loadJson("config/obras.json")
+        obras = loadJson("config/obras.json", self.io)
         anyoObra = obras.get(obra, nan)
 
         if math.isnan(anyoObra):
@@ -229,14 +233,14 @@ class Character:
 
     def getNombre(self):
         nombreId = self.getNombreId()
-        nombresPropios = loadJson("config/nombresPropios.json")
+        nombresPropios = loadJson("config/nombresPropios.json", self.io)
         return nombresPropios.get(str(nombreId), nombreId)
     
     def deducirFamilia(self):
         if self.hasFather() == 0:
-            return generateNewFamilyId()
+            return generateNewFamilyId(self.io)
         padre = self.data.get("parientes").get("padre")
-        padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT))
+        padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         return padre.getFamiliaId()
 
 
@@ -250,7 +254,7 @@ class Character:
 
     def getFamilia(self):
         familiaId = self.getFamiliaId()
-        familias = loadJson("config/familias.json")
+        familias = loadJson("config/familias.json", self.io)
 
         # Es un placeholder?
         isPlaceholder = familiaId.find("PLACEHOLDER") != -1
@@ -268,9 +272,9 @@ class Character:
 
     def deducirLugarNacimiento(self):
         if self.hasFather() == 0:
-            return generateNewLugar()
+            return generateNewLugar(self.io)
         padre = self.data.get("parientes").get("padre")
-        padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT))
+        padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         return padre.getLugarNacimientoId()
 
     def getLugarNacimientoId(self):
@@ -287,7 +291,7 @@ class Character:
             sexo = self.getSexo()
             if sexo == "Mujer" and self.hasSpouse() != 0:
                 conyugue = self.data.get("parientes").get("conyugue")
-                conyugue = Character({}, conyugue, Caller(self.file, RelationType.SPOUSE))
+                conyugue = Character({}, conyugue, Caller(self.file, RelationType.SPOUSE), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
                 lugar_residencia = conyugue.getLugarResidenciaId()
             else:
                 lugar_residencia = self.getLugarNacimientoId()
@@ -298,7 +302,7 @@ class Character:
 
     def getLugarNacimiento(self):
         lugarId = self.getLugarNacimientoId()
-        lugar = loadJson("config/localizaciones.json")
+        lugar = loadJson("config/localizaciones.json", self.io)
 
         # Es un placeholder?
         isPlaceholder = lugarId.find("PLACEHOLDER") != -1
@@ -316,7 +320,7 @@ class Character:
 
     def getLugarResidencia(self):
         lugarId = self.getLugarResidenciaId()
-        lugar = loadJson("config/localizaciones.json")
+        lugar = loadJson("config/localizaciones.json", self.io)
         
         # Es un placeholder?
         isPlaceholder = lugarId.find("PLACEHOLDER") != -1
@@ -338,11 +342,11 @@ class Character:
             sexo = self.getSexo()
             if sexo == "Mujer" and self.hasSpouse() != 0:
                 conyugue = self.data.get("parientes").get("conyugue")
-                conyugue = Character({}, conyugue, Caller(self.file, RelationType.SPOUSE))
+                conyugue = Character({}, conyugue, Caller(self.file, RelationType.SPOUSE), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
                 clase_social = conyugue.getClaseSocial()
             elif self.hasFather() == 1:
                 padre = self.data.get("parientes").get("padre")
-                padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT))
+                padre = Character({}, padre, Caller(self.file, RelationType.DESCENDANT), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
                 clase_social = padre.getClaseSocial()
             else:
                 clase_social = "PLACEHOLDER"
@@ -353,7 +357,7 @@ class Character:
 
     def getPadre(self):
         if self.hasFather() == 1:
-            return Character({}, self.data["parientes"]["padre"])
+            return Character({}, self.data["parientes"]["padre"], io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         else:
             padre = Character(
                 {
@@ -374,7 +378,10 @@ class Character:
                     }
                 },
                 '',
-                Caller(self.file, RelationType.DESCENDANT)
+                Caller(self.file, RelationType.DESCENDANT),
+                io=self.io,
+                rng=self.rng,
+                prompt_func=self.prompt_func
             )
 
             self.data["parientes"]["padre"] = padre.file
@@ -394,7 +401,10 @@ class Character:
                     #     "hijos" : self.data["parientes"].get("hijos", {"len": nan, "lista": []})
                     # }
                 },
-                c.file#,
+                c.file,
+                io=self.io,
+                rng=self.rng,
+                prompt_func=self.prompt_func
                 # Caller(self.file, RelationType.SPOUSE)
             )
         conData = conyugue.data
@@ -415,7 +425,7 @@ class Character:
 
     def getConyugue(self):
         if self.hasSpouse() == 1:
-            return Character({}, self.data["parientes"]["conyugue"])
+            return Character({}, self.data["parientes"]["conyugue"], io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         else:
             conyugue = Character(
                 {
@@ -431,7 +441,10 @@ class Character:
                     }
                 },
                 '',
-                Caller(self.file, RelationType.SPOUSE)
+                Caller(self.file, RelationType.SPOUSE),
+                io=self.io,
+                rng=self.rng,
+                prompt_func=self.prompt_func
             )
             self.data["parientes"]["conyugue"] = conyugue.file
             self.save()
@@ -439,7 +452,7 @@ class Character:
 
     def getMadre(self):
         if self.hasMother() == 1:
-            return Character({}, self.data["parientes"]["madre"])
+            return Character({}, self.data["parientes"]["madre"], io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         else:
             padre = self.getPadre()
             madre = padre.getConyugue()
@@ -448,7 +461,7 @@ class Character:
             return madre
 
     def rollOffsetNacimiento(self, base=0):
-        roll = random.randint(0,5)
+        roll = self.rng.randint(0,5)
         offset = base
         if roll == 5:
             return self.rollOffsetNacimiento(offset + roll)
@@ -456,15 +469,15 @@ class Character:
             return offset + roll
 
     def generateNumeroHijos(self):
-        return int(round(math.fabs(random.normalvariate(2.5, 2))))
+        return int(round(math.fabs(self.rng.normalvariate(2.5, 2))))
 
     def generateNewChild(self, paterna, materna, nacimiento) -> str:
         newChild = Character({
-            "nombre": generateNewNameId(),
+            "nombre": generateNewNameId(self.io),
             "eventos": {
                 "nacimiento": nacimiento
             },
-            "sexo": random.choice(["Hombre", "Mujer"]),
+            "sexo": self.rng.choice(["Hombre", "Mujer"]),
             "familia": paterna.getFamiliaId(),
             "lugar_nacimiento": materna.getLugarResidenciaId(),
             "clase_social": paterna.getClaseSocial(),
@@ -472,7 +485,7 @@ class Character:
                 "padre": paterna.file,
                 "madre": materna.file
             }
-        }, '', Caller(self.file, RelationType.PARENT))
+        }, '', Caller(self.file, RelationType.PARENT), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
         return newChild.file
 
     def getHijos(self):
@@ -496,7 +509,7 @@ class Character:
                 materna.getMuerte(), 
                 materna.getNacimiento()+40
             )
-            lastChild = None if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT))
+            lastChild = None if len(listaHijos) <= 0 else Character({}, listaHijos[len(listaHijos)-1], Caller(self.file, RelationType.PARENT), io=self.io, rng=self.rng, prompt_func=self.prompt_func)
             currentYear = self.getMatrimonio() if lastChild == None else lastChild.getNacimiento()
             targetYear = currentYear + self.rollOffsetNacimiento()
 
@@ -518,7 +531,7 @@ class Character:
         return self.getMadre().getHijos()
 
     def getPersonalidad(self):
-        personalidadDB = loadJson("config/personalidad.json")
+        personalidadDB = loadJson("config/personalidad.json", self.io)
         listaFacetas : list = personalidadDB["facetas"]
         listaCreencias : list = personalidadDB["opiniones"]
         personalidad = self.data.get("personalidad", nan)
@@ -537,17 +550,17 @@ class Character:
         if padre != padre or madre != madre:
             #distribucion alpha-beta*100-50 si sus padres no tienen personalidad
             for faceta in listaFacetas:
-                personalidad["facetas"][faceta] = random.betavariate(6, 6)*100-50
+                personalidad["facetas"][faceta] = self.rng.betavariate(6, 6)*100-50
         else:
             #distribucion normal entre personalidad de padre y madre con std = abs(PAPA-MAMA)/2
             for faceta in listaFacetas:
                 mean = (padre["facetas"][faceta] + madre["facetas"][faceta])/2
                 std = math.fabs(padre["facetas"][faceta]-madre["facetas"][faceta])/2
-                personalidad["facetas"][faceta] = max(min(random.normalvariate(mean, std),50),-50)
+                personalidad["facetas"][faceta] = max(min(self.rng.normalvariate(mean, std),50),-50)
 
         #Creencias
         for creencia in listaCreencias:
-            personalidad["opiniones"][creencia] = random.betavariate(6, 6)*100-50
+            personalidad["opiniones"][creencia] = self.rng.betavariate(6, 6)*100-50
         
         self.data["personalidad"] = personalidad
         self.save()
@@ -571,26 +584,26 @@ class Character:
         
         dato = progenitor.get(especie, {}).get(bodypart, {}).get(alelo, {})
         if dato == {}:
-            clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+            clave = self.rng.choice(list(dict(database[especie][bodypart][alelo]).keys()))
             if getHashParameter:
-                clave = f"{clave};{random.randint(0,1000000)}"
+                clave = f"{clave};{self.rng.randint(0,1000000)}"
             return clave
         else:
-            valor = random.choice(list(dato.values()))
+            valor = self.rng.choice(list(dato.values()))
             if valor == {}:
-                clave = random.choice(list(dict(database[especie][bodypart][alelo]).keys()))
+                clave = self.rng.choice(list(dict(database[especie][bodypart][alelo]).keys()))
                 if getHashParameter:
-                    clave = f"{clave};{random.randint(0,1000000)}"
+                    clave = f"{clave};{self.rng.randint(0,1000000)}"
                 return clave
             else:
                 clave = list(valor.keys())[0]
                 if getHashParameter:
-                    clave = f"{clave};{random.randint(0,1000000)}"
+                    clave = f"{clave};{self.rng.randint(0,1000000)}"
                 return clave
         
 
     def getGenoma(self, fenotipo=''):
-        genomaDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
+        genomaDatabase = loadJson("config/genoma.json", self.io) if fenotipo=='' else loadJson(fenotipo, self.io)
         miGenoma = self.data.get("genoma", dict({}))
 
         isPapaGenomico = self.getPadre().data["genoma"] if self.getPadre().hasGenoma() else {}
@@ -649,4 +662,3 @@ class Character:
                     retval.append(entry)
 
         return retval
-

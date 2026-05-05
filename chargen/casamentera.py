@@ -7,18 +7,18 @@ from .render import getExpresion, getFullName
 from .character import Character
 from .grafolocalizaciones import GrafoLocalizaciones
 
-def isReachable(localizacionA : str, localizacionB : str) -> bool:
+def isReachable(localizacionA : str, localizacionB : str, graph_factory=GrafoLocalizaciones, io=None) -> bool:
 
-        grafo = GrafoLocalizaciones(json="config/localizaciones.json")
+        grafo = graph_factory(json="config/localizaciones.json", io=io)
 
         if localizacionA == localizacionB:
             return True
 
         return grafo.getShortestPath(localizacionA, localizacionB)[1] >= 0.0
 
-def getDistanciaSocial(a : Character, b : Character) -> float:
+def getDistanciaSocial(a : Character, b : Character, graph_factory=GrafoLocalizaciones, io=None) -> float:
     
-    grafo = GrafoLocalizaciones(json="config/localizaciones.json")
+    grafo = graph_factory(json="config/localizaciones.json", io=io)
     localizacionA = a.getLugarNacimientoId()
     localizacionB = b.getLugarNacimientoId()
 
@@ -36,12 +36,25 @@ class Casamentera:
     debug_ : bool
     usarLocalizaciones_ : bool
 
-    def __init__(self, poblacion : list[int], begin : int, end : int, debug : bool = False, usarLocalizaciones : bool = False):
+    def __init__(
+        self,
+        poblacion : list[int],
+        begin : int,
+        end : int,
+        debug : bool = False,
+        usarLocalizaciones : bool = False,
+        io=None,
+        rng=None,
+        graph_factory=GrafoLocalizaciones,
+    ):
         self.poblacion_ = poblacion
         self.year_ = begin
         self.end_ = end
         self.debug_ = debug
         self.usarLocalizaciones_ = usarLocalizaciones
+        self.io_ = io
+        self.rng_ = random if rng is None else rng
+        self.graph_factory_ = graph_factory
 
     def log(self, msg : str):
         if self.debug_:
@@ -68,7 +81,7 @@ class Casamentera:
                 continue
 
             #   se calcula la fecha de matrimonio
-            c : Character = Character({}, f"personaje_{cIdx}.json")
+            c : Character = Character({}, f"personaje_{cIdx}.json", io=self.io_, rng=self.rng_)
             fechaMatrimonio = self.year_
 
             if self.debug_:
@@ -88,7 +101,7 @@ class Casamentera:
             for diva in listaDivas:
                 if diva in randomDeseabilidadesAbsIdx:
                     randomDeseabilidadesAbsIdx.remove(diva)
-            random.shuffle(randomDeseabilidadesAbsIdx)
+            self.rng_.shuffle(randomDeseabilidadesAbsIdx)
             nSampleCandidates = int(len(randomDeseabilidadesAbsIdx)/math.e)
             
             log(f"\tEvaluando la deseabilidad relativa de los primeros n/e candidatos")
@@ -105,13 +118,13 @@ class Casamentera:
             for idx in randomDeseabilidadesAbsIdx:
                 if self.getDeseabilidadRelativa(cIdx, idx) > minRequiredCandidate and cIdx != idx:
                     log(f"\tSe selecciona al candidato.")
-                    candidato = Character({}, f"personaje_{idx}.json")
+                    candidato = Character({}, f"personaje_{idx}.json", io=self.io_, rng=self.rng_)
                     break
             
             # se casan, se añaden los hijos a la poblacion
             # y se elimina a ambos conyugues de la lista de candidatos
             if candidato != None:
-                c : Character = Character({}, f"personaje_{cIdx}.json")
+                c : Character = Character({}, f"personaje_{cIdx}.json", io=self.io_, rng=self.rng_)
                 eventos : dict = c.data["eventos"]
                 eventos["matrimonio"] = fechaMatrimonio
                 c.data["eventos"] = eventos
@@ -122,11 +135,11 @@ class Casamentera:
                 listaHijos = c.getHijos()
                 log(f"\tSe casan y tienen {len(listaHijos)} hijo/s.")
                 for hijoFile in listaHijos:
-                    self.poblacion_.append(Character({}, hijoFile).getNombreId())
+                    self.poblacion_.append(Character({}, hijoFile, io=self.io_, rng=self.rng_).getNombreId())
             else:
                 log(f"\tEl personaje se queda sin candidatos por diva.")
                 listaDivas.append(cIdx)
-                c : Character = Character({}, f"personaje_{cIdx}.json")
+                c : Character = Character({}, f"personaje_{cIdx}.json", io=self.io_, rng=self.rng_)
                 eventos : dict = c.data["eventos"]
                 eventos["matrimonio"] = nan
                 c.data["eventos"] = eventos
@@ -153,13 +166,13 @@ class Casamentera:
          #   NOTA:
             #   como evaluar la deseabilidad relativa
                 #   Se buscará que expresen el mismo nivel de recisividad en sus genes (1), mejor recisividad (2) o peor (0.5)
-                c = Character({}, f"personaje_{entrevistador}.json")
-                d = Character({}, f"personaje_{entrevistado}.json")
+                c = Character({}, f"personaje_{entrevistador}.json", io=self.io_, rng=self.rng_)
+                d = Character({}, f"personaje_{entrevistado}.json", io=self.io_, rng=self.rng_)
                 log = self.log
                 if self.debug_:
                     log(f"\t\t\tEvaluando deseabilidad relativa de {getFullName(d)} frente a {getFullName(c)}")
 
-                genomaDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
+                genomaDatabase = loadJson("config/genoma.json", self.io_) if fenotipo=='' else loadJson(fenotipo, self.io_)
 
                 genoma = c.getGenoma()
                 especies = genoma.keys()
@@ -206,7 +219,7 @@ class Casamentera:
                 listaHermanos = c.getPadre().getHijos()
                 listaHermanosIdx : list = []
                 for hermano in listaHermanos:
-                    listaHermanosIdx.append(Character({}, hermano).getNombreId())
+                    listaHermanosIdx.append(Character({}, hermano, io=self.io_, rng=self.rng_).getNombreId())
                 
                     #Es padre o hijo
                 listaPadreHijosIdx : list = [
@@ -216,7 +229,7 @@ class Casamentera:
                 
                 listaHijos = c.getHijos() if c.hasDescendants() else []
                 for hijo in listaHijos:
-                    listaPadreHijosIdx.append(Character({}, hijo).getNombreId())
+                    listaPadreHijosIdx.append(Character({}, hijo, io=self.io_, rng=self.rng_).getNombreId())
 
                     #Es tio o primo?
                 
@@ -226,13 +239,13 @@ class Casamentera:
                 listaPrimos : list(str) = []
                 listaPrimosTiosIdx : list(int) = []
                 for tio in listaTios:
-                    cTio = Character({}, tio)
+                    cTio = Character({}, tio, io=self.io_, rng=self.rng_)
                     listaPrimosTiosIdx.append(cTio.getNombreId())
                     if cTio.hasDescendants():
                         listaPrimos += (cTio.getHijos())
 
                 for primo in listaPrimos:
-                    cPrimo = Character({}, primo)
+                    cPrimo = Character({}, primo, io=self.io_, rng=self.rng_)
                     listaPrimosTiosIdx.append(cPrimo.getNombreId())
 
 
@@ -245,7 +258,7 @@ class Casamentera:
                 if entrevistado in listaPrimosTiosIdx:
                     consanginidad = 0.75
 
-                distanciamiento = getDistanciaSocial(c, d) / 10.0 if self.usarLocalizaciones_ else 0.0
+                distanciamiento = getDistanciaSocial(c, d, graph_factory=self.graph_factory_, io=self.io_) / 10.0 if self.usarLocalizaciones_ else 0.0
 
                 diferenciaEdad = (c.getNacimiento() - d.getNacimiento()) / 20.0
 
@@ -284,7 +297,7 @@ class Casamentera:
         }
 
         listaDeseabilidades = {}
-        genomaDatabase = loadJson("config/genoma.json") if fenotipo=='' else loadJson(fenotipo)
+        genomaDatabase = loadJson("config/genoma.json", self.io_) if fenotipo=='' else loadJson(fenotipo, self.io_)
 
         
         for c in lista:
@@ -357,7 +370,7 @@ class Casamentera:
         
         for it in self.poblacion_:
             log(f"\tEvaluando personaje nº{it}")
-            c = Character({}, f"personaje_{it}.json")
+            c = Character({}, f"personaje_{it}.json", io=self.io_, rng=self.rng_)
             fechaMuerte = c.getMuerte()
             if fechaMuerte <= year:
                 log(f"\t\tDescartado por estar muerto")
@@ -381,7 +394,7 @@ class Casamentera:
 
             miLocalizacion = c.getLugarNacimientoId()
 
-            if localizacion != "" and not isReachable(miLocalizacion, localizacion):
+            if localizacion != "" and not isReachable(miLocalizacion, localizacion, graph_factory=self.graph_factory_, io=self.io_):
                 log(f"\t\tDescartado por no ser localizable")
                 continue
 
@@ -400,7 +413,7 @@ class Casamentera:
         year = self.year_
         
         for it in self.poblacion_:
-            c = Character({}, f"personaje_{it}.json")
+            c = Character({}, f"personaje_{it}.json", io=self.io_, rng=self.rng_)
             fechaMuerte = c.getMuerte()
             if fechaMuerte <= year:
                 continue

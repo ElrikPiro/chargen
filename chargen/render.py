@@ -17,48 +17,50 @@ def generateDeformityText(character : Character):
     return "No tiene signos de deformidad." if retval == "Deformidades: " else retval
 
 
-def fixPlaceholders(personaje : Character, methodology = "default", prompt = ""):
+def fixPlaceholders(personaje : Character, methodology = "default", prompt = "", prompt_func=None, io=None):
+    prompt_provider = personaje.prompt_func if prompt_func is None else prompt_func
+    store = personaje.io if io is None else io
     print("Arreglando placeholders de: " + personaje.file)
 
     familia = personaje.getFamilia()
     if familia == "Indefinido":
         id = personaje.getFamiliaId()
-        personaje.data["familia"] = input("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
-        resetPlaceHolder("config/familias.json", id, personaje.data["familia"], isFamilia=True)
+        personaje.data["familia"] = prompt_provider("("+prompt+") PLACEHOLDER en familia, introduce nombre de la familia:" )
+        resetPlaceHolder("config/familias.json", id, personaje.data["familia"], isFamilia=True, store=store)
     
     nombre = personaje.getNombre()
     if nombre == "PLACEHOLDER":
-        nombre = input("("+prompt+") PLACEHOLDER en nombre, introduce nombre del personaje:" )
+        nombre = prompt_provider("("+prompt+") PLACEHOLDER en nombre, introduce nombre del personaje:" )
         id = personaje.getNombreId()
-        resetPlaceHolder("config/nombresPropios.json", str(id), nombre)
+        resetPlaceHolder("config/nombresPropios.json", str(id), nombre, store=store)
 
     lugarNacimiento = personaje.getLugarNacimiento()
     if lugarNacimiento["nombre"] == "PLACEHOLDER":
-        lugarNacimiento["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de nacimiento, introduce nombre del lugar:" )
+        lugarNacimiento["nombre"] = prompt_provider("("+prompt+") PLACEHOLDER en lugar de nacimiento, introduce nombre del lugar:" )
         id = personaje.getLugarNacimientoId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento, isLugar=True)
+        resetPlaceHolder("config/localizaciones.json", id, lugarNacimiento, isLugar=True, store=store)
 
     lugarResidencia = personaje.getLugarResidencia()
     if lugarResidencia["nombre"] == "PLACEHOLDER":
-        lugarResidencia["nombre"] = input("("+prompt+") PLACEHOLDER en lugar de residencia, introduce nombre del lugar:" )
+        lugarResidencia["nombre"] = prompt_provider("("+prompt+") PLACEHOLDER en lugar de residencia, introduce nombre del lugar:" )
         id = personaje.getLugarResidenciaId()
-        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia, isLugar=True)
+        resetPlaceHolder("config/localizaciones.json", id, lugarResidencia, isLugar=True, store=store)
 
     claseSocial = personaje.getClaseSocial()
     if claseSocial == "PLACEHOLDER":
-        personaje.data["clase_social"] = input("("+prompt+") PLACEHOLDER en clase social, introduce nombre de la clase:" )
+        personaje.data["clase_social"] = prompt_provider("("+prompt+") PLACEHOLDER en clase social, introduce nombre de la clase:" )
     
     personaje.save()
 
 
-def getFullName(personaje : Character, prompt : str = "") -> str:
-    fixPlaceholders(personaje, "default", prompt)
+def getFullName(personaje : Character, prompt : str = "", prompt_func=None, io=None) -> str:
+    fixPlaceholders(personaje, "default", prompt, prompt_func=prompt_func, io=io)
     return personaje.getFamilia() + " " + personaje.getNombre()
 
-def getEdadList(personaje : Character) -> str:
+def getEdadList(personaje : Character, io=None) -> str:
     retval = ""
 
-    obras : dict = loadJson("config/obras.json")
+    obras : dict = loadJson("config/obras.json", io)
     for key in list(obras.keys()):
         edad = personaje.getEdad(key)
         if edad == edad:
@@ -125,7 +127,7 @@ def getSecondHeader(personaje : Character) -> str:
     retval += "- Edad:" + linesep
     retval += "\t- Año Nacimiento: [[Año " + str(personaje.getNacimiento()) + "]]" + linesep
     retval += "\t- Año Muerte: [[Año " + str(personaje.getMuerte()) + "]]" + linesep
-    retval += getEdadList(personaje) + linesep
+    retval += getEdadList(personaje, personaje.io) + linesep
 
     retval += "- Familia: [[Familia " + personaje.getFamilia() + "]]" + linesep
     genoma = personaje.getGenoma()
@@ -559,9 +561,9 @@ def getFifthHeader(personaje : Character) -> str:
     retval += f"{generateDescripcion(personaje)}" + linesep
     return retval
 
-def markdownGenerator(jsonFile : str) -> str:
+def markdownGenerator(jsonFile : str, io=None, rng=None, prompt_func=None) -> str:
     endl = linesep
-    personaje = Character({}, jsonFile)
+    personaje = Character({}, jsonFile, io=io, rng=rng, prompt_func=prompt_func)
 
     retval = getFirstHeader(personaje) + endl
     retval += getSecondHeader(personaje) + endl
