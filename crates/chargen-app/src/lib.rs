@@ -19,12 +19,13 @@ use axum::{Json, Router};
 use chargen_domain::{
     PersonId, Scenario, SettlementId, State as WorldState, ValidatedScenario, ValidationIssue, Year,
 };
-use chargen_engine::{CancellationToken, Engine, YearCommit};
+use chargen_engine::{CancellationToken, Engine, EngineError, YearCommit};
 use chargen_query::{
-    Census, CultureAtClose, Genealogy, HistoryQuery, InstitutionAffiliationsAtClose,
-    InstitutionAtClose, MigrationAtClose, OpenRouteAtClose, OpenRoutesAtClose, OrganizationAtClose,
-    OrganizationMembersAtClose, PersonAffiliationsAtClose, PersonRecord, PersonResidenceAtClose,
-    QueryError, SettlementCultureAtClose, SettlementView,
+    Census, CultureAtClose, EventsAtClose, Genealogy, HistoryQuery, InstitutionAffiliationsAtClose,
+    InstitutionAtClose, MarketTradesAtClose, MarketsAtClose, MigrationAtClose, OpenRouteAtClose,
+    OpenRoutesAtClose, OrganizationAtClose, OrganizationMembersAtClose, PersonAffiliationsAtClose,
+    PersonRecord, PersonResidenceAtClose, QueryError, SettlementCultureAtClose,
+    SettlementMarketsAtClose, SettlementView,
 };
 use chargen_store::{
     BranchSummary, ExportManifest, HistoryStore, StoreError, WorldSummary, WorldWriter,
@@ -33,6 +34,7 @@ use serde::{Deserialize, Serialize};
 
 const DEMO_SCENARIO: &str = include_str!("../../../scenarios/demos/b0-family.json");
 const DEMO_E2_SCENARIO: &str = include_str!("../../../scenarios/demos/e2-territory-culture.json");
+const DEMO_E3_SCENARIO: &str = include_str!("../../../scenarios/demos/e3-economy-events.json");
 const INDEX_HTML: &str = include_str!("../../../web/index.html");
 const APP_JS: &str = include_str!("../../../web/app.js");
 const STYLES_CSS: &str = include_str!("../../../web/styles.css");
@@ -277,6 +279,7 @@ pub struct YearQuery {
 #[derive(Clone, Debug, Deserialize)]
 pub struct YearPageQuery {
     pub year: i32,
+    pub settlement_id: Option<u64>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
 }
@@ -595,6 +598,30 @@ pub trait HistoricalView: Send + Sync {
         &self,
         person: PersonId,
     ) -> Result<Vec<chargen_domain::HistoricalEvent>, ServiceFault>;
+    fn markets(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<MarketsAtClose, ServiceFault>;
+    fn market_settlements(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<SettlementMarketsAtClose, ServiceFault>;
+    fn market_trades(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<MarketTradesAtClose, ServiceFault>;
+    fn events(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<EventsAtClose, ServiceFault>;
     fn settlements(&self) -> chargen_query::SettlementsAtClose;
     fn open_routes(&self) -> OpenRoutesAtClose;
     fn migration(&self, settlement: Option<SettlementId>) -> MigrationAtClose;
@@ -650,6 +677,38 @@ impl HistoricalView for HistoryQuery {
         person: PersonId,
     ) -> Result<Vec<chargen_domain::HistoricalEvent>, ServiceFault> {
         HistoryQuery::events_for_person(self, person).map_err(map_query_error)
+    }
+    fn markets(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<MarketsAtClose, ServiceFault> {
+        HistoryQuery::markets(self, settlement, offset, limit).map_err(map_query_error)
+    }
+    fn market_settlements(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<SettlementMarketsAtClose, ServiceFault> {
+        HistoryQuery::market_settlements(self, settlement, offset, limit).map_err(map_query_error)
+    }
+    fn market_trades(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<MarketTradesAtClose, ServiceFault> {
+        HistoryQuery::market_trades(self, settlement, offset, limit).map_err(map_query_error)
+    }
+    fn events(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<EventsAtClose, ServiceFault> {
+        HistoryQuery::events(self, settlement, offset, limit).map_err(map_query_error)
     }
     fn settlements(&self) -> chargen_query::SettlementsAtClose {
         HistoryQuery::settlements(self)
@@ -806,6 +865,9 @@ fn map_query_error(error: QueryError) -> ServiceFault {
         }
         QueryError::InstitutionNotFound(_) => {
             ServiceFault::NotFound("La institución no existe en el año consultado.".into())
+        }
+        QueryError::InvalidPage => {
+            ServiceFault::Invalid("El límite de página debe estar entre 1 y 500.".into())
         }
         QueryError::Store(error) => map_store_error(error),
         QueryError::Scenario(_) => {
@@ -967,6 +1029,7 @@ impl AppContainer {
             .route("/api/health", get(health))
             .route("/api/demo-scenario", get(demo_scenario))
             .route("/api/demo-scenario-e2", get(demo_e2_scenario))
+            .route("/api/demo-scenario-e3", get(demo_e3_scenario))
             .route("/api/scenarios/validate", post(validate_scenario))
             .route("/api/worlds", get(list_worlds).post(create_world))
             .route(
@@ -1004,6 +1067,22 @@ impl AppContainer {
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/culture",
                 get(get_culture),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/markets",
+                get(get_markets),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/markets/settlements",
+                get(get_market_settlements),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/markets/trades",
+                get(get_market_trades),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/events",
+                get(get_historical_events),
             )
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/institutions",
@@ -1133,6 +1212,14 @@ async fn demo_e2_scenario() -> Response {
         .expect("embedded E2 scenario is valid")
 }
 
+async fn demo_e3_scenario() -> Response {
+    match serde_json::from_str::<Scenario>(DEMO_E3_SCENARIO) {
+        Ok(scenario) => Json(scenario).into_response(),
+        Err(_) => ServiceFault::Internal("No se pudo cargar el escenario demostrativo E3.".into())
+            .into_response(),
+    }
+}
+
 async fn validate_scenario(
     body: Result<Json<ScenarioEnvelope>, JsonRejection>,
 ) -> Result<Json<ValidateScenarioResponse>, ServiceFault> {
@@ -1158,8 +1245,11 @@ async fn create_world(
     validate_safe_scenario_ids(&envelope.scenario)?;
     let validated = envelope.scenario.validate().map_err(validation_fault)?;
     let world_id = envelope.scenario.world_id.0.to_string();
-    let initial_state = chargen_engine::generate_initial_state(&validated).map_err(|_| {
-        ServiceFault::Invalid("No se pudo materializar la población inicial del escenario.".into())
+    let initial_state = chargen_engine::generate_initial_state(&validated).map_err(|error| {
+        report_scenario_initialization_failure(&error);
+        ServiceFault::Invalid(format!(
+            "No se pudo materializar la población inicial del escenario: {error}"
+        ))
     })?;
     let scenario_json = serde_json::to_string(&envelope.scenario)
         .map_err(|_| ServiceFault::Internal("scenario serialization failed".into()))?;
@@ -1214,7 +1304,16 @@ async fn create_branch(
             "El identificador del escenario no coincide con el mundo de la ruta.".into(),
         ));
     }
-    request.scenario.validate().map_err(validation_fault)?;
+    let validation = if request.cut_year.is_some()
+        && matches!(
+            request.scenario.rules_version,
+            Scenario::TERRITORIAL_RULES_VERSION | Scenario::EVENT_RULES_VERSION
+        ) {
+        request.scenario.validate_for_branch_revision()
+    } else {
+        request.scenario.validate()
+    };
+    validation.map_err(validation_fault)?;
     let scenario_json = serde_json::to_string(&request.scenario)
         .map_err(|_| ServiceFault::Internal("scenario serialization failed".into()))?;
     let repository = app.repository.clone();
@@ -1454,6 +1553,144 @@ async fn get_culture(
         limit,
         offset,
         items,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct MarketsPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub money: Option<chargen_domain::EconomicMoneyLedger>,
+    pub treasury_goods: BTreeMap<chargen_domain::GoodId, chargen_domain::EconomicGoodLedger>,
+    pub groups: Vec<chargen_domain::EconomicGroupLedger>,
+}
+
+async fn get_markets(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<MarketsPage>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    reject_person_filter(query.person_id)?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.markets(query.settlement_id.map(SettlementId), offset, limit)?;
+    Ok(Json(MarketsPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        enabled: result.enabled,
+        total: result.total,
+        limit,
+        offset,
+        money: result.money,
+        treasury_goods: result.treasury_goods,
+        groups: result.groups,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SettlementMarketsPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub settlements: Vec<chargen_domain::SettlementEconomicLedger>,
+}
+
+async fn get_market_settlements(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<SettlementMarketsPage>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    reject_person_filter(query.person_id)?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.market_settlements(query.settlement_id.map(SettlementId), offset, limit)?;
+    Ok(Json(SettlementMarketsPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        enabled: result.enabled,
+        total: result.total,
+        limit,
+        offset,
+        settlements: result.settlements,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct MarketTradesPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub trades: Vec<chargen_domain::EconomicTrade>,
+}
+
+async fn get_market_trades(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<MarketTradesPage>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    reject_person_filter(query.person_id)?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.market_trades(query.settlement_id.map(SettlementId), offset, limit)?;
+    Ok(Json(MarketTradesPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        enabled: result.enabled,
+        total: result.total,
+        limit,
+        offset,
+        trades: result.trades,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct HistoricalEventsPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub events: Vec<chargen_domain::HistoricalEvent>,
+}
+
+async fn get_historical_events(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalEventsPage>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    reject_person_filter(query.person_id)?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.events(query.settlement_id.map(SettlementId), offset, limit)?;
+    Ok(Json(HistoricalEventsPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total: result.total,
+        limit,
+        offset,
+        events: result.events,
     }))
 }
 
@@ -1827,14 +2064,17 @@ fn validate_run_scenario(
     scenario: &Scenario,
     branch_revision_candidate: bool,
 ) -> Result<(ValidatedScenario, bool), Vec<ValidationIssue>> {
-    let uses_territorial_revision =
-        branch_revision_candidate && scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION;
-    let validated = if uses_territorial_revision {
+    let uses_branch_revision = branch_revision_candidate
+        && matches!(
+            scenario.rules_version,
+            Scenario::TERRITORIAL_RULES_VERSION | Scenario::EVENT_RULES_VERSION
+        );
+    let validated = if uses_branch_revision {
         scenario.validate_for_branch_revision()?
     } else {
         scenario.validate()?
     };
-    Ok((validated, uses_territorial_revision))
+    Ok((validated, uses_branch_revision))
 }
 
 fn run_worker(
@@ -2243,6 +2483,15 @@ fn validate_key(value: &str, label: &str) -> Result<(), ServiceFault> {
     Ok(())
 }
 
+fn reject_person_filter(value: Option<u64>) -> Result<(), ServiceFault> {
+    if value.is_some() {
+        return Err(ServiceFault::Invalid(
+            "Esta consulta no admite un filtro por persona.".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_numeric_id(value: u64, label: &str) -> Result<(), ServiceFault> {
     if value > MAX_SAFE_INTEGER {
         return Err(ServiceFault::Invalid(format!(
@@ -2353,6 +2602,10 @@ fn validation_fault(issues: Vec<ValidationIssue>) -> ServiceFault {
     ))
 }
 
+fn report_scenario_initialization_failure(error: &EngineError) {
+    eprintln!("Chargen scenario initialization failed: {error}");
+}
+
 fn map_json_rejection(rejection: JsonRejection) -> ServiceFault {
     let status = rejection.status();
     if status == StatusCode::PAYLOAD_TOO_LARGE {
@@ -2378,11 +2631,17 @@ struct BenchmarkProfile {
     #[serde(default)]
     e2: bool,
     #[serde(default)]
+    e3: bool,
+    #[serde(default)]
     culture_dimensions: u32,
     #[serde(default)]
     institutions: u32,
     #[serde(default)]
     professions: u32,
+    #[serde(default)]
+    economic_goods: u32,
+    #[serde(default)]
+    event_count: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -2402,6 +2661,8 @@ struct BenchmarkReport {
     configured_culture_dimensions: u32,
     configured_institutions: u32,
     configured_professions: u32,
+    configured_economic_goods: u32,
+    configured_scheduled_events: u32,
     culture_projection_rows: usize,
     institution_projection_rows: usize,
     organization_projection_rows: usize,
@@ -2425,6 +2686,17 @@ struct BenchmarkReport {
     historical_institutions_micros: u128,
     historical_organizations_micros: u128,
     historical_routes_micros: u128,
+    historical_markets_micros: u128,
+    historical_settlement_markets_micros: u128,
+    historical_trades_micros: u128,
+    historical_events_micros: u128,
+    economic_group_count: usize,
+    total_trade_rows: usize,
+    historical_market_group_rows: usize,
+    historical_trade_rows: usize,
+    historical_settlement_market_rows: usize,
+    historical_event_rows: usize,
+    realized_event_effects: u64,
     database_bytes: u64,
     sampled_peak_rss_bytes: Option<u64>,
     deterministic_digest: String,
@@ -2432,7 +2704,7 @@ struct BenchmarkReport {
 
 /// Stable command-line help for the standalone local executable.
 pub fn command_usage() -> &'static str {
-    "Chargen E2 local population-history prototype\n\nUso: chargen-app [serve] [--database RUTA] [--bind 127.0.0.1:7878] [--no-open]\n     chargen-app bench --profile B0|B1|B2|E2-B0|E2-B1|E2-B2|E2-CATALOG-CURRENT|E2-CATALOG-LARGE [--database RUTA] [--output RUTA]"
+    "Chargen local population-history prototype E1–E3\n\nUso: chargen-app [serve] [--database RUTA] [--bind 127.0.0.1:7878] [--no-open]\n     chargen-app bench --profile B0|B1|B2|E2-B0|E2-B1|E2-B2|E2-CATALOG-CURRENT|E2-CATALOG-LARGE|E3-B0|E3-B1|E3-B2 [--database RUTA] [--output RUTA]"
 }
 
 /// Run a fully local, reproducible workload and emit measured runtime, query,
@@ -2474,15 +2746,14 @@ pub fn run_bench_cli(args: &[String]) -> Result<(), String> {
         index += 1;
     }
     let profile_id = profile_id.ok_or_else(|| format!("Falta --profile. {}", command_usage()))?;
-    let profiles: BenchmarkProfiles = serde_json::from_str(include_str!(
-        "../../../scenarios/benchmarks/profiles.json"
-    ))
-    .map_err(|_| "No se pudo leer el catálogo de perfiles B0–B2 y E2-B0–E2-B2.".to_owned())?;
+    let profiles: BenchmarkProfiles =
+        serde_json::from_str(include_str!("../../../scenarios/benchmarks/profiles.json"))
+            .map_err(|_| "No se pudo leer el catálogo de perfiles B0–B2 y E2/E3.".to_owned())?;
     let profile = profiles
         .profiles
         .iter()
         .find(|profile| profile.id == profile_id)
-        .ok_or_else(|| format!("Perfil desconocido: {profile_id}. Usa B0, B1, B2, E2-B0, E2-B1, E2-B2, E2-CATALOG-CURRENT o E2-CATALOG-LARGE."))?;
+        .ok_or_else(|| format!("Perfil desconocido: {profile_id}. Usa B0, B1, B2, los perfiles E2 existentes o E3-B0, E3-B1, E3-B2."))?;
     let database = database.unwrap_or_else(|| {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2542,7 +2813,7 @@ fn run_benchmark(
         )
     })?;
     let initial_state = chargen_engine::generate_initial_state(&validated)
-        .map_err(|_| "No se pudo materializar el escenario de benchmark.".to_owned())?;
+        .map_err(|error| format!("No se pudo materializar el escenario de benchmark: {error}"))?;
     let world_id = scenario.world_id.0.to_string();
     let scenario_json = serde_json::to_string(&scenario)
         .map_err(|_| "No se pudo serializar el escenario de benchmark.".to_owned())?;
@@ -2562,6 +2833,9 @@ fn run_benchmark(
     let mut total_events = 0_u64;
     let mut total_population = 0_u128;
     let mut peak_population = 0_u64;
+    let mut economic_group_count = 0_usize;
+    let mut total_trade_rows = 0_usize;
+    let mut realized_event_effects = 0_u64;
     let mut engine_year_total_nanos = 0_u128;
     let mut engine_year_max_nanos = 0_u128;
     let mut engine_phase_total_nanos = BTreeMap::<String, u128>::new();
@@ -2580,6 +2854,22 @@ fn run_benchmark(
         total_population = total_population.saturating_add(u128::from(population));
         peak_population = peak_population.max(population);
         total_events = total_events.saturating_add(commit.events.len() as u64);
+        realized_event_effects = realized_event_effects.saturating_add(
+            commit
+                .events
+                .iter()
+                .filter(|event| {
+                    matches!(
+                        event.kind,
+                        chargen_domain::HistoricalEventKind::EventEffectRealized { .. }
+                    )
+                })
+                .count() as u64,
+        );
+        if let Some(report) = &commit.state.economy.last_year_report {
+            economic_group_count = economic_group_count.max(report.groups.len());
+            total_trade_rows = total_trade_rows.saturating_add(report.trades.len());
+        }
         if let Some(metrics) = engine.last_metrics() {
             engine_year_total_nanos =
                 engine_year_total_nanos.saturating_add(metrics.total_duration_nanos);
@@ -2634,6 +2924,62 @@ fn run_benchmark(
     let routes_started = Instant::now();
     let _route_projection = query.open_routes();
     let historical_routes_micros = routes_started.elapsed().as_micros();
+    let markets_started = Instant::now();
+    let first_market_page = query
+        .markets(None, 0, 100)
+        .map_err(|error| format!("No se pudo medir la consulta de grupos económicos: {error}"))?;
+    let final_market_group_count = first_market_page.total;
+    let mut historical_market_group_rows = first_market_page.groups.len();
+    let mut market_offset = first_market_page.groups.len();
+    while market_offset < final_market_group_count {
+        let page = query.markets(None, market_offset, 100).map_err(|error| {
+            format!("No se pudo medir la consulta de grupos económicos: {error}")
+        })?;
+        historical_market_group_rows += page.groups.len();
+        market_offset += page.groups.len();
+        if page.groups.is_empty() {
+            break;
+        }
+    }
+    let historical_markets_micros = markets_started.elapsed().as_micros();
+    let settlement_markets_started = Instant::now();
+    let settlement_markets = query.market_settlements(None, 0, 500).map_err(|error| {
+        format!("No se pudo medir la consulta de mercados por asentamiento: {error}")
+    })?;
+    let historical_settlement_markets_micros = settlement_markets_started.elapsed().as_micros();
+    let historical_settlement_market_rows = settlement_markets
+        .settlements
+        .iter()
+        .map(|settlement| settlement.goods.len())
+        .sum();
+    let trades_started = Instant::now();
+    let mut trade_offset = 0;
+    let mut historical_trade_rows = 0_usize;
+    loop {
+        let page = query
+            .market_trades(None, trade_offset, 100)
+            .map_err(|error| format!("No se pudo medir la consulta de intercambios: {error}"))?;
+        historical_trade_rows += page.trades.len();
+        trade_offset += page.trades.len();
+        if page.trades.is_empty() || trade_offset >= page.total {
+            break;
+        }
+    }
+    let historical_trades_micros = trades_started.elapsed().as_micros();
+    let events_started = Instant::now();
+    let mut event_offset = 0;
+    let mut historical_event_rows = 0_usize;
+    loop {
+        let page = query.events(None, event_offset, 100).map_err(|error| {
+            format!("No se pudo medir la consulta histórica de eventos: {error}")
+        })?;
+        historical_event_rows += page.events.len();
+        event_offset += page.events.len();
+        if page.events.is_empty() || event_offset >= page.total {
+            break;
+        }
+    }
+    let historical_events_micros = events_started.elapsed().as_micros();
     let database_bytes = fs::metadata(database)
         .map_err(|_| "No se pudo medir el archivo histórico del benchmark.".to_owned())?
         .len();
@@ -2648,7 +2994,7 @@ fn run_benchmark(
         .map(|(phase, total)| (phase, total / years / 1_000))
         .collect();
     Ok(BenchmarkReport {
-        report_version: 3,
+        report_version: 4,
         profile_version,
         profile: profile.id.clone(),
         description: profile.description.clone(),
@@ -2669,6 +3015,12 @@ fn run_benchmark(
         },
         configured_institutions: if profile.e2 { profile.institutions } else { 0 },
         configured_professions: if profile.e2 { profile.professions } else { 0 },
+        configured_economic_goods: if profile.e3 {
+            profile.economic_goods
+        } else {
+            0
+        },
+        configured_scheduled_events: if profile.e3 { profile.event_count } else { 0 },
         culture_projection_rows,
         institution_projection_rows,
         organization_projection_rows,
@@ -2692,6 +3044,17 @@ fn run_benchmark(
         historical_institutions_micros,
         historical_organizations_micros,
         historical_routes_micros,
+        historical_markets_micros,
+        historical_settlement_markets_micros,
+        historical_trades_micros,
+        historical_events_micros,
+        economic_group_count: economic_group_count.max(final_market_group_count),
+        total_trade_rows,
+        historical_market_group_rows,
+        historical_trade_rows,
+        historical_settlement_market_rows,
+        historical_event_rows,
+        realized_event_effects,
         database_bytes,
         sampled_peak_rss_bytes: peak_rss,
         deterministic_digest: digest.finish(),
@@ -2799,6 +3162,7 @@ fn configure_benchmark_scenario(
                     },
                 ],
                 trait_distributions,
+                profession_distribution: Vec::new(),
             }
         })
         .collect();
@@ -2815,6 +3179,220 @@ fn configure_benchmark_scenario(
     if profile.e2 {
         configure_e2_territory(scenario, profile)?;
     }
+    if profile.e3 {
+        if let Some(territory) = &mut scenario.territory {
+            territory.migration.enabled = false;
+            territory.migration.probability_ppm = 0;
+            territory.migration.max_moving_units_per_year = 0;
+        }
+        configure_e3_economy_and_events(scenario, profile)?;
+    }
+    Ok(())
+}
+
+fn configure_e3_economy_and_events(
+    scenario: &mut Scenario,
+    profile: &BenchmarkProfile,
+) -> Result<(), String> {
+    use chargen_domain::{
+        EconomicConfig, EconomicGroupEndowment, EconomicGroupEndowmentEntry, EconomicGroupId,
+        EconomicLaborPolicy, EconomicPricePolicy, EconomicProductionResponsePolicy,
+        EconomicResponsePolicy, EventEffect, EventPopulationFilter, EventSelection,
+        ExactOverflowPolicy, GoodDefinition, GoodId, GoodNeed, LogicalId, Money, ProductionRecipe,
+        ProfessionEconomicPolicy, ProfessionId, Quantity, ScheduledEvent, SettlementId,
+        TransportCostAccount, WeightedProfession, Year,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
+
+    if profile.professions == 0 || profile.economic_goods < 3 {
+        return Err(format!(
+            "El perfil {} requiere al menos una profesión y tres bienes para modelar producción.",
+            profile.id
+        ));
+    }
+    scenario.schema_version = Scenario::EVENT_SCHEMA_VERSION;
+    scenario.rules_version = Scenario::EVENT_RULES_VERSION;
+    let profession_ids = (0..profile.professions)
+        .map(|index| ProfessionId(format!("synthetic::profession_{index:03}")))
+        .collect::<Vec<_>>();
+    for population in &mut scenario.initial_population_profiles {
+        population.profession_distribution = std::iter::once(WeightedProfession {
+            profession_id: None,
+            weight: 1,
+        })
+        .chain(
+            profession_ids
+                .iter()
+                .cloned()
+                .map(|profession_id| WeightedProfession {
+                    profession_id: Some(profession_id),
+                    weight: 1,
+                }),
+        )
+        .collect();
+    }
+
+    let mut goods = BTreeMap::new();
+    let good_ids = (0..profile.economic_goods)
+        .map(|index| match index {
+            0 => GoodId("grain".to_owned()),
+            1 => GoodId("flour".to_owned()),
+            2 => GoodId("bread".to_owned()),
+            other => GoodId(format!("surplus_{other:03}")),
+        })
+        .collect::<Vec<_>>();
+    for (index, id) in good_ids.iter().enumerate() {
+        let name = match index {
+            0 => "Grano".to_owned(),
+            1 => "Harina".to_owned(),
+            2 => "Pan".to_owned(),
+            _ => format!("Bien sintético {index:03}"),
+        };
+        goods.insert(
+            id.clone(),
+            GoodDefinition {
+                name,
+                unit: if index == 2 { "hogaza" } else { "unidad" }.to_owned(),
+                transport_units_per_unit: 1,
+                storable: index != 2,
+                annual_storage_loss_ppm: if index == 0 { 10_000 } else { 0 },
+                initial_price: Money(10),
+                minimum_price: Money(1),
+                maximum_price: Money(100),
+            },
+        );
+    }
+    let mut profession_policies = BTreeMap::new();
+    for (index, profession_id) in profession_ids.iter().enumerate() {
+        let (inputs, output_index) = match index {
+            0 => (BTreeMap::new(), 0),
+            1 => (BTreeMap::from([(good_ids[0].clone(), Quantity(1))]), 1),
+            2 => (BTreeMap::from([(good_ids[1].clone(), Quantity(1))]), 2),
+            _ => (BTreeMap::new(), index.min(good_ids.len() - 1)),
+        };
+        let recipe = ProductionRecipe {
+            batches_per_worker: 4,
+            maximum_batches_per_year: None,
+            inputs_per_batch: inputs,
+            outputs_per_batch: BTreeMap::from([(good_ids[output_index].clone(), Quantity(1))]),
+        };
+        profession_policies.insert(
+            profession_id.clone(),
+            ProfessionEconomicPolicy {
+                recipe: Some(recipe),
+            },
+        );
+    }
+    let mut route_goods_capacities = BTreeMap::new();
+    if let Some(territory) = &scenario.territory {
+        for route in &territory.routes {
+            route_goods_capacities.insert(
+                route.logical_id,
+                Quantity(i64::from(profile.population).saturating_mul(10)),
+            );
+        }
+    }
+    let mut initial_group_endowments = Vec::new();
+    for settlement_index in 0..profile.settlements {
+        let settlement_id = SettlementId(u64::from(settlement_index) + 1);
+        initial_group_endowments.push(EconomicGroupEndowmentEntry {
+            group_id: EconomicGroupId::consumer_group(settlement_id),
+            endowment: EconomicGroupEndowment {
+                money: Money(100_000),
+                goods: BTreeMap::new(),
+            },
+        });
+        for profession_id in &profession_ids {
+            initial_group_endowments.push(EconomicGroupEndowmentEntry {
+                group_id: EconomicGroupId {
+                    settlement_id,
+                    profession_id: Some(profession_id.clone()),
+                },
+                endowment: EconomicGroupEndowment {
+                    money: Money(100_000),
+                    goods: BTreeMap::new(),
+                },
+            });
+        }
+    }
+    let mut economy = EconomicConfig {
+        goods,
+        profession_policies,
+        needs: BTreeMap::from([(
+            good_ids[2].clone(),
+            GoodNeed {
+                quantity_per_person_per_year: Quantity(1),
+                priority: 1,
+            },
+        )]),
+        route_goods_capacities,
+        transport_money_per_route_cost_unit: Money(1),
+        transport_cost_account: TransportCostAccount::Treasury,
+        initial_group_endowments,
+        initial_treasury: EconomicGroupEndowment {
+            money: Money(10_000),
+            goods: BTreeMap::new(),
+        },
+        price_policy: EconomicPricePolicy::default(),
+        buyer_priority: Default::default(),
+        asset_continuity: Default::default(),
+        empty_group_disposition: Default::default(),
+        labor_policy: EconomicLaborPolicy::default(),
+        responses: EconomicResponsePolicy::default(),
+        production_response: EconomicProductionResponsePolicy::default(),
+    };
+    // Keep deterministic producer-to-consumer chains even for catalogs wider
+    // than the three core goods; the extra goods are additional outputs.
+    if profile.professions > 0 {
+        economy.needs.insert(
+            good_ids[2].clone(),
+            GoodNeed {
+                quantity_per_person_per_year: Quantity(1),
+                priority: 1,
+            },
+        );
+    }
+    scenario.economy = Some(economy);
+
+    let mut events = Vec::new();
+    let scheduled_count = profile.event_count.min(profile.years.saturating_sub(1));
+    for index in 0..scheduled_count {
+        let offset = (index % profile.years.saturating_sub(1).max(1)) + 1;
+        let start_year = scenario
+            .start_year
+            .0
+            .checked_add(i32::try_from(offset).map_err(|_| "Evento fuera de rango de año.")?)
+            .ok_or("Año de evento fuera de rango.")?;
+        let effect = if index % 2 == 0 {
+            EventEffect::ProductionLoss {
+                loss_ppm: 50_000 + (index % 4) * 25_000,
+            }
+        } else {
+            EventEffect::WorkIncapacity {
+                selection: EventSelection::Exact {
+                    count: 1,
+                    overflow: ExactOverflowPolicy::ClampWithWarning,
+                },
+            }
+        };
+        events.push(ScheduledEvent {
+            id: LogicalId(9_000_000 + u64::from(index)),
+            name: format!("Incidente sintético {index:03}"),
+            start_year: Year(start_year),
+            duration_years: Some(2),
+            priority: i32::try_from(profile.event_count - index).unwrap_or(0),
+            population_filter: EventPopulationFilter {
+                settlement_ids: None,
+                minimum_age: if index % 2 == 0 { None } else { Some(18) },
+                maximum_age: None,
+                profession_ids: Some(BTreeSet::from([profession_ids
+                    [index as usize % profession_ids.len()]
+                .clone()])),
+            },
+            effects: vec![effect],
+        });
+    }
+    scenario.scheduled_events = Some(events);
     Ok(())
 }
 
@@ -3285,6 +3863,23 @@ mod tests {
         assert!(!uses_territorial_revision);
         let mut child = Engine::new(validated, cut_state).unwrap();
         assert_eq!(child.advance_year(None).unwrap().year, Year(1));
+    }
+
+    #[test]
+    fn e3_child_policy_revision_uses_the_revision_engine_constructor() {
+        let scenario: Scenario = serde_json::from_str(include_str!(
+            "../../../scenarios/demos/e3-economy-events.json"
+        ))
+        .unwrap();
+        let (validated, is_revision) = validate_run_scenario(&scenario, true).unwrap();
+        assert!(is_revision);
+        assert_eq!(
+            validated.scenario().rules_version,
+            Scenario::EVENT_RULES_VERSION
+        );
+
+        let (_, is_new_root) = validate_run_scenario(&scenario, false).unwrap();
+        assert!(!is_new_root);
     }
 
     #[test]

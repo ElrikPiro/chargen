@@ -1,0 +1,500 @@
+{
+  "world_id": 3,
+  "schema_version": 3,
+  "rules_version": 3,
+  "seed": 421338,
+  "start_year": 0,
+  "settlements": [
+    {
+      "id": 1,
+      "logical_id": 1001,
+      "name": "Valle de la Harina",
+      "culture_values": {
+        "cultura::cooperacion": 50
+      }
+    },
+    {
+      "id": 2,
+      "logical_id": "1002",
+      "name": "Puerto del Trigo",
+      "culture_values": {
+        "cultura::cooperacion": 50
+      }
+    }
+  ],
+  "initial_people": [
+    {
+      "id": 1,
+      "logical_id": 2001,
+      "birth_year": -25,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {
+        "gametes": [
+          "ovum"
+        ],
+        "can_gestate": true,
+        "fertility_enabled": true
+      },
+      "traits": {
+        "cultura::cooperacion": 55
+      },
+      "genome": {
+        "loci": {}
+      },
+      "last_widowed_year": null,
+      "profession": "oficio::agricultor"
+    },
+    {
+      "id": 2,
+      "logical_id": 2002,
+      "birth_year": -24,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {
+        "gametes": [
+          "sperm"
+        ],
+        "can_gestate": false,
+        "fertility_enabled": true
+      },
+      "traits": {
+        "cultura::cooperacion": 45
+      },
+      "genome": {
+        "loci": {}
+      },
+      "last_widowed_year": null,
+      "profession": "oficio::panadero"
+    },
+    {
+      "id": 3,
+      "logical_id": 2003,
+      "birth_year": -3,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {
+        "gametes": [],
+        "can_gestate": false,
+        "fertility_enabled": false
+      },
+      "traits": {
+        "cultura::cooperacion": 60
+      },
+      "genome": {
+        "loci": {}
+      },
+      "last_widowed_year": null
+    }
+  ],
+  "initial_households": [
+    {
+      "id": 1,
+      "logical_id": 3001,
+      "kind": "family",
+      "settlement_id": 1,
+      "members": [
+        1,
+        2,
+        3
+      ],
+      "closed_year": null
+    }
+  ],
+  "initial_unions": [
+    {
+      "id": 1,
+      "logical_id": 4001,
+      "participants": [
+        1,
+        2
+      ],
+      "kind": "partnership",
+      "validity": {
+        "start": -5,
+        "end_exclusive": null
+      }
+    }
+  ],
+  "initial_family_links": [
+    {
+      "id": 1,
+      "logical_id": 5001,
+      "parent": 1,
+      "child": 3,
+      "kind": "biological_parent",
+      "validity": {
+        "start": -3,
+        "end_exclusive": null
+      }
+    },
+    {
+      "id": 2,
+      "logical_id": 5002,
+      "parent": 2,
+      "child": 3,
+      "kind": "biological_parent",
+      "validity": {
+        "start": -3,
+        "end_exclusive": null
+      }
+    }
+  ],
+  "trait_catalog": [
+    {
+      "key": "cultura::cooperacion",
+      "minimum": 0,
+      "maximum": 100
+    }
+  ],
+  "initial_population_profiles": [],
+  "policies": {
+    "mortality": {
+      "default_probability_ppm": 0,
+      "age_bands": []
+    },
+    "unions": {
+      "enabled": false,
+      "minimum_age": 18,
+      "maximum_age": 60,
+      "formation_probability_ppm": 0,
+      "separation_probability_ppm": 0,
+      "candidate_limit": 8,
+      "formation_attempts_per_person": 1,
+      "max_active_unions_per_person": 1,
+      "prohibited_kinship_generations": 2,
+      "allow_widowed_remarriage": true,
+      "kind": "partnership"
+    },
+    "births": {
+      "enabled": false,
+      "probability_ppm": 0,
+      "minimum_gestational_age": 18,
+      "maximum_gestational_age": 45,
+      "require_active_union": true,
+      "required_contributor_gamete": "sperm",
+      "minimum_contributor_age": 18,
+      "allow_unknown_contributor": false,
+      "maximum_births_per_person_per_year": 1,
+      "minimum_years_between_births": 1,
+      "infant_mortality_probability_ppm": 0,
+      "child_reproductive_profiles": []
+    },
+    "adoption": {
+      "enabled": false,
+      "adopt_orphans": false,
+      "adoption_probability_ppm": 0,
+      "candidate_limit": 8,
+      "minor_age": 18,
+      "minimum_caregiver_age": 18,
+      "maximum_adoptions_per_year": 16,
+      "maximum_children_per_household": null,
+      "maximum_caregivers_per_child": 2,
+      "move_to_adoptive_household": true,
+      "add_household_care_links": true
+    },
+    "traits": {
+      "cultura::cooperacion": {
+        "parent_weight": 2,
+        "local_weight": 1,
+        "variation_max": 0,
+        "minimum": 0,
+        "maximum": 100
+      }
+    }
+  },
+  "genetics": {
+    "loci": []
+  },
+  "territory": {
+    "route_revision": 1,
+    "routes": [
+      {
+        "logical_id": "6001",
+        "from": 1,
+        "to": 2,
+        "cost": 1,
+        "capacity_per_year": null,
+        "open_intervals": [
+          {
+            "start": 1,
+            "end_exclusive": 3
+          }
+        ]
+      }
+    ],
+    "settlement_capacities": {
+      "1": 3,
+      "2": 3
+    },
+    "opportunity_scores": {
+      "1": 0,
+      "2": 10
+    },
+    "migration": {
+      "enabled": false,
+      "probability_ppm": 0,
+      "unit": "person",
+      "minimum_age": 18,
+      "maximum_age": null,
+      "candidate_limit": 8,
+      "max_moving_units_per_year": 0,
+      "maximum_travel_cost": null,
+      "minimum_net_opportunity_gain": 1
+    },
+    "scheduled_displacements": [],
+    "professions": [
+      {
+        "id": "oficio::agricultor",
+        "name": "Agricultor"
+      },
+      {
+        "id": "oficio::panadero",
+        "name": "Panadero"
+      }
+    ],
+    "profession_options_by_settlement": {
+      "1": [
+        "oficio::agricultor",
+        "oficio::panadero"
+      ],
+      "2": [
+        "oficio::agricultor",
+        "oficio::panadero"
+      ]
+    }
+  },
+  "culture": {
+    "dimensions": {
+      "cultura::cooperacion": {
+        "eligibility": {
+          "kind": "all_living"
+        },
+        "member_weight": 1,
+        "parent_weight": 2,
+        "local_weight": 1,
+        "variation_max": 0,
+        "minimum": 0,
+        "maximum": 100,
+        "founder_value": 50
+      }
+    },
+    "institutions": [
+      {
+        "id": "local::asamblea",
+        "name": "Asamblea del Camino",
+        "kind": "institution",
+        "scope": "settlement",
+        "allowed_settlements": [
+          1,
+          2
+        ],
+        "values": {
+          "cultura::cooperacion": 50
+        },
+        "affiliation": {
+          "enabled": true,
+          "minimum_age": 0,
+          "maximum_age": null,
+          "minimum_affinity_ppm": 0,
+          "opportunity_ppm": 1000000,
+          "candidate_limit": 64,
+          "maximum_affiliations_per_person": null,
+          "continue_after_migration": false
+        }
+      }
+    ],
+    "organizations": {
+      "enabled": true,
+      "cadence_years": 1,
+      "candidate_limit_per_settlement": 64,
+      "maximum_organizations_per_settlement": 1,
+      "minimum_founders": 2,
+      "maximum_members": 12,
+      "dissolve_below_members": 1,
+      "minimum_age": 18,
+      "maximum_age": null,
+      "minimum_affinity_ppm": 0,
+      "formation_opportunity_ppm": 1000000,
+      "continue_after_migration": false
+    }
+  },
+  "economy": {
+    "goods": {
+      "grano": {
+        "name": "Grano",
+        "unit": "saco",
+        "transport_units_per_unit": 1,
+        "storable": true,
+        "annual_storage_loss_ppm": 10000,
+        "initial_price": "2",
+        "minimum_price": "1",
+        "maximum_price": "20"
+      },
+      "pan": {
+        "name": "Pan",
+        "unit": "hogaza",
+        "transport_units_per_unit": 1,
+        "storable": false,
+        "annual_storage_loss_ppm": 0,
+        "initial_price": "5",
+        "minimum_price": "1",
+        "maximum_price": "30"
+      }
+    },
+    "profession_policies": {
+      "oficio::agricultor": {
+        "recipe": {
+          "batches_per_worker": 100,
+          "maximum_batches_per_year": null,
+          "inputs_per_batch": {},
+          "outputs_per_batch": {
+            "grano": "10"
+          }
+        }
+      },
+      "oficio::panadero": {
+        "recipe": {
+          "batches_per_worker": 100,
+          "maximum_batches_per_year": null,
+          "inputs_per_batch": {
+            "grano": "2"
+          },
+          "outputs_per_batch": {
+            "pan": "1"
+          }
+        }
+      }
+    },
+    "needs": {
+      "pan": {
+        "quantity_per_person_per_year": "1",
+        "priority": 1
+      }
+    },
+    "route_goods_capacities": {
+      "6001": "10000"
+    },
+    "transport_money_per_route_cost_unit": "0",
+    "transport_cost_account": "treasury",
+    "initial_group_endowments": [
+      {
+        "group_id": {
+          "settlement_id": 1,
+          "profession_id": "oficio::agricultor"
+        },
+        "endowment": {
+          "money": "0",
+          "goods": {}
+        }
+      },
+      {
+        "group_id": {
+          "settlement_id": 1,
+          "profession_id": "oficio::panadero"
+        },
+        "endowment": {
+          "money": "1000",
+          "goods": {}
+        }
+      },
+      {
+        "group_id": {
+          "settlement_id": 1,
+          "profession_id": null
+        },
+        "endowment": {
+          "money": "1000",
+          "goods": {}
+        }
+      }
+    ],
+    "initial_treasury": {
+      "money": "100",
+      "goods": {}
+    },
+    "price_policy": {
+      "adjustment_step_ppm": 50000
+    },
+    "buyer_priority": "seeded_logical_rank",
+    "asset_continuity": "retain_group_assets",
+    "empty_group_disposition": "retain_dormant",
+    "labor_policy": {
+      "enabled": false,
+      "minimum_working_age": 18,
+      "max_changes_per_settlement_per_year": 0
+    },
+    "responses": {
+      "mortality_increase_at_full_scarcity_ppm": 0,
+      "birth_reduction_at_full_scarcity_ppm": 0,
+      "migration_opportunity_at_full_scarcity": 0
+    },
+    "production_response": {
+      "enabled": false,
+      "step_ppm": 0,
+      "minimum_capacity_ppm": 1000000,
+      "maximum_capacity_ppm": 1000000
+    }
+  },
+  "scheduled_events": [
+    {
+      "id": "9101",
+      "name": "Fiebre en el horno",
+      "start_year": 1,
+      "duration_years": 2,
+      "priority": 5,
+      "population_filter": {
+        "settlement_ids": [
+          1
+        ],
+        "minimum_age": 18,
+        "maximum_age": null,
+        "profession_ids": [
+          "oficio::panadero"
+        ]
+      },
+      "effects": [
+        {
+          "type": "work_incapacity",
+          "data": {
+            "selection": {
+              "mode": "exact",
+              "data": {
+                "count": 1,
+                "overflow": "clamp_with_warning"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "9102",
+      "name": "Deterioro del horno",
+      "start_year": 1,
+      "duration_years": 2,
+      "priority": 4,
+      "population_filter": {
+        "settlement_ids": [
+          1
+        ],
+        "minimum_age": null,
+        "maximum_age": null,
+        "profession_ids": [
+          "oficio::panadero"
+        ]
+      },
+      "effects": [
+        {
+          "type": "production_loss",
+          "data": {
+            "loss_ppm": 250000
+          }
+        }
+      ]
+    }
+  ]
+}

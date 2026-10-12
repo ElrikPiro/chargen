@@ -10,8 +10,8 @@
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">Chargen · prototipo E2</p>
-        <h1>Asentamientos y familias</h1>
+        <p class="eyebrow">Chargen · prototipo E3</p>
+        <h1>Historia local de población y economía</h1>
       </div>
       <span id="connection" class="connection" aria-live="polite">Comprobando servicio…</span>
     </header>
@@ -61,6 +61,20 @@
         </div>
       </section>
 
+      <section class="panel" aria-labelledby="economy-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Vista temporal E3</p>
+            <h2 id="economy-heading">Mercados y eventos realizados</h2>
+          </div>
+          <button id="load-e3" class="secondary">Consultar economía y eventos</button>
+        </div>
+        <p class="muted">Las consultas usan el mismo cierre seleccionado. La agenda futura del escenario no se presenta como historia realizada.</p>
+        <div id="economy-results" class="results" aria-live="polite">
+          <p class="muted">Selecciona un mundo, una rama y un año para ver sus balances y sucesos.</p>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="scenario-heading">
         <div class="panel-heading">
           <div>
@@ -74,6 +88,7 @@
         <p id="scenario-help" class="muted">Edita una copia del escenario de demostración. Los parámetros de demostración son ficticios.</p>
         <div class="actions">
           <button id="load-e2-demo" class="secondary">Cargar demo E2</button>
+          <button id="load-e3-demo" class="secondary">Cargar demo E3</button>
           <button id="validate-scenario" class="secondary">Validar</button>
           <button id="create-world">Crear mundo</button>
         </div>

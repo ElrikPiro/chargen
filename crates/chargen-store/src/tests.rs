@@ -54,6 +54,8 @@ fn tiny_scenario(world: u64, with_person: bool) -> Scenario {
         genetics: GeneticCatalog::default(),
         territory: None,
         culture: None,
+        economy: None,
+        scheduled_events: None,
     };
     if with_person {
         scenario.initial_people.push(Person {
@@ -341,6 +343,82 @@ fn e2_branch_revision_keeps_cutoff_displacements_and_referenced_institutions() {
         .unwrap();
     assert_eq!(store.head("2", "future-policy").unwrap(), Some(Year(0)));
     assert_eq!(store.list_branches("2").unwrap().len(), 2);
+}
+
+#[test]
+fn e3_branch_revision_allows_future_economic_and_event_policies_only() {
+    let workspace = TempWorkspace::new();
+    let scenario: Scenario = serde_json::from_str(include_str!(
+        "../../../scenarios/demos/e3-economy-events.json"
+    ))
+    .unwrap();
+    let (store, state) = create_store(&workspace, &scenario, "main");
+    let mut engine = engine_for(&scenario, state);
+    store
+        .acquire_writer("3", "main")
+        .unwrap()
+        .commit_year(&next_year(&mut engine).unwrap())
+        .unwrap();
+
+    let mut future_revision = scenario.clone();
+    future_revision.scheduled_events.as_mut().unwrap().clear();
+    future_revision
+        .economy
+        .as_mut()
+        .unwrap()
+        .price_policy
+        .adjustment_step_ppm = 100_000;
+    store
+        .fork_branch(
+            "3",
+            "main",
+            "future-policy",
+            Year(0),
+            &serde_json::to_string(&future_revision).unwrap(),
+        )
+        .unwrap();
+
+    let mut changed_endowment = future_revision.clone();
+    changed_endowment
+        .economy
+        .as_mut()
+        .unwrap()
+        .initial_group_endowments[0]
+        .endowment
+        .money
+        .0 += 1;
+    assert!(matches!(
+        store.fork_branch(
+            "3",
+            "main",
+            "changed-endowment",
+            Year(0),
+            &serde_json::to_string(&changed_endowment).unwrap(),
+        ),
+        Err(StoreError::ScenarioInvalid(_))
+    ));
+
+    let mut writer = store.acquire_writer("3", "main").unwrap();
+    writer
+        .commit_year(&next_year(&mut engine).unwrap())
+        .unwrap();
+    drop(writer);
+    let mut changed_past_event = scenario.clone();
+    changed_past_event
+        .scheduled_events
+        .as_mut()
+        .unwrap()
+        .clear();
+    assert!(matches!(
+        store.fork_branch(
+            "3",
+            "main",
+            "changed-past-event",
+            Year(1),
+            &serde_json::to_string(&changed_past_event).unwrap(),
+        ),
+        Err(StoreError::ScenarioInvalid(_))
+    ));
 }
 
 #[test]

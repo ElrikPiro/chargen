@@ -1,5 +1,5 @@
 {
-  "profile_version": 3,
+  "profile_version": 4,
   "profiles": [
     {
       "id": "B0",
@@ -84,6 +84,51 @@
       "culture_dimensions": 166,
       "institutions": 32,
       "professions": 12
+    },
+    {
+      "id": "E3-B0",
+      "population": 40,
+      "settlements": 3,
+      "years": 10,
+      "seed": 421450,
+      "description": "Prueba pequeña de grupos productores, mercado, contabilidad y eventos realizados; población estable.",
+      "e2": true,
+      "e3": true,
+      "culture_dimensions": 6,
+      "institutions": 4,
+      "professions": 4,
+      "economic_goods": 3,
+      "event_count": 2
+    },
+    {
+      "id": "E3-B1",
+      "population": 1000,
+      "settlements": 10,
+      "years": 100,
+      "seed": 421451,
+      "description": "Perfil E3 medio con cadenas de producción, necesidad agregada y agenda de eventos sintética; población estable.",
+      "e2": true,
+      "e3": true,
+      "culture_dimensions": 20,
+      "institutions": 16,
+      "professions": 8,
+      "economic_goods": 4,
+      "event_count": 5
+    },
+    {
+      "id": "E3-B2",
+      "population": 3000,
+      "settlements": 50,
+      "years": 40,
+      "seed": 421452,
+      "description": "Perfil E3 de mayor catálogo y grupos económicos: 3.000 residentes, 50 asentamientos, 6 bienes, 12 profesiones y eventos sintéticos.",
+      "e2": true,
+      "e3": true,
+      "culture_dimensions": 50,
+      "institutions": 32,
+      "professions": 12,
+      "economic_goods": 6,
+      "event_count": 8
     }
   ]
 }

@@ -8,7 +8,10 @@ for (const marker of forbidden) {
     throw new Error(`Web resources must remain local; found ${marker}`);
   }
 }
-for (const expected of ["const API = \"/api\"", '"/health"', '"/worlds"', '"/scenarios/validate"', '/census', '/runs/']) {
+for (const expected of ["const API = \"/api\"", '"/health"', '"/worlds"', '"/scenarios/validate"', '/census', '/runs/', '/markets/settlements', '/markets/trades', '/events']) {
   if (!source.includes(expected)) throw new Error(`Missing API route reference: ${expected}`);
+}
+for (const marker of ['id="load-e3"', 'id="economy-results"', 'id="load-e3-demo"']) {
+  if (!html.includes(marker)) throw new Error(`Missing E3 interface marker: ${marker}`);
 }
 console.log("Web source uses local resources and references the expected API routes.");

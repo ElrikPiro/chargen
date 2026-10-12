@@ -143,6 +143,7 @@ pub enum MovementReason {
 #[serde(rename_all = "snake_case")]
 pub enum ProfessionChangeReason {
     DestinationDoesNotOfferProfession,
+    EconomicOpportunity,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

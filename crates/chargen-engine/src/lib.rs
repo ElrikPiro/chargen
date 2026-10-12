@@ -17,8 +17,11 @@ use std::time::Instant;
 use thiserror::Error;
 
 pub mod culture;
+pub mod economy;
+mod events;
 mod migration;
 pub use culture::*;
+pub use economy::*;
 
 /// Keyed RNG contract. Changing its mixing or domain numbers requires a new version.
 pub const RNG_VERSION: u32 = 1;
@@ -55,6 +58,11 @@ pub enum DecisionDomain {
     MigrationDestination = 26,
     MigrationPriority = 27,
     ForcedDisplacementPriority = 28,
+    EventSelection = 29,
+    EventProbability = 30,
+    InitialProfession = 31,
+    EconomicMarketPriority = 32,
+    EconomicProfessionChange = 33,
 }
 
 /// A cancellation request is observed between annual phases; the pending year is discarded.
@@ -141,6 +149,10 @@ pub enum EngineError {
     InvalidMigration(String),
     #[error("culture processing failed: {0}")]
     Culture(String),
+    #[error("scheduled event processing failed: {0}")]
+    ScheduledEvent(String),
+    #[error("economic processing failed: {0}")]
+    Economy(String),
     #[error(
         "demographic balance failed for settlement {settlement_id:?}: expected {expected}, found {actual}"
     )]
@@ -164,7 +176,7 @@ pub struct Engine {
 
 /// Per-year indexes prevent each person from rescanning every relationship or household.
 #[derive(Default)]
-struct AnnualIndexes {
+pub(crate) struct AnnualIndexes {
     settlement_people: BTreeMap<SettlementId, Vec<PersonId>>,
     settlement_households: BTreeMap<SettlementId, Vec<HouseholdId>>,
     active_unions_by_person: BTreeMap<PersonId, BTreeSet<UnionId>>,
@@ -184,7 +196,12 @@ struct AnnualIndexes {
 }
 
 impl AnnualIndexes {
-    fn rebuild(state: &State, year: Year, adoption: &AdoptionPolicy, births: &BirthPolicy) -> Self {
+    pub(crate) fn rebuild(
+        state: &State,
+        year: Year,
+        adoption: &AdoptionPolicy,
+        births: &BirthPolicy,
+    ) -> Self {
         let mut indexes = Self::default();
         for person in state
             .persons
@@ -502,9 +519,11 @@ impl Engine {
                 message: "branch cut state identity must match the revised scenario".into(),
             }]));
         }
-        if state.rules_version != chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+        if state.rules_version < chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+            || state.rules_version > chargen_domain::Scenario::EVENT_RULES_VERSION
+        {
             return Err(EngineError::InvalidMigration(
-                "policy revision constructor is only valid for rules version 2".into(),
+                "policy revision constructor is only valid for rules versions 2 and 3".into(),
             ));
         }
         Ok(Self {
@@ -550,7 +569,7 @@ impl Engine {
             None => self.state.start_year,
         };
         if self.scenario.scenario().rules_version
-            != chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+            < chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
             && !commands.is_empty()
         {
             return Err(EngineError::InvalidMigration(
@@ -616,12 +635,26 @@ impl Engine {
                         )
                         .map_err(|error| EngineError::Culture(error.to_string()))?;
                     }
-                    if self.scenario.scenario().rules_version
-                        == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
-                    {
-                        implemented(phase, "transiciones anuales de elegibilidad cultural")
-                    } else {
-                        deferred(phase, "sin comandos de año configurados en este hito")
+                    events::expire_event_effects(&mut pending, year);
+                    if let Some(economic_config) = &self.scenario.scenario().economy {
+                        economy::begin_economy_year(
+                            economic_config,
+                            &mut pending,
+                            self.scenario.scenario().territory.as_ref(),
+                            year,
+                            &mut events,
+                        )
+                        .map_err(|error| EngineError::Economy(error.to_string()))?;
+                    }
+                    match self.scenario.scenario().rules_version {
+                        chargen_domain::Scenario::EVENT_RULES_VERSION => implemented(
+                            phase,
+                            "efectos vencidos, mercado pendiente y transiciones culturales",
+                        ),
+                        chargen_domain::Scenario::TERRITORIAL_RULES_VERSION => {
+                            implemented(phase, "transiciones anuales de elegibilidad cultural")
+                        }
+                        _ => deferred(phase, "sin comandos de año configurados en este hito"),
                     }
                 }
                 YearPhase::A1 => {
@@ -642,10 +675,32 @@ impl Engine {
                                 &policies.births,
                             );
                         }
-                        implemented(
-                            phase,
-                            "desplazamientos forzados validados y aplicados en lote",
-                        )
+                        if pending.rules_version == chargen_domain::Scenario::EVENT_RULES_VERSION {
+                            events::apply_scheduled_events(
+                                &self.scenario,
+                                &mut pending,
+                                &mut indexes,
+                                year,
+                                &mut events,
+                                &mut movement_usage,
+                                &mut self.route_cache,
+                            )?;
+                            indexes = AnnualIndexes::rebuild(
+                                &pending,
+                                year,
+                                &policies.adoption,
+                                &policies.births,
+                            );
+                            implemented(
+                                phase,
+                                "desplazamientos y shocks programados resueltos en orden estable",
+                            )
+                        } else {
+                            implemented(
+                                phase,
+                                "desplazamientos forzados validados y aplicados en lote",
+                            )
+                        }
                     } else {
                         deferred(phase, "agenda de eventos programados pendiente")
                     }
@@ -657,6 +712,7 @@ impl Engine {
                         &mut indexes,
                         year,
                         &mut events,
+                        self.scenario.scenario().economy.as_ref(),
                     )?;
                     indexes = AnnualIndexes::rebuild(
                         &pending,
@@ -667,9 +723,13 @@ impl Engine {
                     implemented(phase, "mortalidad ordinaria y viudedad")
                 }
                 YearPhase::A3 => {
-                    if pending.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+                    if pending.rules_version >= chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
                     {
                         reconcile_territorial_state(&mut pending, year, &mut events)?;
+                        if let Some(economic_config) = &self.scenario.scenario().economy {
+                            economy::reconcile_economic_groups(economic_config, &mut pending, year)
+                                .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        }
                         implemented(
                             phase,
                             "hogares, ocupación y residencias reconciliados tras mortalidad",
@@ -681,15 +741,74 @@ impl Engine {
                         )
                     }
                 }
-                YearPhase::A4 => deferred(phase, "producción pendiente"),
-                YearPhase::A5 => deferred(phase, "mercados pendientes"),
-                YearPhase::A6 => deferred(phase, "consumo y necesidades pendientes"),
+                YearPhase::A4 => {
+                    if let Some(economic_config) = &self.scenario.scenario().economy {
+                        let modifiers = events::production_modifiers(&pending, year);
+                        economy::produce_economy(economic_config, &mut pending, year, &modifiers)
+                            .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        implemented(
+                            phase,
+                            "producción agrupada con pérdidas e incapacidades activas",
+                        )
+                    } else {
+                        deferred(phase, "producción pendiente")
+                    }
+                }
+                YearPhase::A5 => {
+                    if let (Some(economic_config), Some(territory)) = (
+                        &self.scenario.scenario().economy,
+                        &self.scenario.scenario().territory,
+                    ) {
+                        economy::trade_economy(
+                            economic_config,
+                            &mut pending,
+                            Some(territory),
+                            year,
+                        )
+                        .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        implemented(phase, "mercados locales y comercio por rutas")
+                    } else {
+                        deferred(phase, "mercados pendientes")
+                    }
+                }
+                YearPhase::A6 => {
+                    if let (Some(economic_config), Some(territory)) = (
+                        &self.scenario.scenario().economy,
+                        &self.scenario.scenario().territory,
+                    ) {
+                        economy::consume_and_adjust_economy(
+                            economic_config,
+                            &mut pending,
+                            Some(territory),
+                            year,
+                        )
+                        .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        implemented(phase, "consumo, carencias y ajustes del siguiente año")
+                    } else {
+                        deferred(phase, "consumo y necesidades pendientes")
+                    }
+                }
                 YearPhase::A7 => {
                     if let Some(territory) = &self.scenario.scenario().territory {
+                        let mut adjusted_territory = territory.clone();
+                        if let Some(economic_config) = &self.scenario.scenario().economy {
+                            for settlement_id in pending.settlements.keys().copied() {
+                                let adjustment = economy::current_migration_scarcity_adjustment(
+                                    economic_config,
+                                    &pending,
+                                    settlement_id,
+                                );
+                                let opportunity = adjusted_territory
+                                    .opportunity_scores
+                                    .entry(settlement_id)
+                                    .or_default();
+                                *opportunity = opportunity.saturating_add(adjustment);
+                            }
+                        }
                         migration::apply_voluntary_migration(
                             &self.scenario,
                             &mut pending,
-                            territory,
+                            &adjusted_territory,
                             year,
                             &mut self.route_cache,
                             &mut movement_usage,
@@ -701,6 +820,10 @@ impl Engine {
                             &policies.adoption,
                             &policies.births,
                         );
+                        if let Some(economic_config) = &self.scenario.scenario().economy {
+                            economy::reconcile_economic_groups(economic_config, &mut pending, year)
+                                .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        }
                         if territory.migration.enabled {
                             implemented(phase, "propuestas voluntarias resueltas en lote estable")
                         } else {
@@ -727,6 +850,7 @@ impl Engine {
                         &mut indexes,
                         year,
                         &mut events,
+                        self.scenario.scenario().economy.as_ref(),
                     )?;
                     if let Some(culture_config) = &self.scenario.scenario().culture {
                         let birth_inputs: Vec<_> = events
@@ -775,6 +899,10 @@ impl Engine {
                         )
                         .map_err(|error| EngineError::Culture(error.to_string()))?;
                     }
+                    if let Some(economic_config) = &self.scenario.scenario().economy {
+                        economy::reconcile_economic_groups(economic_config, &mut pending, year)
+                            .map_err(|error| EngineError::Economy(error.to_string()))?;
+                    }
                     implemented(
                         phase,
                         "nacimientos, alelos heredados y mortalidad infantil configurada",
@@ -799,6 +927,48 @@ impl Engine {
                     }
                 }
                 YearPhase::A11 => {
+                    if pending.rules_version == chargen_domain::Scenario::EVENT_RULES_VERSION {
+                        for event in &mut events {
+                            event
+                                .affected_entities
+                                .push(EntityRef::World(pending.world_id));
+                            event.affected_entities.sort();
+                            event.affected_entities.dedup();
+                        }
+                    }
+                    if let Some(economic_config) = &self.scenario.scenario().economy {
+                        economy::reconcile_economic_groups(economic_config, &mut pending, year)
+                            .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        let report =
+                            economy::finalize_economy_year(economic_config, &mut pending, year)
+                                .map_err(|error| EngineError::Economy(error.to_string()))?;
+                        let summary = chargen_domain::EconomicYearClosedSummary::from(&report);
+                        let mut affected_entities = vec![EntityRef::World(pending.world_id)];
+                        affected_entities.extend(
+                            summary
+                                .settlement_ids
+                                .iter()
+                                .copied()
+                                .map(EntityRef::Settlement),
+                        );
+                        affected_entities.extend(
+                            summary
+                                .group_ids
+                                .iter()
+                                .cloned()
+                                .map(EntityRef::EconomicGroup),
+                        );
+                        affected_entities.sort();
+                        affected_entities.dedup();
+                        emit_event(
+                            &pending,
+                            &mut events,
+                            year,
+                            LogicalId(pending.world_id.0),
+                            affected_entities,
+                            HistoricalEventKind::EconomicYearClosed { summary },
+                        );
+                    }
                     pending.current_year = Some(year);
                     pending.last_year_phases = phases
                         .iter()
@@ -813,7 +983,7 @@ impl Engine {
                             .map_err(|error| EngineError::Culture(error.to_string()))?;
                     }
                     validate_census_balance(&pending, year, &before_census, &events)?;
-                    if pending.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+                    if pending.rules_version >= chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
                     {
                         pending.last_year_settlement_balances =
                             census_balance(&pending, year, &before_census, &events)
@@ -873,7 +1043,7 @@ pub fn generate_initial_state(scenario: &ValidatedScenario) -> Result<State, Eng
     let mut state = scenario.initial_state();
     generate_initial_population(scenario, &mut state)?;
     materialize_founder_genomes(scenario, &mut state)?;
-    if scenario.scenario().rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+    if scenario.scenario().rules_version >= chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
         let initial_residents: Vec<_> = state
             .living_people_at(scenario.scenario().start_year)
             .map(|person| (person.id, person.settlement_id, person.profession.clone()))
@@ -907,6 +1077,10 @@ pub fn generate_initial_state(scenario: &ValidatedScenario) -> Result<State, Eng
             culture::initialize_culture(culture_config, &mut state, scenario.scenario().start_year)
                 .map_err(|error| EngineError::Culture(error.to_string()))?;
         }
+    }
+    if let Some(economic_config) = &scenario.scenario().economy {
+        economy::initialize_economy(economic_config, &mut state, scenario.scenario().start_year)
+            .map_err(|error| EngineError::Economy(error.to_string()))?;
     }
     scenario
         .validate_state(&state)
@@ -1295,7 +1469,7 @@ fn splitmix64(mut value: u64) -> u64 {
     value ^ (value >> 31)
 }
 
-fn random_below(
+pub(crate) fn random_below(
     seed: u64,
     rules: u32,
     domain: DecisionDomain,
@@ -1325,7 +1499,7 @@ fn random_below(
     }
 }
 
-fn occurs(
+pub(crate) fn occurs(
     seed: u64,
     rules: u32,
     domain: DecisionDomain,
@@ -1370,7 +1544,7 @@ fn choose_weighted<T>(
     None
 }
 
-fn derive_logical_id(
+pub(crate) fn derive_logical_id(
     seed: u64,
     rules: u32,
     domain: DecisionDomain,
@@ -1501,6 +1675,22 @@ fn generate_initial_population(
                     }
                 }
                 let id = allocate_person_id(state)?;
+                let profession =
+                    if config.rules_version == chargen_domain::Scenario::EVENT_RULES_VERSION {
+                        choose_weighted(
+                            &profile.profession_distribution,
+                            |entry| entry.weight,
+                            config.seed,
+                            config.rules_version,
+                            DecisionDomain::InitialProfession,
+                            config.start_year,
+                            person_logical,
+                            0,
+                        )
+                        .and_then(|entry| entry.profession_id.clone())
+                    } else {
+                        None
+                    };
                 let person = Person {
                     id,
                     logical_id: person_logical,
@@ -1512,7 +1702,7 @@ fn generate_initial_population(
                     traits,
                     genome: Default::default(),
                     last_widowed_year: None,
-                    profession: None,
+                    profession,
                 };
                 household.members.insert(id);
                 state.persons.insert(id, person);
@@ -1606,20 +1796,21 @@ fn apply_ordinary_mortality(
     indexes: &mut AnnualIndexes,
     year: Year,
     events: &mut Vec<HistoricalEvent>,
+    economic_config: Option<&chargen_domain::EconomicConfig>,
 ) -> Result<(), EngineError> {
     let seed = scenario.scenario().seed;
     let rules = scenario.scenario().rules_version;
     let mut candidates: Vec<_> = state
         .persons
         .values()
-        .filter(|person| person.alive_at_start(year))
+        .filter(|person| person.alive_at_start(year) && person.death_year.is_none())
         .map(|person| (person.logical_id, person.id))
         .collect();
     candidates.sort_unstable();
     for (logical, person_id) in candidates {
         let person = &state.persons[&person_id];
         let age = year.age_of(person.birth_year).unwrap_or(0);
-        let probability = mortality_probability(
+        let base_probability = mortality_probability(
             &scenario.scenario().policies.mortality.age_bands,
             age,
             scenario
@@ -1628,6 +1819,14 @@ fn apply_ordinary_mortality(
                 .mortality
                 .default_probability_ppm,
         );
+        let probability = economic_config.map_or(base_probability, |config| {
+            economy::adjust_mortality_probability(
+                config,
+                state,
+                person.settlement_id,
+                base_probability,
+            )
+        });
         if occurs(
             seed,
             rules,
@@ -1661,7 +1860,7 @@ fn mortality_probability(bands: &[AgeMortalityBand], age: u32, fallback: u32) ->
         .map_or(fallback, |band| band.probability_ppm)
 }
 
-fn apply_death(
+pub(crate) fn apply_death(
     scenario: &ValidatedScenario,
     state: &mut State,
     indexes: &mut AnnualIndexes,
@@ -1673,7 +1872,11 @@ fn apply_death(
     let Some(person) = state.persons.get(&person_id) else {
         return Ok(());
     };
-    if !person.alive_at_start(year) {
+    if !person.alive_at_start(year)
+        || person
+            .death_year
+            .is_some_and(|death_year| death_year <= year)
+    {
         return Ok(());
     }
     let person_logical = person.logical_id;
@@ -2544,6 +2747,7 @@ fn apply_births(
     indexes: &mut AnnualIndexes,
     year: Year,
     events: &mut Vec<HistoricalEvent>,
+    economic_config: Option<&chargen_domain::EconomicConfig>,
 ) -> Result<(), EngineError> {
     let config = scenario.scenario();
     let policy = &config.policies.births;
@@ -2577,6 +2781,12 @@ fn apply_births(
             continue;
         }
         let mut had_birth = false;
+        let settlement_id = state.persons[&gestator_id].settlement_id;
+        let birth_probability = economic_config.map_or(policy.probability_ppm, |economic| {
+            let reduction =
+                economy::current_birth_scarcity_reduction(economic, state, settlement_id);
+            policy.probability_ppm.saturating_sub(reduction)
+        });
         for ordinal in 0..policy.maximum_births_per_person_per_year {
             if !occurs(
                 config.seed,
@@ -2585,7 +2795,7 @@ fn apply_births(
                 year,
                 gestator_logical,
                 u64::from(ordinal),
-                policy.probability_ppm,
+                birth_probability,
             ) {
                 continue;
             }
@@ -2644,7 +2854,7 @@ fn apply_births(
                 profession: None,
             };
             state.persons.insert(person_id, person);
-            if state.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+            if state.rules_version >= chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
                 state.residences.insert(
                     person_id,
                     vec![ResidenceInterval {
@@ -3075,7 +3285,7 @@ fn sample_indices(
     selected.into_iter().collect()
 }
 
-fn emit_event(
+pub(crate) fn emit_event(
     state: &State,
     events: &mut Vec<HistoricalEvent>,
     year: Year,
@@ -3132,12 +3342,15 @@ fn allocate_family_link_id(state: &mut State) -> Result<FamilyLinkId, EngineErro
 mod tests {
     use super::*;
     use chargen_domain::{
-        AdoptionPolicy, BirthPolicy, CultureConfig, DemographicPolicies, DirectedRoute, FamilyLink,
+        AdoptionPolicy, BirthPolicy, CultureConfig, DemographicPolicies, DirectedRoute,
+        EconomicConfig, EconomicResponsePolicy, EconomicYearReport, EconomySignals, EventEffect,
+        EventPopulationFilter, EventRealization, EventSelection, ExactOverflowPolicy, FamilyLink,
         FamilyLinkKind, ForcedDisplacementCommand, GeneticCatalog, GeneticExpression, GeneticLocus,
-        Genome, HouseholdKind, InitialPopulationProfile, LocusId, MigrationPolicy, MigrationUnit,
-        MortalityPolicy, Person, ProfessionDefinition, ProfessionId, ReproductiveProfile, Scenario,
-        Settlement, TerritoryConfig, UnionId, UnionKind, UnionPolicy, VariantId, WeightedAgeBand,
-        WeightedReproductiveProfile, WeightedVariant,
+        Genome, GoodDefinition, GoodId, HouseholdKind, InitialPopulationProfile, LocusId,
+        MigrationPolicy, MigrationUnit, Money, MortalityPolicy, Person, ProductionRecipe,
+        ProfessionDefinition, ProfessionEconomicPolicy, ProfessionId, ReproductiveProfile,
+        Scenario, ScheduledEvent, Settlement, TerritoryConfig, UnionId, UnionKind, UnionPolicy,
+        VariantId, WeightedAgeBand, WeightedReproductiveProfile, WeightedVariant,
     };
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -3218,6 +3431,8 @@ mod tests {
             genetics: GeneticCatalog::default(),
             territory: None,
             culture: None,
+            economy: None,
+            scheduled_events: None,
         }
     }
 
@@ -3243,6 +3458,85 @@ mod tests {
             ..TerritoryConfig::default()
         });
         scenario.culture = Some(CultureConfig::default());
+        scenario
+    }
+
+    fn event_scenario() -> Scenario {
+        let mut scenario = territorial_scenario();
+        scenario.schema_version = Scenario::EVENT_SCHEMA_VERSION;
+        scenario.rules_version = Scenario::EVENT_RULES_VERSION;
+        scenario.economy = Some(EconomicConfig::default());
+        scenario.scheduled_events = Some(Vec::new());
+        scenario
+    }
+
+    fn scheduled_event(
+        id: u64,
+        name: &str,
+        start_year: Year,
+        priority: i32,
+        effects: Vec<EventEffect>,
+    ) -> ScheduledEvent {
+        ScheduledEvent {
+            id: LogicalId(id),
+            name: name.into(),
+            start_year,
+            duration_years: Some(1),
+            priority,
+            population_filter: EventPopulationFilter::default(),
+            effects,
+        }
+    }
+
+    fn productive_event_scenario(events: Vec<ScheduledEvent>) -> Scenario {
+        let mut scenario = event_scenario();
+        let farmer = ProfessionId::from("farmer");
+        let grain = GoodId::from("grain");
+        let territory = scenario.territory.as_mut().unwrap();
+        territory.professions.push(ProfessionDefinition {
+            id: farmer.clone(),
+            name: "Farmer".into(),
+        });
+        territory
+            .profession_options_by_settlement
+            .insert(SettlementId(1), [farmer.clone()].into_iter().collect());
+        for person in &mut scenario.initial_people {
+            person.profession = Some(farmer.clone());
+        }
+        scenario.economy = Some(EconomicConfig {
+            goods: [(
+                grain.clone(),
+                GoodDefinition {
+                    name: "Grain".into(),
+                    unit: "sack".into(),
+                    transport_units_per_unit: 1,
+                    storable: true,
+                    annual_storage_loss_ppm: 0,
+                    initial_price: Money(1),
+                    minimum_price: Money(1),
+                    maximum_price: Money(1),
+                },
+            )]
+            .into_iter()
+            .collect(),
+            profession_policies: [(
+                farmer,
+                ProfessionEconomicPolicy {
+                    recipe: Some(ProductionRecipe {
+                        batches_per_worker: 10,
+                        maximum_batches_per_year: None,
+                        inputs_per_batch: BTreeMap::new(),
+                        outputs_per_batch: [(grain, chargen_domain::Quantity(1))]
+                            .into_iter()
+                            .collect(),
+                    }),
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..EconomicConfig::default()
+        });
+        scenario.scheduled_events = Some(events);
         scenario
     }
 
@@ -3306,6 +3600,408 @@ mod tests {
             "reconciliación agregada de hogares y empleo pendiente"
         );
         assert_eq!(commit.state.current_year, Some(Year(20)));
+    }
+
+    #[test]
+    fn ruleset_three_empty_agenda_has_no_autonomous_events_and_future_agenda_branches_cleanly() {
+        let mut empty_engine = Engine::from_scenario(event_scenario().validate().unwrap()).unwrap();
+        let empty_close = empty_engine.advance_year(None).unwrap();
+        assert!(!empty_close.events.iter().any(|event| matches!(
+            event.kind,
+            HistoricalEventKind::ScheduledEventOccurred { .. }
+                | HistoricalEventKind::EventEffectRealized { .. }
+        )));
+
+        let future = scheduled_event(
+            901,
+            "future work restriction",
+            Year(21),
+            0,
+            vec![EventEffect::WorkIncapacity {
+                selection: EventSelection::Exact {
+                    count: 1,
+                    overflow: ExactOverflowPolicy::ClampWithWarning,
+                },
+            }],
+        );
+        let mut raw = event_scenario();
+        raw.scheduled_events = Some(vec![future]);
+        let validated = raw.validate().unwrap();
+        let mut parent = Engine::from_scenario(validated.clone()).unwrap();
+        let cut = parent.advance_year(None).unwrap().state;
+        let with_agenda = Engine::new_for_branch_revision(validated, cut.clone())
+            .unwrap()
+            .advance_year(None)
+            .unwrap();
+
+        raw.scheduled_events = Some(Vec::new());
+        let without_agenda =
+            Engine::new_for_branch_revision(raw.validate_for_branch_revision().unwrap(), cut)
+                .unwrap()
+                .advance_year(None)
+                .unwrap();
+        assert!(with_agenda.events.iter().any(|event| matches!(
+            event.kind,
+            HistoricalEventKind::ScheduledEventOccurred {
+                event_id: LogicalId(901),
+                ..
+            }
+        )));
+        assert!(!without_agenda.events.iter().any(|event| matches!(
+            event.kind,
+            HistoricalEventKind::ScheduledEventOccurred { .. }
+        )));
+    }
+
+    #[test]
+    fn exact_event_overflow_error_discards_year_and_clamp_records_realized_warning() {
+        let mut raw = event_scenario();
+        raw.scheduled_events = Some(vec![scheduled_event(
+            902,
+            "too many deaths",
+            Year(20),
+            0,
+            vec![EventEffect::Deaths {
+                selection: EventSelection::Exact {
+                    count: 3,
+                    overflow: ExactOverflowPolicy::Error,
+                },
+            }],
+        )]);
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let before = engine.state().clone();
+        assert!(matches!(
+            engine.advance_year(None),
+            Err(EngineError::ScheduledEvent(_))
+        ));
+        assert_eq!(engine.state(), &before);
+
+        raw.scheduled_events.as_mut().unwrap()[0].effects[0] = EventEffect::Deaths {
+            selection: EventSelection::Exact {
+                count: 3,
+                overflow: ExactOverflowPolicy::ClampWithWarning,
+            },
+        };
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let commit = engine.advance_year(None).unwrap();
+        let realization = commit
+            .events
+            .iter()
+            .find_map(|event| match &event.kind {
+                HistoricalEventKind::EventEffectRealized {
+                    realization:
+                        EventRealization::People {
+                            selected_person_ids,
+                            requested_count,
+                            realized_count,
+                            warning,
+                        },
+                    ..
+                } => Some((
+                    selected_person_ids,
+                    requested_count,
+                    realized_count,
+                    warning,
+                )),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(*realization.1, 3);
+        assert_eq!(*realization.2, 2);
+        assert_eq!(realization.0.len(), 2);
+        assert!(matches!(
+            realization.3,
+            Some(chargen_domain::EventWarning::ExactCountClamped {
+                requested_count: 3,
+                eligible_count: 2,
+                realized_count: 2,
+            })
+        ));
+    }
+
+    #[test]
+    fn overlapping_death_events_follow_priority_without_double_deaths() {
+        let mut raw = event_scenario();
+        raw.scheduled_events = Some(vec![
+            scheduled_event(
+                904,
+                "lower priority",
+                Year(20),
+                -1,
+                vec![EventEffect::Deaths {
+                    selection: EventSelection::Probabilistic {
+                        probability_ppm: 1_000_000,
+                    },
+                }],
+            ),
+            scheduled_event(
+                905,
+                "higher priority",
+                Year(20),
+                5,
+                vec![EventEffect::Deaths {
+                    selection: EventSelection::Probabilistic {
+                        probability_ppm: 1_000_000,
+                    },
+                }],
+            ),
+        ]);
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let commit = engine.advance_year(None).unwrap();
+        let scheduled_ids: Vec<_> = commit
+            .events
+            .iter()
+            .filter_map(|event| match event.kind {
+                HistoricalEventKind::ScheduledEventOccurred { event_id, .. } => Some(event_id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(scheduled_ids, vec![LogicalId(905), LogicalId(904)]);
+        let mut died = BTreeSet::new();
+        for event in &commit.events {
+            if let HistoricalEventKind::PersonDied { person_id, .. } = event.kind {
+                assert!(
+                    died.insert(person_id),
+                    "person {person_id:?} died more than once"
+                );
+            }
+        }
+        assert_eq!(died, [PersonId(1), PersonId(2)].into_iter().collect());
+        let lower = commit.events.iter().find_map(|event| match &event.kind {
+            HistoricalEventKind::EventEffectRealized {
+                event_id: LogicalId(904),
+                realization: EventRealization::People { realized_count, .. },
+                ..
+            } => Some(*realized_count),
+            _ => None,
+        });
+        assert_eq!(lower, Some(0));
+    }
+
+    #[test]
+    fn event_displacement_expands_household_and_records_the_actual_route() {
+        let mut raw = event_scenario();
+        raw.territory.as_mut().unwrap().migration.unit = MigrationUnit::Household;
+        raw.scheduled_events = Some(vec![scheduled_event(
+            906,
+            "evacuation",
+            Year(20),
+            0,
+            vec![EventEffect::Displacement {
+                selection: EventSelection::Exact {
+                    count: 1,
+                    overflow: ExactOverflowPolicy::Error,
+                },
+                destination: SettlementId(2),
+            }],
+        )]);
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let commit = engine.advance_year(None).unwrap();
+        let realization = commit
+            .events
+            .iter()
+            .find_map(|event| match &event.kind {
+                HistoricalEventKind::EventEffectRealized {
+                    realization:
+                        EventRealization::Displacement {
+                            requested_count,
+                            realized_count,
+                            requested_person_ids,
+                            moved_person_ids,
+                            moves,
+                            ..
+                        },
+                    ..
+                } => Some((
+                    *requested_count,
+                    *realized_count,
+                    requested_person_ids,
+                    moved_person_ids,
+                    moves,
+                    &event.affected_entities,
+                )),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!((realization.0, realization.1), (1, 2));
+        assert_eq!(realization.2.len(), 1);
+        assert_eq!(realization.3.len(), 2);
+        assert_eq!(realization.4[0].route_ids, vec![LogicalId(900)]);
+        assert!(realization
+            .5
+            .contains(&EntityRef::World(chargen_domain::WorldId(1))));
+        assert!(commit.events.iter().any(|event| matches!(
+            event.kind,
+            HistoricalEventKind::ResidentsMoved {
+                reason: chargen_domain::MovementReason::ForcedDisplacement,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn closed_routes_and_prior_event_displacements_share_capacity() {
+        let mut closed = event_scenario();
+        closed.scheduled_events = Some(vec![scheduled_event(
+            907,
+            "closed crossing",
+            Year(20),
+            0,
+            vec![
+                EventEffect::RouteClosure {
+                    route_ids: [LogicalId(900)].into_iter().collect(),
+                },
+                EventEffect::Displacement {
+                    selection: EventSelection::Exact {
+                        count: 1,
+                        overflow: ExactOverflowPolicy::Error,
+                    },
+                    destination: SettlementId(2),
+                },
+            ],
+        )]);
+        let mut engine = Engine::from_scenario(closed.validate().unwrap()).unwrap();
+        let before = engine.state().clone();
+        assert!(matches!(
+            engine.advance_year(None),
+            Err(EngineError::InvalidMigration(_))
+        ));
+        assert_eq!(engine.state(), &before);
+
+        let mut capacity = event_scenario();
+        capacity.territory.as_mut().unwrap().routes[0].capacity_per_year = Some(1);
+        capacity.scheduled_events = Some(vec![scheduled_event(
+            908,
+            "competing convoys",
+            Year(20),
+            0,
+            vec![
+                EventEffect::Displacement {
+                    selection: EventSelection::Exact {
+                        count: 1,
+                        overflow: ExactOverflowPolicy::Error,
+                    },
+                    destination: SettlementId(2),
+                },
+                EventEffect::Displacement {
+                    selection: EventSelection::Exact {
+                        count: 1,
+                        overflow: ExactOverflowPolicy::Error,
+                    },
+                    destination: SettlementId(2),
+                },
+            ],
+        )]);
+        let mut engine = Engine::from_scenario(capacity.validate().unwrap()).unwrap();
+        let before = engine.state().clone();
+        assert!(matches!(
+            engine.advance_year(None),
+            Err(EngineError::InvalidMigration(_))
+        ));
+        assert_eq!(engine.state(), &before);
+    }
+
+    #[test]
+    fn incapacity_and_production_losses_compose_for_fixed_interval_then_expire() {
+        let farmer = ProfessionId::from("farmer");
+        let mut restriction = scheduled_event(
+            909,
+            "harvest emergency",
+            Year(20),
+            0,
+            vec![
+                EventEffect::WorkIncapacity {
+                    selection: EventSelection::Exact {
+                        count: 1,
+                        overflow: ExactOverflowPolicy::Error,
+                    },
+                },
+                EventEffect::ProductionLoss { loss_ppm: 500_000 },
+            ],
+        );
+        restriction.population_filter.profession_ids = Some([farmer].into_iter().collect());
+        let mut engine = Engine::from_scenario(
+            productive_event_scenario(vec![restriction])
+                .validate()
+                .unwrap(),
+        )
+        .unwrap();
+        let first = engine.advance_year(None).unwrap();
+        let grain = GoodId::from("grain");
+        let group_id = chargen_domain::EconomicGroupId {
+            settlement_id: SettlementId(1),
+            profession_id: Some(ProfessionId::from("farmer")),
+        };
+        let produced = |commit: &YearCommit| {
+            commit
+                .state
+                .economy
+                .last_year_report
+                .as_ref()
+                .unwrap()
+                .groups
+                .iter()
+                .find(|group| group.group_id == group_id)
+                .unwrap()
+                .goods[&grain]
+                .produced
+                .0
+        };
+        assert_eq!(produced(&first), 5);
+        assert_eq!(first.state.event_effects.len(), 2);
+        let second = engine.advance_year(None).unwrap();
+        assert!(second.state.event_effects.is_empty());
+        assert_eq!(produced(&second), 20);
+    }
+
+    #[test]
+    fn scarcity_response_uses_prior_close_for_mortality_and_current_a6_for_births_and_migration() {
+        let mut raw = event_scenario();
+        raw.economy = Some(EconomicConfig {
+            responses: EconomicResponsePolicy {
+                mortality_increase_at_full_scarcity_ppm: 400_000,
+                birth_reduction_at_full_scarcity_ppm: 400_000,
+                migration_opportunity_at_full_scarcity: -80,
+            },
+            ..EconomicConfig::default()
+        });
+        let validated = raw.validate().unwrap();
+        let mut state = validated.initial_state();
+        let config = validated.scenario().economy.as_ref().unwrap();
+        economy::initialize_economy(config, &mut state, Year(20)).unwrap();
+        state.economy.last_year_report = Some(EconomicYearReport {
+            year: Year(19),
+            signals: EconomySignals {
+                scarcity_ppm_by_settlement: [(SettlementId(1), 500_000)].into_iter().collect(),
+                ..EconomySignals::default()
+            },
+            ..EconomicYearReport::default()
+        });
+        state.economy.working_report = Some(EconomicYearReport {
+            year: Year(20),
+            signals: EconomySignals {
+                scarcity_ppm_by_settlement: [(SettlementId(1), 250_000)].into_iter().collect(),
+                ..EconomySignals::default()
+            },
+            ..EconomicYearReport::default()
+        });
+
+        assert_eq!(
+            economy::adjust_mortality_probability(config, &state, SettlementId(1), 100_000),
+            300_000
+        );
+        assert_eq!(
+            economy::current_birth_scarcity_reduction(config, &state, SettlementId(1)),
+            100_000
+        );
+        assert_eq!(
+            economy::current_migration_scarcity_adjustment(config, &state, SettlementId(1)),
+            -20
+        );
+        assert_eq!(
+            economy::migration_scarcity_adjustment(config, &state, SettlementId(1)),
+            -40
+        );
     }
 
     #[test]
@@ -3851,6 +4547,7 @@ mod tests {
                     profile: profile(false, Some(chargen_domain::Gamete::Sperm)),
                     weight: 1,
                 }],
+                profession_distribution: Vec::new(),
                 trait_distributions: BTreeMap::new(),
             });
         raw.genetics = one_locus_catalog();

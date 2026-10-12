@@ -37,3 +37,15 @@ E2 incorpora territorio y cultura como opciones tipadas del escenario. `rules_ve
 La persistencia genérica de estado/delta permite almacenar las nuevas secciones sin reinterpretar el prefijo E1. Los campos E2 ausentes o vacíos deben omitirse al serializar el estado E1 para mantener las huellas históricas; los lectores aceptan sus valores por defecto. La carga comprueba los hashes existentes antes de usar la forma tipada para continuar una corrida. El caso de compatibilidad usa una exportación SQL de una base E1 real con sus hashes originales.
 
 La interfaz sigue siendo HTML/CSS/JavaScript estático servido por el ejecutable. Sus consultas nuevas usan el mismo selector temporal y la misma API local; TypeScript y JSON Schema documentan el cableado, mientras la validación semántica se mantiene en Rust. Las reglas de movimiento no generan guerras ni epidemias (F09), y las profesiones no representan una economía (F08).
+
+## ADR-007: economía agregada y agenda causal de E3
+
+E3 añade `EconomicConfig` y la agenda explícita de eventos bajo `schema_version: 3` y `rules_version: 3`. El agente económico es `(asentamiento, profesión)`; `profession_id: null` representa el grupo de consumidores. Inventarios y dinero son enteros con operaciones comprobadas. `Money` y `Quantity` se exponen como cadenas decimales en la API para conservar precisión en clientes JavaScript. No existe dinero, crédito, subsidio ni recurso implícito.
+
+El cierre anual guarda en `State.economy.last_year_report` el libro de bienes, dinero, necesidades y comercio. `HistoryQuery::open(world, branch, year)` lee ese reporte desde el estado histórico confirmado. Compras y ventas no se emiten como un evento por cada transacción; el reporte anual es su fuente consultable completa. Los shocks de agenda sí generan eventos semánticos con resultados realizados y referencias de entidad indexadas.
+
+La agenda configurada es una entrada de reglas, no una proyección histórica. Las consultas muestran solo inicio y efectos ya realizados hasta su corte; no devuelven eventos programados futuros. La duración de una restricción se representa con un intervalo semiabierto y la selección se materializa al comienzo del evento para no volver a tirar al consultar o reanudar. Los efectos económicos por evento quedan identificados en las pérdidas y el balance anual.
+
+Las consultas de E3 se exponen como páginas limitadas (`markets`, `markets/settlements`, `markets/trades`, `events`) sobre el `HistoricalView` ya fijado. Así, sus proyecciones no abren un contexto global ni acceden al futuro de una rama madre. Los eventos globales se indexan por `EntityRef::World` para paginar por rama/año sin cargar toda la historia en memoria.
+
+Los escenarios E1/E2 mantienen la configuración nueva ausente y los campos de estado vacíos se omiten al serializar. E3 no cambia sus hashes, reglas, fixtures SQL o resultados reproducibles. Las revisiones de rama solo aplican economía y eventos futuros: catálogo e IDs de bienes, unidades, dotaciones iniciales y agenda que ya comenzó antes o en el corte no se reescriben.

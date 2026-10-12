@@ -5,11 +5,13 @@ export type DomainId = number;
 export type LogicalId = string;
 export type TraitKey = `${string}::${string}`;
 export type TraitValues = Partial<Record<TraitKey, number>>;
+/** i64 accounting quantities are serialized as canonical decimal strings. */
+export type EconomicAmount = string;
 
 export interface ScenarioBase {
   world_id: DomainId;
-  schema_version: 1 | 2;
-  rules_version: 1 | 2;
+  schema_version: 1 | 2 | 3;
+  rules_version: 1 | 2 | 3;
   seed: DomainId;
   start_year: Year;
   settlements: Settlement[];
@@ -35,7 +37,16 @@ export interface ScenarioV2 extends ScenarioBase {
   culture: CultureConfig;
 }
 
-export type Scenario = ScenarioV1 | ScenarioV2;
+export interface ScenarioV3 extends ScenarioBase {
+  schema_version: 3;
+  rules_version: 3;
+  territory: TerritoryConfig;
+  culture: CultureConfig;
+  economy: EconomicConfig;
+  scheduled_events: ScheduledEvent[];
+}
+
+export type Scenario = ScenarioV1 | ScenarioV2 | ScenarioV3;
 
 export interface Settlement {
   id: DomainId;
@@ -234,6 +245,256 @@ export interface InitialPopulationProfile {
   age_bands: Array<{ minimum_age: number; maximum_age: number; weight: number }>;
   reproductive_profiles: Array<{ profile: ReproductiveProfile; weight: number }>;
   trait_distributions: Partial<Record<TraitKey, Array<{ value: number; weight: number }>>>;
+  profession_distribution?: Array<{ profession_id: ProfessionId | null; weight: number }>;
+}
+
+export interface EconomicGroupId {
+  settlement_id: DomainId;
+  profession_id: ProfessionId | null;
+}
+
+export interface GoodDefinition {
+  name: string;
+  unit: string;
+  transport_units_per_unit: number;
+  storable: boolean;
+  annual_storage_loss_ppm: number;
+  initial_price: EconomicAmount;
+  minimum_price: EconomicAmount;
+  maximum_price: EconomicAmount;
+}
+
+export interface ProductionRecipe {
+  batches_per_worker: number;
+  maximum_batches_per_year?: number | null;
+  inputs_per_batch?: Record<string, EconomicAmount>;
+  outputs_per_batch?: Record<string, EconomicAmount>;
+}
+
+export interface EconomicGroupEndowment {
+  money: EconomicAmount;
+  goods?: Record<string, EconomicAmount>;
+}
+
+export interface EconomicConfig {
+  goods?: Record<string, GoodDefinition>;
+  profession_policies?: Record<ProfessionId, { recipe?: ProductionRecipe | null }>;
+  needs?: Record<string, { quantity_per_person_per_year: EconomicAmount; priority: number }>;
+  route_goods_capacities?: Record<LogicalId, EconomicAmount>;
+  transport_money_per_route_cost_unit?: EconomicAmount;
+  transport_cost_account?: "treasury" | "external_sink";
+  initial_group_endowments?: Array<{ group_id: EconomicGroupId; endowment: EconomicGroupEndowment }>;
+  initial_treasury?: EconomicGroupEndowment;
+  price_policy?: { adjustment_step_ppm: number };
+  buyer_priority?: "seeded_logical_rank" | "group_key_order";
+  asset_continuity?: "retain_group_assets" | "proportional_share_transfer";
+  empty_group_disposition?: "retain_dormant" | "transfer_to_consumer_group" | "transfer_to_treasury";
+  labor_policy?: { enabled: boolean; minimum_working_age: number; max_changes_per_settlement_per_year: number };
+  responses?: { mortality_increase_at_full_scarcity_ppm: number; birth_reduction_at_full_scarcity_ppm: number; migration_opportunity_at_full_scarcity: number };
+  production_response?: { enabled: boolean; step_ppm: number; minimum_capacity_ppm: number; maximum_capacity_ppm: number };
+}
+
+export type EventSelection =
+  | { mode: "exact"; data: { count: number; overflow: "error" | "clamp_with_warning" } }
+  | { mode: "probabilistic"; data: { probability_ppm: number } };
+
+export interface ScheduledEvent {
+  id: LogicalId;
+  name: string;
+  start_year: Year;
+  duration_years?: number | null;
+  priority: number;
+  population_filter?: {
+    settlement_ids?: DomainId[] | null;
+    minimum_age?: number | null;
+    maximum_age?: number | null;
+    profession_ids?: ProfessionId[] | null;
+  };
+  effects: EventEffect[];
+}
+
+export type EventEffect =
+  | { type: "deaths"; data: { selection: EventSelection } }
+  | { type: "work_incapacity"; data: { selection: EventSelection } }
+  | { type: "production_loss"; data: { loss_ppm: number } }
+  | { type: "stock_destruction"; data: { loss_ppm: number } }
+  | { type: "route_closure"; data: { route_ids: LogicalId[] } }
+  | { type: "displacement"; data: { selection: EventSelection; destination: DomainId } };
+
+export interface EconomicGroupLedger {
+  group_id: EconomicGroupId;
+  member_count_before: number;
+  worker_count_before: number;
+  member_count_after: number;
+  worker_count_after: number;
+  opening_money: EconomicAmount;
+  sales_income: EconomicAmount;
+  purchases_spent: EconomicAmount;
+  transfers_in: EconomicAmount;
+  transfers_out: EconomicAmount;
+  closing_money: EconomicAmount;
+  goods: Record<string, EconomicGoodLedger>;
+}
+
+export interface EconomicGoodLedger {
+  opening_stock: EconomicAmount;
+  produced: EconomicAmount;
+  input_consumed: EconomicAmount;
+  input_replenishment_target: EconomicAmount;
+  unmet_input_demand: EconomicAmount;
+  transfers_in: EconomicAmount;
+  transfers_out: EconomicAmount;
+  bought: EconomicAmount;
+  bought_for_human_need: EconomicAmount;
+  bought_for_inputs: EconomicAmount;
+  sold: EconomicAmount;
+  consumer_consumed: EconomicAmount;
+  storage_loss: EconomicAmount;
+  event_destroyed: EconomicAmount;
+  closing_stock: EconomicAmount;
+  physical_need: EconomicAmount;
+  unmet_physical_need: EconomicAmount;
+  solvent_demand: EconomicAmount;
+  unmet_solvent_demand: EconomicAmount;
+  solvent_input_demand: EconomicAmount;
+  unmet_solvent_input_demand: EconomicAmount;
+}
+
+export interface EconomicTrade {
+  source_group: EconomicGroupId;
+  destination_group: EconomicGroupId;
+  good_id: string;
+  quantity: EconomicAmount;
+  seller_revenue: EconomicAmount;
+  buyer_payment: EconomicAmount;
+  transport_cost: EconomicAmount;
+  route_id: LogicalId | null;
+  purpose: "human_need" | "production_input";
+}
+
+export type EventWarning =
+  | { kind: "exact_count_clamped"; data: { requested_count: number; eligible_count: number; realized_count: number } }
+  | { kind: "displacement_skipped_already_moved"; data: { skipped_count: number } };
+
+export interface EventMove {
+  person_ids: DomainId[];
+  from: DomainId;
+  to: DomainId;
+  /** Directed route IDs used by this realized movement. */
+  route_ids: LogicalId[];
+}
+
+export type EventRealization =
+  | { kind: "people"; data: { selected_person_ids: DomainId[]; requested_count: number; realized_count: number; warning: EventWarning | null } }
+  | { kind: "production_loss"; data: { settlement_ids: DomainId[]; profession_ids: ProfessionId[] | null; loss_ppm: number } }
+  | { kind: "stock_destruction"; data: { losses: Array<{ event_id: LogicalId; group_id: EconomicGroupId; good_id: string; requested_loss_ppm: number; destroyed: EconomicAmount }> } }
+  | { kind: "route_closure"; data: { route_ids: LogicalId[] } }
+  | { kind: "displacement"; data: { requested_person_ids: DomainId[]; moved_person_ids: DomainId[]; moves: EventMove[]; requested_count: number; realized_count: number; warning: EventWarning | null } };
+
+export type HistoricalEventKind =
+  | { type: "scheduled_event_occurred"; data: { event_id: LogicalId; name: string; priority: number } }
+  | { type: "event_effect_realized"; data: { event_id: LogicalId; event_name: string; effect_index: number; effect: EventEffect; realization: EventRealization } }
+  | { type: "economic_year_closed"; data: { summary: EconomicYearClosedSummary } }
+  | { type: string; data: Record<string, unknown> };
+
+export interface EconomicYearClosedSummary {
+  year: Year;
+  settlement_ids: DomainId[];
+  group_ids: EconomicGroupId[];
+  money: EconomicMoneyLedger;
+  physical_shortage_totals: SettlementPhysicalShortageSummary[];
+}
+
+export interface SettlementPhysicalShortageSummary {
+  settlement_id: DomainId;
+  goods: Record<string, EconomicAmount>;
+}
+
+export interface HistoricalEvent {
+  id: LogicalId;
+  year: Year;
+  order: number;
+  affected_entities: Array<Record<string, unknown>>;
+  kind: HistoricalEventKind;
+}
+
+export interface MarketsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  enabled: boolean;
+  total: number;
+  limit: number;
+  offset: number;
+  money: EconomicMoneyLedger | null;
+  treasury_goods: Record<string, EconomicGoodLedger>;
+  groups: EconomicGroupLedger[];
+}
+
+export interface EconomicMoneyLedger {
+  opening_group_money: EconomicAmount;
+  opening_treasury_money: EconomicAmount;
+  closing_group_money: EconomicAmount;
+  closing_treasury_money: EconomicAmount;
+  external_transport_outflow: EconomicAmount;
+  explicit_emission: EconomicAmount;
+  explicit_retirement: EconomicAmount;
+}
+
+export interface MarketTradesPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  enabled: boolean;
+  total: number;
+  limit: number;
+  offset: number;
+  trades: EconomicTrade[];
+}
+
+export interface SettlementGoodMarketLedger {
+  good_id: string;
+  opening_price: EconomicAmount;
+  next_price: EconomicAmount;
+  physical_need: EconomicAmount;
+  unmet_physical_need: EconomicAmount;
+  solvent_demand: EconomicAmount;
+  unmet_solvent_demand: EconomicAmount;
+  input_replenishment_target: EconomicAmount;
+  unmet_input_demand: EconomicAmount;
+  solvent_input_demand: EconomicAmount;
+  unmet_solvent_input_demand: EconomicAmount;
+  local_traded: EconomicAmount;
+  imports: EconomicAmount;
+  exports: EconomicAmount;
+  unsold_offer: EconomicAmount;
+  ending_stock: EconomicAmount;
+}
+
+export interface SettlementEconomicLedger {
+  settlement_id: DomainId;
+  goods: SettlementGoodMarketLedger[];
+}
+
+export interface SettlementMarketsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  enabled: boolean;
+  total: number;
+  limit: number;
+  offset: number;
+  settlements: SettlementEconomicLedger[];
+}
+
+export interface HistoricalEventsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  total: number;
+  limit: number;
+  offset: number;
+  events: HistoricalEvent[];
 }
 
 export interface DemographicPolicies {
@@ -568,14 +829,6 @@ export interface PersonHistoryResponse {
   year: Year;
   person: PersonRecord;
   events: HistoricalEvent[];
-}
-
-export interface HistoricalEvent {
-  id: DomainId;
-  year: Year;
-  order: number;
-  affected_entities: Array<{ entity: string; id: DomainId }>;
-  kind: { type: string; data?: unknown };
 }
 
 export interface RestoreResponse {

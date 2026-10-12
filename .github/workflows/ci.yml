@@ -52,6 +52,7 @@ jobs:
           node --check scripts/assemble-release-manifest.mjs
           node --check scripts/validate-e1.mjs
           node --check scripts/validate-e2.mjs
+          node --check scripts/validate-e3.mjs
           node scripts/check-web.mjs
       - name: Type-check scenario contracts
         run: npx --yes --package=typescript@5.9.3 tsc --project web/tsconfig.json
@@ -77,6 +78,7 @@ jobs:
           node scripts/smoke-api.mjs "$package_dir/${{ matrix.executable }}"
           node scripts/validate-e1.mjs "$package_dir/${{ matrix.executable }}"
           node scripts/validate-e2.mjs "$package_dir/${{ matrix.executable }}"
+          node scripts/validate-e3.mjs "$package_dir/${{ matrix.executable }}"
       - name: Run deterministic B0 benchmark
         shell: bash
         run: |
@@ -84,6 +86,8 @@ jobs:
           node scripts/extract-benchmark-digest.mjs target/ci-b0-report.json target/ci-b0-digest.txt
           "$CHARGEN_PACKAGED_EXECUTABLE" bench --profile E2-B0 --database target/ci-e2-b0.sqlite3 --output target/ci-e2-b0-report.json
           node scripts/extract-benchmark-digest.mjs target/ci-e2-b0-report.json target/ci-e2-b0-digest.txt
+          "$CHARGEN_PACKAGED_EXECUTABLE" bench --profile E3-B0 --database target/ci-e3-b0.sqlite3 --output target/ci-e3-b0-report.json
+          node scripts/extract-benchmark-digest.mjs target/ci-e3-b0-report.json target/ci-e3-b0-digest.txt
       - name: Upload standalone package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -101,11 +105,12 @@ jobs:
           path: |
             target/ci-b0-digest.txt
             target/ci-e2-b0-digest.txt
+            target/ci-e3-b0-digest.txt
           if-no-files-found: error
           retention-days: 7
 
   compare-determinism:
-    name: Compare Linux and Windows B0 and E2-B0 output
+    name: Compare Linux and Windows B0, E2-B0 and E3-B0 output
     needs: verify
     runs-on: ubuntu-24.04
     steps:
@@ -125,3 +130,4 @@ jobs:
         run: |
           node scripts/compare-benchmark-digests.mjs benchmark-digests/deterministic-ubuntu-24.04/ci-b0-digest.txt benchmark-digests/deterministic-windows-2022/ci-b0-digest.txt B0
           node scripts/compare-benchmark-digests.mjs benchmark-digests/deterministic-ubuntu-24.04/ci-e2-b0-digest.txt benchmark-digests/deterministic-windows-2022/ci-e2-b0-digest.txt E2-B0
+          node scripts/compare-benchmark-digests.mjs benchmark-digests/deterministic-ubuntu-24.04/ci-e3-b0-digest.txt benchmark-digests/deterministic-windows-2022/ci-e3-b0-digest.txt E3-B0

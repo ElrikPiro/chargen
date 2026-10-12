@@ -29,6 +29,7 @@ web-check:
 	$(NODE) --check scripts/assemble-release-manifest.mjs
 	$(NODE) --check scripts/validate-e1.mjs
 	$(NODE) --check scripts/validate-e2.mjs
+	$(NODE) --check scripts/validate-e3.mjs
 	$(NODE) scripts/check-web.mjs
 
 contracts-check:
@@ -38,6 +39,7 @@ smoke: build
 	$(NODE) scripts/smoke-api.mjs target/release/chargen-app
 	$(NODE) scripts/validate-e1.mjs target/release/chargen-app
 	$(NODE) scripts/validate-e2.mjs target/release/chargen-app
+	$(NODE) scripts/validate-e3.mjs target/release/chargen-app
 
 bench:
 	$(CARGO) run --release --package chargen-app --locked -- bench --profile $(PROFILE) $(if $(DATABASE),--database $(DATABASE),)

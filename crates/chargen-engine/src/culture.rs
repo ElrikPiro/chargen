@@ -1982,6 +1982,8 @@ mod tests {
             profession_intervals: BTreeMap::new(),
             last_year_settlement_balances: BTreeMap::new(),
             culture: CultureState::default(),
+            economy: chargen_domain::EconomyState::default(),
+            event_effects: Vec::new(),
             last_year_phases: Vec::new(),
         }
     }

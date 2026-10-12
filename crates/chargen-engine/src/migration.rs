@@ -36,7 +36,9 @@ impl RouteCache {
         let mut active_routes: Vec<_> = config
             .routes
             .iter()
-            .filter(|route| route_is_open(route, year))
+            .filter(|route| {
+                route_is_open(route, year) && !state.route_is_closed(route.logical_id, year)
+            })
             .map(|route| {
                 (
                     route.logical_id,
@@ -79,6 +81,7 @@ pub(super) struct MoveGroup {
     pub(super) people: Vec<PersonId>,
     pub(super) from: SettlementId,
     pub(super) to: SettlementId,
+    pub(super) route_ids: Vec<LogicalId>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -86,6 +89,12 @@ pub(super) struct MigrationUsage {
     pub(super) route_people: BTreeMap<LogicalId, u64>,
     pub(super) moved_people: BTreeSet<PersonId>,
     pub(super) moving_units: u32,
+}
+
+impl MigrationUsage {
+    pub(super) fn has_moved_person(&self, person_id: PersonId) -> bool {
+        self.moved_people.contains(&person_id)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -139,8 +148,50 @@ pub(crate) fn prepare_forced_displacements(
 ) -> Result<(Vec<MoveGroup>, MigrationUsage), EngineError> {
     let mut commands = scheduled_commands(territory, year);
     commands.extend_from_slice(explicit);
+    prepare_displacement_commands(
+        scenario,
+        state,
+        territory,
+        year,
+        commands,
+        MigrationUsage::default(),
+        cache,
+    )
+}
+
+/// Prepare one event displacement against the state left by preceding A1 shocks. Existing route
+/// and resident usage is carried forward so superimposed events cannot reuse capacity or people.
+pub(crate) fn prepare_event_displacement(
+    scenario: &ValidatedScenario,
+    state: &State,
+    territory: &TerritoryConfig,
+    year: Year,
+    command: &ForcedDisplacementCommand,
+    prior_usage: &MigrationUsage,
+    cache: &mut RouteCache,
+) -> Result<(Vec<MoveGroup>, MigrationUsage), EngineError> {
+    prepare_displacement_commands(
+        scenario,
+        state,
+        territory,
+        year,
+        vec![command.clone()],
+        prior_usage.clone(),
+        cache,
+    )
+}
+
+fn prepare_displacement_commands(
+    scenario: &ValidatedScenario,
+    state: &State,
+    territory: &TerritoryConfig,
+    year: Year,
+    mut commands: Vec<ForcedDisplacementCommand>,
+    mut usage: MigrationUsage,
+    cache: &mut RouteCache,
+) -> Result<(Vec<MoveGroup>, MigrationUsage), EngineError> {
     if commands.is_empty() {
-        return Ok((Vec::new(), MigrationUsage::default()));
+        return Ok((Vec::new(), usage));
     }
 
     let seed = scenario.scenario().seed;
@@ -177,8 +228,16 @@ pub(crate) fn prepare_forced_displacements(
     });
 
     let mut occupancy = census_at_start(state, year);
-    let mut usage = MigrationUsage::default();
-    let mut moved_households = BTreeSet::new();
+    let mut moved_households: BTreeSet<_> = if territory.migration.unit == MigrationUnit::Household
+    {
+        usage
+            .moved_people
+            .iter()
+            .filter_map(|person_id| state.persons.get(person_id)?.household_id)
+            .collect()
+    } else {
+        BTreeSet::new()
+    };
     let mut groups = Vec::new();
     for command in commands {
         let mut people = command.person_ids.clone();
@@ -290,6 +349,11 @@ pub(crate) fn prepare_forced_displacements(
                 people: resident_ids,
                 from,
                 to: command.destination,
+                route_ids: route
+                    .route_indexes
+                    .iter()
+                    .map(|index| territory.routes[*index].logical_id)
+                    .collect(),
             });
         }
         let destination_current = occupancy.get(&command.destination).copied().unwrap_or(0);
@@ -540,6 +604,12 @@ pub(crate) fn apply_voluntary_migration(
             people: proposal.people,
             from: proposal.from,
             to: proposal.to,
+            route_ids: proposal
+                .route
+                .route_indexes
+                .iter()
+                .map(|index| territory.routes[*index].logical_id)
+                .collect(),
         });
     }
     apply_move_groups(
@@ -870,7 +940,10 @@ fn shortest_paths_from(
 ) -> BTreeMap<SettlementId, RoutePlan> {
     let mut adjacency: BTreeMap<SettlementId, Vec<(usize, &DirectedRoute)>> = BTreeMap::new();
     for (index, route) in config.routes.iter().enumerate() {
-        if route_is_open(route, year) && route.capacity_per_year != Some(0) {
+        if route_is_open(route, year)
+            && !state.route_is_closed(route.logical_id, year)
+            && route.capacity_per_year != Some(0)
+        {
             adjacency
                 .entry(route.from)
                 .or_default()
@@ -1022,6 +1095,8 @@ mod tests {
             profession_intervals: BTreeMap::new(),
             last_year_settlement_balances: BTreeMap::new(),
             culture: Default::default(),
+            economy: chargen_domain::EconomyState::default(),
+            event_effects: Vec::new(),
             last_year_phases: Vec::new(),
         };
         let config = TerritoryConfig {

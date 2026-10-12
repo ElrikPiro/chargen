@@ -77,6 +77,13 @@ pub struct BranchSummary {
     pub revision_id: i64,
 }
 
+/// Bounded, time-ordered semantic-event page for one entity in one branch view.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HistoricalEventsPage {
+    pub total: usize,
+    pub events: Vec<HistoricalEvent>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExportManifest {
     pub format_version: u32,
@@ -635,6 +642,103 @@ impl HistoryStore {
         Ok(events)
     }
 
+    /// Read a bounded event page without materializing every matching row in
+    /// memory. Branch prefixes are visited oldest-first and remain cutoff-safe.
+    // The query key is the full persisted event context: world, branch, year,
+    // indexed entity, and page window. Keeping it explicit matches the
+    // unpaged `events_for_entity` API and avoids an otherwise throwaway wrapper.
+    #[allow(clippy::too_many_arguments)]
+    pub fn events_for_entity_page(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+        entity_type: &str,
+        entity_id: &str,
+        offset: usize,
+        limit: usize,
+    ) -> StoreResult<HistoricalEventsPage> {
+        const MAX_EVENT_PAGE_SIZE: usize = 500;
+        if limit == 0 || limit > MAX_EVENT_PAGE_SIZE {
+            return Err(StoreError::Invalid(format!(
+                "event page limit must be between 1 and {MAX_EVENT_PAGE_SIZE}"
+            )));
+        }
+        let year = year_value(year)?;
+        let conn = open_ro(&self.path)?;
+        let mut windows = Vec::new();
+        collect_event_windows(&conn, world_id, branch_id, year, &mut windows)?;
+        let mut counts = Vec::with_capacity(windows.len());
+        let mut total = 0_usize;
+        for window in &windows {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM event_entities WHERE world_id=?1 AND branch_id=?2 AND entity_type=?3 AND entity_id=?4 AND (?5 IS NULL OR year>?5) AND year<=?6",
+                params![world_id, window.branch_id, entity_type, entity_id, window.lower_exclusive, window.upper_inclusive],
+                |row| row.get(0),
+            )?;
+            let count = usize::try_from(count).map_err(|_| {
+                StoreError::Integrity("event count is negative or too large".into())
+            })?;
+            total = total
+                .checked_add(count)
+                .ok_or_else(|| StoreError::Integrity("event count overflow".into()))?;
+            counts.push(count);
+        }
+
+        let mut skip = offset;
+        let mut remaining = limit;
+        let mut events = Vec::with_capacity(limit.min(total.saturating_sub(offset)));
+        for (window, count) in windows.iter().zip(counts) {
+            if remaining == 0 {
+                break;
+            }
+            if skip >= count {
+                skip -= count;
+                continue;
+            }
+            let local_limit = remaining.min(count - skip);
+            let local_limit = i64::try_from(local_limit)
+                .map_err(|_| StoreError::Invalid("event page limit is too large".into()))?;
+            let local_offset = i64::try_from(skip)
+                .map_err(|_| StoreError::Invalid("event page offset is too large".into()))?;
+            let mut statement = conn.prepare(
+                "SELECT e.payload_json FROM event_entities ref JOIN events e USING(world_id,branch_id,year,ordinal) WHERE ref.world_id=?1 AND ref.branch_id=?2 AND ref.entity_type=?3 AND ref.entity_id=?4 AND (?5 IS NULL OR ref.year>?5) AND ref.year<=?6 ORDER BY ref.year,ref.ordinal LIMIT ?7 OFFSET ?8",
+            )?;
+            let rows = statement.query_map(
+                params![
+                    world_id,
+                    window.branch_id,
+                    entity_type,
+                    entity_id,
+                    window.lower_exclusive,
+                    window.upper_inclusive,
+                    local_limit,
+                    local_offset
+                ],
+                |row| row.get::<_, String>(0),
+            )?;
+            let mut added = 0_usize;
+            for row in rows {
+                let event: HistoricalEvent = serde_json::from_str(&row?)?;
+                if !event_references_entity(&event, entity_type, entity_id)? {
+                    return Err(StoreError::Integrity(
+                        "historical event entity index does not match its payload".into(),
+                    ));
+                }
+                events.push(event);
+                added += 1;
+            }
+            if added != local_limit as usize {
+                return Err(StoreError::Integrity(
+                    "event index count changed during a read-only page query".into(),
+                ));
+            }
+            skip = 0;
+            remaining -= added;
+        }
+        Ok(HistoricalEventsPage { total, events })
+    }
+
     pub fn list_worlds(&self) -> StoreResult<Vec<WorldSummary>> {
         let conn = open_ro(&self.path)?;
         let mut stmt = conn.prepare(
@@ -1094,6 +1198,13 @@ struct BranchRecord {
     revision_id: i64,
 }
 
+#[derive(Debug)]
+struct EventWindow {
+    branch_id: String,
+    lower_exclusive: Option<i32>,
+    upper_inclusive: i32,
+}
+
 fn get_branch(conn: &Connection, world_id: &str, branch_id: &str) -> StoreResult<BranchRecord> {
     conn.query_row(
         "SELECT parent_branch_id,fork_year,base_year,base_state_json,base_state_hash,base_chain_hash,head_year,head_hash,revision_id FROM branches WHERE world_id=?1 AND branch_id=?2",
@@ -1169,7 +1280,10 @@ fn parse_validated_scenario(scenario_json: &str) -> StoreResult<ValidatedScenari
 fn parse_branch_revision_scenario(scenario_json: &str) -> StoreResult<ValidatedScenario> {
     let scenario: Scenario = serde_json::from_str(scenario_json)
         .map_err(|error| StoreError::ScenarioInvalid(error.to_string()))?;
-    let validation = if scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+    let validation = if matches!(
+        scenario.rules_version,
+        Scenario::TERRITORIAL_RULES_VERSION | Scenario::EVENT_RULES_VERSION
+    ) {
         scenario.validate_for_branch_revision()
     } else {
         scenario.validate()
@@ -1190,9 +1304,65 @@ fn ensure_only_policies_changed(original: &Scenario, revised: &Scenario) -> Stor
     comparable_revision.policies = original.policies.clone();
     comparable_revision.territory = original.territory.clone();
     comparable_revision.culture = original.culture.clone();
+    if original.rules_version == Scenario::EVENT_RULES_VERSION {
+        ensure_economic_catalogs_and_endowments_unchanged(original, revised)?;
+        comparable_revision.economy = original.economy.clone();
+        comparable_revision.scheduled_events = original.scheduled_events.clone();
+    }
     if comparable_revision != *original {
         return Err(StoreError::ScenarioInvalid(
-            "a branch with a committed prefix may revise demographic, territory and culture policies only; initial entities, identities, trait/genetic catalogs, profiles, schema, rules and start metadata must remain fixed".into(),
+            "a branch with a committed prefix may revise demographic, territory, culture, economic and scheduled-event policies only; initial entities, identities, trait/genetic catalogs, profiles, schema, rules and start metadata must remain fixed".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_economic_catalogs_and_endowments_unchanged(
+    original: &Scenario,
+    revised: &Scenario,
+) -> StoreResult<()> {
+    let original_economy = original.economy.as_ref().ok_or_else(|| {
+        StoreError::ScenarioInvalid("rules version 3 requires an economic configuration".into())
+    })?;
+    let revised_economy = revised.economy.as_ref().ok_or_else(|| {
+        StoreError::ScenarioInvalid("rules version 3 requires an economic configuration".into())
+    })?;
+
+    if original_economy.initial_group_endowments != revised_economy.initial_group_endowments
+        || original_economy.initial_treasury != revised_economy.initial_treasury
+    {
+        return Err(StoreError::ScenarioInvalid(
+            "initial economic endowments cannot change after the first close".into(),
+        ));
+    }
+    if original_economy
+        .goods
+        .keys()
+        .ne(revised_economy.goods.keys())
+    {
+        return Err(StoreError::ScenarioInvalid(
+            "economic good IDs cannot be added or removed after the first close".into(),
+        ));
+    }
+    for (good_id, original_good) in &original_economy.goods {
+        let revised_good = &revised_economy.goods[good_id];
+        if original_good.unit != revised_good.unit
+            || original_good.transport_units_per_unit != revised_good.transport_units_per_unit
+        {
+            return Err(StoreError::ScenarioInvalid(format!(
+                "the unit and transport size of economic good '{}' cannot change after the first close",
+                good_id.0
+            )));
+        }
+    }
+    if original_economy
+        .profession_policies
+        .keys()
+        .ne(revised_economy.profession_policies.keys())
+    {
+        return Err(StoreError::ScenarioInvalid(
+            "economic profession-policy IDs cannot be added or removed after the first close"
+                .into(),
         ));
     }
     Ok(())
@@ -1221,6 +1391,44 @@ fn ensure_past_territory_and_culture_unchanged(
     if original_displacements != revised_displacements {
         return Err(StoreError::ScenarioInvalid(
             "scheduled displacements at or before the branch cutoff are immutable".into(),
+        ));
+    }
+
+    let original_started_events = original
+        .scheduled_events
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter(|event| event.start_year <= cutoff)
+        .collect::<Vec<_>>();
+    let revised_started_events = revised
+        .scheduled_events
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter(|event| event.start_year <= cutoff)
+        .collect::<Vec<_>>();
+    if original_started_events != revised_started_events {
+        return Err(StoreError::ScenarioInvalid(
+            "scheduled events that have started by the branch cutoff are immutable".into(),
+        ));
+    }
+
+    let revised_professions = revised
+        .territory
+        .as_ref()
+        .into_iter()
+        .flat_map(|territory| territory.professions.iter())
+        .map(|profession| &profession.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    if prefix
+        .profession_intervals
+        .values()
+        .flatten()
+        .any(|interval| !revised_professions.contains(&interval.profession_id))
+    {
+        return Err(StoreError::ScenarioInvalid(
+            "a profession referenced by the historical prefix cannot be removed".into(),
         ));
     }
 
@@ -1332,6 +1540,42 @@ fn collect_entity_events(
             )?;
         }
     }
+    Ok(())
+}
+
+fn collect_event_windows(
+    conn: &Connection,
+    world_id: &str,
+    branch_id: &str,
+    year: i32,
+    output: &mut Vec<EventWindow>,
+) -> StoreResult<()> {
+    let branch = get_branch(conn, world_id, branch_id)?;
+    if branch.base_year.is_some_and(|base| year <= base) {
+        if let Some(parent) = branch.parent_branch_id.as_deref() {
+            return collect_event_windows(conn, world_id, parent, year, output);
+        }
+        return Err(StoreError::YearUnavailable {
+            branch_id: branch_id.to_owned(),
+            requested: year,
+        });
+    }
+    if branch.head_year.is_none_or(|head| year > head) {
+        return Err(StoreError::YearUnavailable {
+            branch_id: branch_id.to_owned(),
+            requested: year,
+        });
+    }
+    if let (Some(parent), Some(cutoff)) = (branch.parent_branch_id.as_deref(), branch.fork_year) {
+        if year > cutoff {
+            collect_event_windows(conn, world_id, parent, cutoff, output)?;
+        }
+    }
+    output.push(EventWindow {
+        branch_id: branch_id.to_owned(),
+        lower_exclusive: branch.base_year,
+        upper_inclusive: year,
+    });
     Ok(())
 }
 

@@ -3,9 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 pub mod culture;
+pub mod economy;
+pub mod events;
 pub mod territory;
 
 pub use culture::*;
+pub use economy::*;
+pub use events::*;
 pub use territory::*;
 
 macro_rules! integer_id {
@@ -100,9 +104,38 @@ impl fmt::Display for Year {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Money(pub i64);
+
+impl Serialize for Money {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Money {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Decimal(String),
+            Integer(i64),
+        }
+        match Repr::deserialize(deserializer)? {
+            Repr::Decimal(value) => value
+                .parse::<i64>()
+                .map(Self)
+                .map_err(serde::de::Error::custom),
+            Repr::Integer(value) => Ok(Self(value)),
+        }
+    }
+}
 
 impl Money {
     pub fn checked_add(self, other: Self) -> Option<Self> {
@@ -116,9 +149,38 @@ impl Money {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Quantity(pub i64);
+
+impl Serialize for Quantity {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Quantity {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Decimal(String),
+            Integer(i64),
+        }
+        match Repr::deserialize(deserializer)? {
+            Repr::Decimal(value) => value
+                .parse::<i64>()
+                .map(Self)
+                .map_err(serde::de::Error::custom),
+            Repr::Integer(value) => Ok(Self(value)),
+        }
+    }
+}
 
 impl Quantity {
     pub fn checked_add(self, other: Self) -> Option<Self> {
@@ -496,6 +558,12 @@ pub struct Scenario {
     /// Cultural dynamics are opt-in and only valid with ruleset 2.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub culture: Option<CultureConfig>,
+    /// Economic rules are required in ruleset 3 and omitted in rulesets 1 and 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub economy: Option<EconomicConfig>,
+    /// Scheduled shocks are opt-in and only valid with ruleset 3.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_events: Option<Vec<ScheduledEvent>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -520,6 +588,9 @@ pub struct InitialPopulationProfile {
     pub household_kind: HouseholdKind,
     pub age_bands: Vec<WeightedAgeBand>,
     pub reproductive_profiles: Vec<WeightedReproductiveProfile>,
+    /// Ruleset-3 starting employment mix. An empty distribution leaves everyone unassigned.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profession_distribution: Vec<WeightedProfession>,
     pub trait_distributions: BTreeMap<TraitKey, Vec<WeightedTraitValue>>,
 }
 
@@ -548,8 +619,10 @@ pub struct WeightedTraitValue {
 impl Scenario {
     pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
     pub const TERRITORIAL_SCHEMA_VERSION: u32 = 2;
+    pub const EVENT_SCHEMA_VERSION: u32 = 3;
     pub const SUPPORTED_RULES_VERSION: u32 = 1;
     pub const TERRITORIAL_RULES_VERSION: u32 = 2;
+    pub const EVENT_RULES_VERSION: u32 = 3;
 
     pub fn validate(&self) -> Result<ValidatedScenario, Vec<ValidationIssue>> {
         let issues = validate_scenario(self);
@@ -562,15 +635,18 @@ impl Scenario {
         }
     }
 
-    /// Validates a revised rules-2 scenario for the first child-branch close.
+    /// Validates a revised rules-2 or rules-3 scenario for the first child-branch close.
     /// The stored cut is validated under its parent revision; only an initial person's
     /// profession availability may differ because the new policy takes effect at A0.
     pub fn validate_for_branch_revision(&self) -> Result<ValidatedScenario, Vec<ValidationIssue>> {
-        if self.rules_version != Self::TERRITORIAL_RULES_VERSION {
+        if !matches!(
+            self.rules_version,
+            Self::TERRITORIAL_RULES_VERSION | Self::EVENT_RULES_VERSION
+        ) {
             return Err(vec![ValidationIssue::new(
                 "rules_version",
                 "revision_rules_unsupported",
-                "branch policy revisions require rules version 2",
+                "branch policy revisions require rules version 2 or 3",
             )]);
         }
         let issues: Vec<_> = validate_scenario(self)
@@ -653,7 +729,7 @@ impl ValidatedScenario {
                 .collect(),
             last_gestational_birth_year: BTreeMap::new(),
             last_year_phases: Vec::new(),
-            residences: if self.scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+            residences: if self.scenario.rules_version >= Scenario::TERRITORIAL_RULES_VERSION {
                 self.scenario
                     .initial_people
                     .iter()
@@ -675,7 +751,7 @@ impl ValidatedScenario {
                 BTreeMap::new()
             },
             profession_intervals: if self.scenario.rules_version
-                == Scenario::TERRITORIAL_RULES_VERSION
+                >= Scenario::TERRITORIAL_RULES_VERSION
             {
                 self.scenario
                     .initial_people
@@ -702,8 +778,10 @@ impl ValidatedScenario {
             },
             last_year_settlement_balances: BTreeMap::new(),
             culture: CultureState::default(),
+            economy: EconomyState::default(),
+            event_effects: Vec::new(),
         };
-        if self.scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+        if self.scenario.rules_version >= Scenario::TERRITORIAL_RULES_VERSION {
             let living: BTreeSet<_> = state
                 .persons
                 .values()
@@ -918,6 +996,12 @@ pub struct State {
     /// Ruleset-2 culture projections and institutional history.
     #[serde(default, skip_serializing_if = "CultureState::is_empty")]
     pub culture: CultureState,
+    /// Ruleset-3 production groups and balances; empty for earlier rulesets.
+    #[serde(default, skip_serializing_if = "EconomyState::is_empty")]
+    pub economy: EconomyState,
+    /// Currently active scheduled-event restrictions. Empty in rulesets 1 and 2.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub event_effects: Vec<ActiveEventEffect>,
     /// Explicit execution state for every A0-A11 phase of the last year.
     pub last_year_phases: Vec<PhaseRecord>,
 }
@@ -964,6 +1048,20 @@ impl State {
     pub fn validate(&self) -> Result<(), Vec<ValidationIssue>> {
         validate_state(self, None)
     }
+
+    pub fn person_is_incapacitated(&self, person_id: PersonId, year: Year) -> bool {
+        self.event_effects.iter().any(|effect| {
+            effect.active_at(year)
+                && matches!(effect.effect, EventEffect::WorkIncapacity { .. })
+                && effect.selected_person_ids.contains(&person_id)
+        })
+    }
+
+    pub fn route_is_closed(&self, route_id: LogicalId, year: Year) -> bool {
+        self.event_effects
+            .iter()
+            .any(|effect| effect.closes_route(route_id, year))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -978,6 +1076,21 @@ pub struct HistoricalEvent {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum HistoricalEventKind {
+    ScheduledEventOccurred {
+        event_id: LogicalId,
+        name: String,
+        priority: i32,
+    },
+    EventEffectRealized {
+        event_id: LogicalId,
+        event_name: String,
+        effect_index: u32,
+        effect: EventEffect,
+        realization: EventRealization,
+    },
+    EconomicYearClosed {
+        summary: EconomicYearClosedSummary,
+    },
     PersonBorn {
         person_id: PersonId,
         gestational_parent: PersonId,
@@ -1066,11 +1179,15 @@ pub enum FamilyLinkEndReason {
     EndpointDeath(PersonId),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeathCause {
     OrdinaryMortality,
     InfantMortality,
+    ScheduledEvent {
+        event_id: LogicalId,
+        event_name: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1080,7 +1197,7 @@ pub enum UnionEndReason {
     Widowhood(PersonId),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityRef {
     World(WorldId),
@@ -1090,6 +1207,8 @@ pub enum EntityRef {
     Union(UnionId),
     FamilyLink(FamilyLinkId),
     Organization(OrganizationId),
+    Route(LogicalId),
+    EconomicGroup(EconomicGroupId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1167,7 +1286,9 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     if !matches!(
         scenario.schema_version,
-        Scenario::SUPPORTED_SCHEMA_VERSION | Scenario::TERRITORIAL_SCHEMA_VERSION
+        Scenario::SUPPORTED_SCHEMA_VERSION
+            | Scenario::TERRITORIAL_SCHEMA_VERSION
+            | Scenario::EVENT_SCHEMA_VERSION
     ) {
         issues.push(ValidationIssue::new(
             "schema_version",
@@ -1177,7 +1298,9 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
     }
     if !matches!(
         scenario.rules_version,
-        Scenario::SUPPORTED_RULES_VERSION | Scenario::TERRITORIAL_RULES_VERSION
+        Scenario::SUPPORTED_RULES_VERSION
+            | Scenario::TERRITORIAL_RULES_VERSION
+            | Scenario::EVENT_RULES_VERSION
     ) {
         issues.push(ValidationIssue::new(
             "rules_version",
@@ -1196,7 +1319,11 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
                     "schema version 1 is paired with rules version 1",
                 ));
             }
-            if scenario.territory.is_some() || scenario.culture.is_some() {
+            if scenario.territory.is_some()
+                || scenario.culture.is_some()
+                || scenario.economy.is_some()
+                || scenario.scheduled_events.is_some()
+            {
                 issues.push(ValidationIssue::new(
                     "rules_version",
                     "unsupported_e2_configuration",
@@ -1226,6 +1353,51 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
                     "rules_version",
                     "missing_e2_configuration",
                     "rules version 2 requires territory and culture configuration",
+                ));
+            }
+            if scenario.scheduled_events.is_some() {
+                issues.push(ValidationIssue::new(
+                    "scheduled_events",
+                    "unsupported_e3_configuration",
+                    "scheduled events require rules version 3",
+                ));
+            }
+            if scenario.economy.is_some() {
+                issues.push(ValidationIssue::new(
+                    "economy",
+                    "unsupported_e3_configuration",
+                    "economic configuration requires rules version 3",
+                ));
+            }
+            if scenario
+                .initial_population_profiles
+                .iter()
+                .any(|profile| !profile.profession_distribution.is_empty())
+            {
+                issues.push(ValidationIssue::new(
+                    "initial_population_profiles",
+                    "unsupported_e3_configuration",
+                    "initial profession distributions require rules version 3",
+                ));
+            }
+        }
+        Scenario::EVENT_RULES_VERSION => {
+            if scenario.schema_version != Scenario::EVENT_SCHEMA_VERSION {
+                issues.push(ValidationIssue::new(
+                    "schema_version",
+                    "schema_rules_mismatch",
+                    "schema version 3 is paired with rules version 3",
+                ));
+            }
+            if scenario.territory.is_none()
+                || scenario.culture.is_none()
+                || scenario.economy.is_none()
+                || scenario.scheduled_events.is_none()
+            {
+                issues.push(ValidationIssue::new(
+                    "rules_version",
+                    "missing_e3_configuration",
+                    "rules version 3 requires territory, culture, economy and scheduled_events configuration",
                 ));
             }
         }
@@ -1337,6 +1509,33 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
         link_logical,
     );
 
+    if let Some(events) = &scenario.scheduled_events {
+        let mut known_professions: BTreeSet<_> = scenario
+            .territory
+            .iter()
+            .flat_map(|territory| territory.professions.iter().map(|item| item.id.clone()))
+            .collect();
+        known_professions.extend(
+            scenario
+                .initial_people
+                .iter()
+                .filter_map(|person| person.profession.clone()),
+        );
+        let known_routes = scenario
+            .territory
+            .iter()
+            .flat_map(|territory| territory.routes.iter().map(|route| route.logical_id))
+            .collect();
+        issues.extend(validate_event_agenda(
+            events,
+            scenario.start_year,
+            &settlement_ids,
+            &known_professions,
+            &known_routes,
+            scenario.territory.is_some(),
+        ));
+    }
+
     let settlements: BTreeMap<_, _> = scenario.settlements.iter().map(|s| (s.id, s)).collect();
     let people: BTreeMap<_, _> = scenario.initial_people.iter().map(|p| (p.id, p)).collect();
     let households: BTreeMap<_, _> = scenario
@@ -1355,6 +1554,24 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
             &settlement_ids,
             &people,
             &household_members,
+        ));
+    }
+    if let Some(config) = &scenario.economy {
+        let known_professions = scenario
+            .territory
+            .iter()
+            .flat_map(|territory| territory.professions.iter().map(|item| item.id.clone()))
+            .collect();
+        let route_ids = scenario
+            .territory
+            .iter()
+            .flat_map(|territory| territory.routes.iter().map(|route| route.logical_id))
+            .collect();
+        issues.extend(validate_economic_config(
+            config,
+            &known_professions,
+            &settlement_ids,
+            &route_ids,
         ));
     }
     if let Some(config) = &scenario.culture {
@@ -1630,6 +1847,44 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
                 format!("{path}.household_size_minimum"),
                 "invalid_household_size",
                 "household size range must be positive and ordered",
+            ));
+        }
+        if scenario.rules_version < Scenario::EVENT_RULES_VERSION
+            && !profile.profession_distribution.is_empty()
+        {
+            issues.push(ValidationIssue::new(
+                format!("{path}.profession_distribution"),
+                "unsupported_e3_configuration",
+                "initial profession distributions require rules version 3",
+            ));
+        }
+        let profession_catalog: BTreeSet<_> = scenario
+            .territory
+            .iter()
+            .flat_map(|territory| territory.professions.iter().map(|item| item.id.clone()))
+            .collect();
+        let available_professions = scenario.territory.as_ref().and_then(|territory| {
+            territory
+                .profession_options_by_settlement
+                .get(&profile.settlement_id)
+        });
+        if profile.profession_distribution.iter().any(|entry| {
+            entry.weight == 0
+                || entry.profession_id.as_ref().is_some_and(|profession_id| {
+                    !profession_catalog.contains(profession_id)
+                        || !available_professions
+                            .is_some_and(|available| available.contains(profession_id))
+                })
+        }) || (!profile.profession_distribution.is_empty()
+            && profile
+                .profession_distribution
+                .iter()
+                .all(|entry| entry.weight == 0))
+        {
+            issues.push(ValidationIssue::new(
+                format!("{path}.profession_distribution"),
+                "invalid_distribution",
+                "initial profession distribution needs positive weights and professions available at the settlement",
             ));
         }
         if profile.population_size > 0 && profile.age_bands.is_empty() {
@@ -2194,7 +2449,9 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
     let mut issues = Vec::new();
     if !matches!(
         state.rules_version,
-        Scenario::SUPPORTED_RULES_VERSION | Scenario::TERRITORIAL_RULES_VERSION
+        Scenario::SUPPORTED_RULES_VERSION
+            | Scenario::TERRITORIAL_RULES_VERSION
+            | Scenario::EVENT_RULES_VERSION
     ) {
         issues.push(ValidationIssue::new(
             "rules_version",
@@ -2202,11 +2459,22 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
             "unsupported state rules version",
         ));
     }
+    if state.rules_version < Scenario::EVENT_RULES_VERSION
+        && (!state.event_effects.is_empty() || !state.economy.is_empty())
+    {
+        issues.push(ValidationIssue::new(
+            "event_effects",
+            "unsupported_event_state",
+            "event effects require rules version 3",
+        ));
+    }
     if state.rules_version == Scenario::SUPPORTED_RULES_VERSION
         && (!state.residences.is_empty()
             || !state.profession_intervals.is_empty()
             || !state.last_year_settlement_balances.is_empty()
             || !state.culture.is_empty()
+            || !state.economy.is_empty()
+            || !state.event_effects.is_empty()
             || state
                 .persons
                 .values()
@@ -2640,12 +2908,21 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
                 &mut issues,
             );
         }
-        if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+        if state.rules_version >= Scenario::TERRITORIAL_RULES_VERSION {
             if scenario.territory.is_none() || scenario.culture.is_none() {
                 issues.push(ValidationIssue::new(
                     "state",
                     "missing_e2_configuration",
                     "rules version 2 state requires both territory and culture configuration",
+                ));
+            }
+            if state.rules_version >= Scenario::EVENT_RULES_VERSION
+                && (scenario.economy.is_none() || scenario.scheduled_events.is_none())
+            {
+                issues.push(ValidationIssue::new(
+                    "state",
+                    "missing_e3_configuration",
+                    "rules version 3 state requires economy and scheduled-event configuration",
                 ));
             }
             if let Some(territory) = &scenario.territory {
@@ -2688,6 +2965,56 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
                 }
             }
         }
+    }
+    let active_person_ids: BTreeSet<_> = state.persons.keys().copied().collect();
+    let active_settlement_ids: BTreeSet<_> = state.settlements.keys().copied().collect();
+    let mut active_profession_ids: BTreeSet<_> = state
+        .persons
+        .values()
+        .filter_map(|person| person.profession.clone())
+        .collect();
+    if scenario.is_none() {
+        active_profession_ids.extend(state.event_effects.iter().flat_map(|effect| {
+            effect
+                .profession_ids
+                .iter()
+                .flat_map(|professions| professions.iter().cloned())
+        }));
+    }
+    let mut known_routes: BTreeSet<_> = scenario
+        .into_iter()
+        .flat_map(|scenario| scenario.territory.iter())
+        .flat_map(|territory| territory.routes.iter().map(|route| route.logical_id))
+        .collect();
+    if scenario.is_none() {
+        known_routes.extend(
+            state
+                .event_effects
+                .iter()
+                .flat_map(|effect| effect.route_ids.iter().copied()),
+        );
+    }
+    if let Some(scenario) = scenario {
+        active_profession_ids.extend(scenario.territory.iter().flat_map(|territory| {
+            territory
+                .professions
+                .iter()
+                .map(|profession| profession.id.clone())
+        }));
+    }
+    issues.extend(validate_active_event_effects(
+        &state.event_effects,
+        state.current_year,
+        &active_person_ids,
+        &active_settlement_ids,
+        &active_profession_ids,
+        &known_routes,
+    ));
+    if let Some(scenario) = scenario {
+        issues.extend(validate_active_event_links(
+            &state.event_effects,
+            scenario.scheduled_events.as_deref().unwrap_or_default(),
+        ));
     }
     if issues.is_empty() {
         Ok(())
@@ -2769,7 +3096,7 @@ fn validate_residence_history(state: &State, issues: &mut Vec<ValidationIssue>) 
             }
         }
     }
-    if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+    if state.rules_version >= Scenario::TERRITORIAL_RULES_VERSION {
         for person in state.living_people_at(at_year) {
             if !state.residences.contains_key(&person.id) {
                 issues.push(ValidationIssue::new(
@@ -2838,7 +3165,7 @@ fn validate_profession_history(
             previous_end = interval.validity.end_exclusive;
         }
     }
-    if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+    if state.rules_version >= Scenario::TERRITORIAL_RULES_VERSION {
         for person in state.living_people_at(at_year) {
             let active = state
                 .profession_intervals
@@ -2962,6 +3289,8 @@ mod tests {
             genetics: GeneticCatalog::default(),
             territory: None,
             culture: None,
+            economy: None,
+            scheduled_events: None,
         }
     }
 

@@ -84,7 +84,7 @@ dependencies = [
 
 [[package]]
 name = "chargen-app"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "chargen-domain",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "chargen-domain"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "chargen-engine"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chargen-domain",
  "thiserror",
@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "chargen-query"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chargen-domain",
  "chargen-engine",
@@ -127,7 +127,7 @@ dependencies = [
 
 [[package]]
 name = "chargen-store"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chargen-domain",
  "chargen-engine",

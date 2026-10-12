@@ -4,8 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chargen_domain::{
-    CultureAggregate, FamilyLink, FamilyLinkKind, HistoricalEvent, InstitutionDefinition,
-    InstitutionMembership, LogicalId, OrganizationId, Person, PersonId, Scenario, SettlementId,
+    CultureAggregate, EconomicGoodLedger, EconomicGroupLedger, EconomicMoneyLedger, EconomicTrade,
+    FamilyLink, FamilyLinkKind, HistoricalEvent, InstitutionDefinition, InstitutionMembership,
+    LogicalId, OrganizationId, Person, PersonId, Scenario, SettlementEconomicLedger, SettlementId,
     SettlementYearBalance, State, TraitKey, Year, YearInterval,
 };
 use chargen_store::{HistoryStore, StoreError};
@@ -24,9 +25,18 @@ pub enum QueryError {
     OrganizationNotFound(u64),
     #[error("institution {0} does not exist at the selected historical close")]
     InstitutionNotFound(String),
+    #[error("historical page must have a limit from 1 to 500")]
+    InvalidPage,
 }
 
 pub type QueryResult<T> = Result<T, QueryError>;
+
+fn validate_page(_offset: usize, limit: usize) -> QueryResult<()> {
+    if limit == 0 || limit > 500 {
+        return Err(QueryError::InvalidPage);
+    }
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 pub struct HistoryQuery {
@@ -59,6 +69,51 @@ pub struct Census {
     pub year: Year,
     pub total_population: u64,
     pub settlements: Vec<SettlementCensus>,
+}
+
+/// Grouped economic ledger rows for one committed historical close.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MarketsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub money: Option<EconomicMoneyLedger>,
+    pub treasury_goods: BTreeMap<chargen_domain::GoodId, EconomicGoodLedger>,
+    pub groups: Vec<EconomicGroupLedger>,
+}
+
+/// Settlement-level physical market summaries from one annual report.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SettlementMarketsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub settlements: Vec<SettlementEconomicLedger>,
+}
+
+/// Recorded transactions, never reconstructed from current prices or stocks.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MarketTradesAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub total: usize,
+    pub trades: Vec<EconomicTrade>,
+}
+
+/// Historical realized events through this exact branch/year cutoff.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EventsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub total: usize,
+    pub events: Vec<HistoricalEvent>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -346,11 +401,12 @@ impl HistoryQuery {
             .into_iter()
             .flat_map(|config| config.routes.iter())
             .filter(|route| {
-                route.open_intervals.is_empty()
-                    || route
-                        .open_intervals
-                        .iter()
-                        .any(|interval| interval.contains(self.year))
+                !self.state.route_is_closed(route.logical_id, self.year)
+                    && (route.open_intervals.is_empty()
+                        || route
+                            .open_intervals
+                            .iter()
+                            .any(|interval| interval.contains(self.year)))
             })
             .map(|route| OpenRouteAtClose {
                 logical_id: route.logical_id,
@@ -370,6 +426,159 @@ impl HistoryQuery {
     }
 
     /// Per-settlement movement and demographic balance for the selected close.
+    /// Return bounded economic group ledgers from the report stored in this
+    /// exact annual close. Rulesets before E3 report the economy as disabled.
+    pub fn markets(
+        &self,
+        settlement_id: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<MarketsAtClose> {
+        validate_page(offset, limit)?;
+        let report = self
+            .state
+            .economy
+            .last_year_report
+            .as_ref()
+            .filter(|report| report.year == self.year);
+        let mut groups = report
+            .map(|report| {
+                report
+                    .groups
+                    .iter()
+                    .filter(|group| {
+                        settlement_id
+                            .is_none_or(|settlement| group.group_id.settlement_id == settlement)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let total = groups.len();
+        groups = groups.into_iter().skip(offset).take(limit).collect();
+        Ok(MarketsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            enabled: self.scenario.economy.is_some(),
+            total,
+            money: report.map(|report| report.money.clone()),
+            treasury_goods: report
+                .map(|report| report.treasury_goods.clone())
+                .unwrap_or_default(),
+            groups,
+        })
+    }
+
+    /// Return bounded settlement-level market ledgers from the committed
+    /// report; values and prices are not recomputed from present-day config.
+    pub fn market_settlements(
+        &self,
+        settlement_id: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<SettlementMarketsAtClose> {
+        validate_page(offset, limit)?;
+        let report = self
+            .state
+            .economy
+            .last_year_report
+            .as_ref()
+            .filter(|report| report.year == self.year);
+        let mut settlements = report
+            .map(|report| {
+                report
+                    .settlements
+                    .iter()
+                    .filter(|row| settlement_id.is_none_or(|id| row.settlement_id == id))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let total = settlements.len();
+        settlements = settlements.into_iter().skip(offset).take(limit).collect();
+        Ok(SettlementMarketsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            enabled: self.scenario.economy.is_some(),
+            total,
+            settlements,
+        })
+    }
+
+    /// Return bounded transaction rows. A settlement filter includes trades
+    /// whose buyer or seller belongs to that settlement.
+    pub fn market_trades(
+        &self,
+        settlement_id: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<MarketTradesAtClose> {
+        validate_page(offset, limit)?;
+        let report = self
+            .state
+            .economy
+            .last_year_report
+            .as_ref()
+            .filter(|report| report.year == self.year);
+        let mut trades = report
+            .map(|report| {
+                report
+                    .trades
+                    .iter()
+                    .filter(|trade| {
+                        settlement_id.is_none_or(|settlement| {
+                            trade.source_group.settlement_id == settlement
+                                || trade.destination_group.settlement_id == settlement
+                        })
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let total = trades.len();
+        trades = trades.into_iter().skip(offset).take(limit).collect();
+        Ok(MarketTradesAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            enabled: self.scenario.economy.is_some(),
+            total,
+            trades,
+        })
+    }
+
+    /// Read realized events through the cutoff using the branch-aware SQL
+    /// entity index. The scheduled-event agenda itself is never returned.
+    pub fn events(
+        &self,
+        settlement_id: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<EventsAtClose> {
+        validate_page(offset, limit)?;
+        let (entity_type, entity_id) = settlement_id
+            .map(|id| ("settlement", id.0.to_string()))
+            .unwrap_or_else(|| ("world", self.world_id.clone()));
+        let page = self.store.events_for_entity_page(
+            &self.world_id,
+            &self.branch_id,
+            self.year,
+            entity_type,
+            &entity_id,
+            offset,
+            limit,
+        )?;
+        Ok(EventsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            total: page.total,
+            events: page.events,
+        })
+    }
+
     pub fn migration(&self, settlement_id: Option<SettlementId>) -> MigrationAtClose {
         MigrationAtClose {
             world_id: self.world_id.clone(),
@@ -941,9 +1150,10 @@ mod tests {
     use super::*;
     use chargen_domain::{
         CultureConfig, CultureDimensionPolicy, CultureEligibility, DemographicPolicies,
-        DirectedRoute, EntityRef, FamilyLinkId, FamilyLinkKind, GeneticCatalog, Genome,
-        HistoricalEventKind, LogicalId, MigrationPolicy, Person, ReproductiveProfile, Scenario,
-        Settlement, TerritoryConfig, TraitDefinition, WorldId,
+        DirectedRoute, EntityRef, EventEffect, EventPopulationFilter, FamilyLinkId, FamilyLinkKind,
+        GeneticCatalog, Genome, HistoricalEventKind, LogicalId, MigrationPolicy, Person,
+        ReproductiveProfile, Scenario, ScheduledEvent, Settlement, TerritoryConfig,
+        TraitDefinition, WorldId,
     };
     use chargen_engine::Engine;
     use std::collections::{BTreeMap, BTreeSet};
@@ -1039,6 +1249,8 @@ mod tests {
             genetics: GeneticCatalog::default(),
             territory: None,
             culture: None,
+            economy: None,
+            scheduled_events: None,
         }
     }
 
@@ -1390,5 +1602,196 @@ mod tests {
             .organization
             .founders
             .contains(&page.member_ids[0]));
+    }
+
+    #[test]
+    fn open_routes_respect_realized_closures_at_the_selected_close_only() {
+        let temp = TempWorkspace::new();
+        let mut scenario: Scenario = serde_json::from_str(include_str!(
+            "../../../scenarios/demos/e3-economy-events.json"
+        ))
+        .unwrap();
+        let route_id = scenario.territory.as_ref().unwrap().routes[0].logical_id;
+        scenario.territory.as_mut().unwrap().routes[0]
+            .open_intervals
+            .clear();
+        scenario
+            .scheduled_events
+            .as_mut()
+            .unwrap()
+            .push(ScheduledEvent {
+                id: LogicalId(98_101),
+                name: "Cierre temporal para consulta histórica".into(),
+                start_year: Year(1),
+                duration_years: Some(1),
+                priority: 100,
+                population_filter: EventPopulationFilter::default(),
+                effects: vec![EventEffect::RouteClosure {
+                    route_ids: BTreeSet::from([route_id]),
+                }],
+            });
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                &scenario.world_id.0.to_string(),
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        let mut writer = store
+            .acquire_writer(&scenario.world_id.0.to_string(), "main")
+            .unwrap();
+        for _ in 0..=2 {
+            writer
+                .commit_year(&engine.advance_year(None).unwrap())
+                .unwrap();
+        }
+
+        let before =
+            HistoryQuery::open(temp.db(), scenario.world_id.0.to_string(), "main", Year(0))
+                .unwrap();
+        let during =
+            HistoryQuery::open(temp.db(), scenario.world_id.0.to_string(), "main", Year(1))
+                .unwrap();
+        let after = HistoryQuery::open(temp.db(), scenario.world_id.0.to_string(), "main", Year(2))
+            .unwrap();
+        assert_eq!(
+            before.open_routes().routes.len(),
+            1,
+            "future closure leaked"
+        );
+        assert!(
+            during.open_routes().routes.is_empty(),
+            "active closure was ignored"
+        );
+        assert_eq!(
+            after.open_routes().routes.len(),
+            1,
+            "expired closure persisted"
+        );
+        assert_eq!(after.open_routes().routes[0].logical_id, route_id);
+    }
+
+    #[test]
+    fn e3_event_pages_round_trip_numeric_summary_keys_and_route_ids() {
+        let temp = TempWorkspace::new();
+        let scenario = scenario();
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                "201",
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        let mut commit = engine.advance_year(None).unwrap();
+        commit.events.clear();
+
+        // The summary contains an explicit settlement ID instead of a JSON
+        // object key so tagged-event deserialization remains type-safe.
+        let economic_close = serde_json::json!({
+            "id": "99001",
+            "year": 0,
+            "order": 0,
+            "affected_entities": [
+                {"world": 201},
+                {"settlement": 1},
+                {"economic_group": {"settlement_id": 1, "profession_id": "farmer"}}
+            ],
+            "kind": {
+                "type": "economic_year_closed",
+                "data": {"summary": {
+                    "year": 0,
+                    "settlement_ids": [1],
+                    "group_ids": [{"settlement_id": 1, "profession_id": "farmer"}],
+                    "money": {
+                        "opening_group_money": "10",
+                        "opening_treasury_money": "0",
+                        "closing_group_money": "10",
+                        "closing_treasury_money": "0",
+                        "external_transport_outflow": "0",
+                        "explicit_emission": "0",
+                        "explicit_retirement": "0"
+                    },
+                    "physical_shortage_totals": [{"settlement_id": 1, "goods": {"grain": "2"}}]
+                }}
+            }
+        });
+        let displacement = serde_json::json!({
+            "id": "99002",
+            "year": 0,
+            "order": 1,
+            "affected_entities": [
+                {"world": 201},
+                {"person": 1},
+                {"settlement": 1},
+                {"settlement": 2},
+                {"route": "901"}
+            ],
+            "kind": {
+                "type": "event_effect_realized",
+                "data": {
+                    "event_id": "99002",
+                    "event_name": "Desplazamiento de prueba",
+                    "effect_index": 0,
+                    "effect": {"type": "displacement", "data": {
+                        "selection": {"mode": "exact", "data": {"count": 1, "overflow": "clamp_with_warning"}},
+                        "destination": 2
+                    }},
+                    "realization": {"kind": "displacement", "data": {
+                        "requested_person_ids": [1],
+                        "moved_person_ids": [1],
+                        "moves": [{"person_ids": [1], "from": 1, "to": 2, "route_ids": ["901"]}],
+                        "requested_count": 1,
+                        "realized_count": 1,
+                        "warning": null
+                    }}
+                }
+            }
+        });
+        commit.events = vec![
+            serde_json::from_value(economic_close).unwrap(),
+            serde_json::from_value(displacement).unwrap(),
+        ];
+        store
+            .acquire_writer("201", "main")
+            .unwrap()
+            .commit_year(&commit)
+            .unwrap();
+
+        let view = HistoryQuery::open(temp.db(), "201", "main", Year(0)).unwrap();
+        let first = view.events(None, 0, 1).unwrap();
+        let second = view.events(None, 1, 1).unwrap();
+        assert_eq!(first.total, 2);
+        assert_eq!(second.total, 2);
+        assert!(matches!(
+            first.events[0].kind,
+            HistoricalEventKind::EconomicYearClosed { .. }
+        ));
+        let HistoricalEventKind::EventEffectRealized {
+            realization: chargen_domain::EventRealization::Displacement { moves, .. },
+            ..
+        } = &second.events[0].kind
+        else {
+            panic!("expected the realized displacement in the second page");
+        };
+        assert_eq!(moves[0].route_ids, vec![LogicalId(901)]);
+        let settlement_events = view.events(Some(SettlementId(2)), 0, 10).unwrap();
+        assert_eq!(settlement_events.total, 1);
+        assert_eq!(settlement_events.events[0].id, LogicalId(99_002));
     }
 }

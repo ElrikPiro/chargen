@@ -286,6 +286,111 @@ async function loadE2() {
   }
 }
 
+function describeEvent(event) {
+  const kind = event?.kind ?? {};
+  const data = kind.data ?? {};
+  if (kind.type === "scheduled_event_occurred") return `Inicio: ${data.name ?? "evento"}`;
+  if (kind.type === "event_effect_realized") return `${data.event_name ?? "Evento"} · efecto ${Number(data.effect_index ?? 0) + 1} · ${data.effect?.type ?? "resultado"}`;
+  if (kind.type === "economic_year_closed") return "Cierre económico";
+  return String(kind.type ?? "Suceso").replaceAll("_", " ");
+}
+
+async function loadE3() {
+  const context = selectedContext();
+  if (!context.worldId || !context.branchId || !Number.isInteger(context.year)) {
+    throw new Error("Selecciona un mundo, una rama y un año entero.");
+  }
+  saveContext();
+  const base = `/worlds/${encodeURIComponent(context.worldId)}/branches/${encodeURIComponent(context.branchId)}`;
+  const settlementId = byId("settlement-select").value;
+  const filter = new URLSearchParams({ year: String(context.year), limit: "100" });
+  if (settlementId) filter.set("settlement_id", settlementId);
+  const [marketPage, settlementMarkets, trades, events, settlements] = await Promise.all([
+    request(`${base}/markets?${filter}`),
+    request(`${base}/markets/settlements?${filter}`),
+    request(`${base}/markets/trades?${filter}`),
+    request(`${base}/events?${filter}`),
+    request(`${base}/settlements?${asOfQuery(context)}`),
+  ]);
+  const names = new Map((settlements.items ?? []).map((row) => [String(row.settlement_id), row.settlement_name]));
+  const host = byId("economy-results");
+  host.replaceChildren();
+  const contextLabel = document.createElement("p");
+  contextLabel.className = "muted";
+  const selectedName = settlementId ? names.get(String(settlementId)) ?? settlementId : "todos los asentamientos";
+  contextLabel.textContent = `Vista E3 · rama ${context.branchId} · año ${context.year} · ${selectedName}. Los sucesos son resultados realizados hasta este cierre.`;
+  host.append(contextLabel);
+  const groupRows = (marketPage.groups ?? []).flatMap((group) => {
+    const goods = Object.entries(group.goods ?? {});
+    if (!goods.length) return [{ settlement_id: group.group_id.settlement_id, profession: group.group_id.profession_id ?? "Consumidores", members: group.member_count_after, money: group.closing_money, good: "—", stock: "—" }];
+    return goods.map(([good, ledger]) => ({
+      settlement_id: group.group_id.settlement_id,
+      profession: group.group_id.profession_id ?? "Consumidores",
+      members: group.member_count_after,
+      money: group.closing_money,
+      good,
+      stock: ledger.closing_stock,
+      produced: ledger.produced,
+      unmet: ledger.unmet_physical_need,
+    }));
+  });
+  appendTable(host, marketPage.enabled ? "Saldos económicos por grupo" : "Economía", [
+    { label: "Asentamiento", value: (row) => names.get(String(row.settlement_id)) ?? row.settlement_id },
+    { label: "Profesión", value: (row) => row.profession },
+    { label: "Miembros", value: (row) => row.members },
+    { label: "Dinero al cierre", value: (row) => row.money },
+    { label: "Bien", value: (row) => row.good },
+    { label: "Existencias", value: (row) => row.stock },
+    { label: "Producción", value: (row) => row.produced },
+    { label: "Necesidad sin cubrir", value: (row) => row.unmet },
+  ], groupRows, { total: marketPage.total, offset: marketPage.offset, visibleCount: marketPage.groups.length, itemLabel: "grupos económicos" });
+  if (marketPage.money) {
+    appendTable(host, "Balance monetario mundial", [
+      { label: "Concepto", value: (row) => row.name },
+      { label: "Importe", value: (row) => row.value },
+    ], Object.entries(marketPage.money).map(([name, value]) => ({ name: name.replaceAll("_", " "), value })));
+  }
+  appendTable(host, "Existencias de tesorería", [
+    { label: "Bien", value: (row) => row.good },
+    { label: "Apertura", value: (row) => row.opening_stock },
+    { label: "Transferencias recibidas", value: (row) => row.transfers_in },
+    { label: "Transferencias enviadas", value: (row) => row.transfers_out },
+    { label: "Destrucción", value: (row) => row.event_destroyed },
+    { label: "Cierre", value: (row) => row.closing_stock },
+  ], Object.entries(marketPage.treasury_goods ?? {}).map(([good, ledger]) => ({ good, ...ledger })));
+  const settlementGoods = (settlementMarkets.settlements ?? []).flatMap((settlement) =>
+    (settlement.goods ?? []).map((good) => ({ settlement_id: settlement.settlement_id, ...good })),
+  );
+  appendTable(host, "Necesidad, demanda y stock por bien", [
+    { label: "Asentamiento", value: (row) => names.get(String(row.settlement_id)) ?? row.settlement_id },
+    { label: "Bien", value: (row) => row.good_id },
+    { label: "Precio inicial", value: (row) => row.opening_price },
+    { label: "Precio siguiente", value: (row) => row.next_price },
+    { label: "Necesidad física", value: (row) => row.physical_need },
+    { label: "Necesidad sin cubrir", value: (row) => row.unmet_physical_need },
+    { label: "Demanda solvente", value: (row) => row.solvent_demand },
+    { label: "Insumos pendientes", value: (row) => row.unmet_input_demand },
+    { label: "Oferta sin vender", value: (row) => row.unsold_offer },
+    { label: "Importaciones", value: (row) => row.imports },
+    { label: "Exportaciones", value: (row) => row.exports },
+    { label: "Existencias finales", value: (row) => row.ending_stock },
+  ], settlementGoods, { total: settlementGoods.length, offset: 0, visibleCount: settlementGoods.length, itemLabel: "bienes" });
+  appendTable(host, "Intercambios realizados", [
+    { label: "Vendedor", value: (row) => `${names.get(String(row.source_group.settlement_id)) ?? row.source_group.settlement_id} · ${row.source_group.profession_id ?? "Consumidores"}` },
+    { label: "Comprador", value: (row) => `${names.get(String(row.destination_group.settlement_id)) ?? row.destination_group.settlement_id} · ${row.destination_group.profession_id ?? "Consumidores"}` },
+    { label: "Bien", value: (row) => row.good_id },
+    { label: "Cantidad", value: (row) => row.quantity },
+    { label: "Pago", value: (row) => row.buyer_payment },
+    { label: "Transporte", value: (row) => row.transport_cost },
+    { label: "Motivo", value: (row) => row.purpose === "production_input" ? "Insumos" : "Necesidad" },
+  ], trades.trades ?? [], { total: trades.total, offset: trades.offset, visibleCount: trades.trades.length, itemLabel: "intercambios" });
+  appendTable(host, "Eventos y efectos realizados", [
+    { label: "Año", value: (row) => row.year },
+    { label: "Orden", value: (row) => row.order },
+    { label: "Resultado", value: (row) => describeEvent(row) },
+  ], events.events ?? [], { total: events.total, offset: events.offset, visibleCount: events.events.length, itemLabel: "eventos" });
+}
+
 function renderCensus(value) {
   const host = byId("results");
   const rows = value?.settlements ?? value?.items ?? [];
@@ -385,6 +490,7 @@ byId("branch-select").addEventListener("change", saveContext);
 byId("year-input").addEventListener("change", saveContext);
 byId("load-census").addEventListener("click", () => loadCensus().then(() => showMessage("Censo consultado para el año seleccionado.")).catch((e) => showMessage(e.message, true)));
 byId("load-e2").addEventListener("click", () => loadE2().then(() => showMessage("Vista territorial, cultural e institucional consultada para el año seleccionado.")).catch((e) => showMessage(e.message, true)));
+byId("load-e3").addEventListener("click", () => loadE3().then(() => showMessage("Balances y eventos históricos consultados para el año seleccionado.")).catch((e) => showMessage(e.message, true)));
 byId("validate-scenario").addEventListener("click", () => parseScenario().then((result) => {
   if (result.valid) showMessage("Escenario válido.");
   else showMessage(`El escenario tiene ${result.issues?.length ?? 0} errores de validación.`, true);
@@ -396,6 +502,15 @@ byId("load-e2-demo").addEventListener("click", async () => {
     byId("scenario-json").value = JSON.stringify(demo, null, 2);
     byId("through-year").value = String(demo.start_year + 3);
     showMessage("Demo E2 cargada: incluye ruta temporal, desplazamiento programado, afiliaciones y organizaciones ficticias.");
+  } catch (error) { showMessage(error.message, true); }
+});
+byId("load-e3-demo").addEventListener("click", async () => {
+  try {
+    const demo = await request("/demo-scenario-e3");
+    currentScenario = demo;
+    byId("scenario-json").value = JSON.stringify(demo, null, 2);
+    byId("through-year").value = String(demo.start_year + 3);
+    showMessage("Demo E3 cargada: incluye producción, intercambios locales y un evento explícito ficticio.");
   } catch (error) { showMessage(error.message, true); }
 });
 byId("create-world").addEventListener("click", async () => {
