@@ -10,7 +10,7 @@
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">Chargen · prototipo E1</p>
+        <p class="eyebrow">Chargen · prototipo E2</p>
         <h1>Asentamientos y familias</h1>
       </div>
       <span id="connection" class="connection" aria-live="polite">Comprobando servicio…</span>
@@ -40,6 +40,27 @@
         <p id="context-note" class="muted">El estado y las consultas quedan fijados al año de cierre seleccionado.</p>
       </section>
 
+      <section class="panel" aria-labelledby="territory-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Vista temporal E2</p>
+            <h2 id="territory-heading">Territorio, cultura e instituciones</h2>
+          </div>
+        </div>
+        <div class="context-grid">
+          <label>Asentamiento
+            <select id="settlement-select"><option value="">Todos</option></select>
+          </label>
+          <label>Persona para sus intervalos
+            <select id="person-select"><option value="">Selecciona una persona</option></select>
+          </label>
+          <button id="load-e2">Consultar vista histórica</button>
+        </div>
+        <div id="territory-results" class="results" aria-live="polite">
+          <p class="muted">La vista usa el mismo mundo, rama y año que el censo.</p>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="scenario-heading">
         <div class="panel-heading">
           <div>
@@ -52,6 +73,7 @@
         <textarea id="scenario-json" spellcheck="false" aria-describedby="scenario-help"></textarea>
         <p id="scenario-help" class="muted">Edita una copia del escenario de demostración. Los parámetros de demostración son ficticios.</p>
         <div class="actions">
+          <button id="load-e2-demo" class="secondary">Cargar demo E2</button>
           <button id="validate-scenario" class="secondary">Validar</button>
           <button id="create-world">Crear mundo</button>
         </div>

@@ -4,7 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chargen_domain::{
-    FamilyLink, FamilyLinkKind, HistoricalEvent, Person, PersonId, SettlementId, State, Year,
+    CultureAggregate, FamilyLink, FamilyLinkKind, HistoricalEvent, InstitutionDefinition,
+    InstitutionMembership, LogicalId, OrganizationId, Person, PersonId, Scenario, SettlementId,
+    SettlementYearBalance, State, TraitKey, Year, YearInterval,
 };
 use chargen_store::{HistoryStore, StoreError};
 use serde::{Deserialize, Serialize};
@@ -14,8 +16,14 @@ use thiserror::Error;
 pub enum QueryError {
     #[error(transparent)]
     Store(#[from] StoreError),
+    #[error("stored scenario is invalid JSON: {0}")]
+    Scenario(#[from] serde_json::Error),
     #[error("person {0} does not exist in the selected historical state")]
     PersonNotFound(u64),
+    #[error("organization {0} does not exist at the selected historical close")]
+    OrganizationNotFound(u64),
+    #[error("institution {0} does not exist at the selected historical close")]
+    InstitutionNotFound(String),
 }
 
 pub type QueryResult<T> = Result<T, QueryError>;
@@ -26,6 +34,7 @@ pub struct HistoryQuery {
     branch_id: String,
     year: Year,
     state: State,
+    scenario: Scenario,
     store: HistoryStore,
 }
 
@@ -50,6 +59,189 @@ pub struct Census {
     pub year: Year,
     pub total_population: u64,
     pub settlements: Vec<SettlementCensus>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SettlementView {
+    pub settlement_id: SettlementId,
+    pub settlement_name: String,
+    pub population: u64,
+    pub capacity: Option<u32>,
+    pub opportunity_score: Option<i64>,
+    pub balance: Option<SettlementYearBalance>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SettlementsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub settlements: Vec<SettlementView>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenRoutesAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub route_revision: Option<u64>,
+    pub routes: Vec<OpenRouteAtClose>,
+}
+
+/// Public route projection for one close. It deliberately omits the complete
+/// opening calendar so a route reported as open does not disclose future
+/// schedule changes as if they were historical facts.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenRouteAtClose {
+    pub logical_id: LogicalId,
+    pub from: SettlementId,
+    pub to: SettlementId,
+    pub cost: u32,
+    pub capacity_per_year: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MigrationAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub settlements: Vec<SettlementYearBalance>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CultureTraitAtClose {
+    pub key: TraitKey,
+    pub weighted_sum: i64,
+    pub total_weight: u64,
+    pub member_count: u64,
+    pub current_value: Option<i16>,
+    pub minimum: Option<i16>,
+    pub maximum: Option<i16>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SettlementCultureAtClose {
+    pub settlement_id: SettlementId,
+    pub settlement_name: String,
+    pub traits: Vec<CultureTraitAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CultureAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub enabled: bool,
+    pub settlements: Vec<SettlementCultureAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstitutionAtClose {
+    pub definition: InstitutionDefinition,
+    pub active_affiliation_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstitutionsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub institutions: Vec<InstitutionAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstitutionAffiliationsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub institution_id: chargen_domain::InstitutionId,
+    pub total: usize,
+    pub affiliations: Vec<InstitutionMembership>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrganizationAtClose {
+    pub organization: OrganizationRecordAtClose,
+    pub active_at_close: bool,
+    pub active_member_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrganizationRecordAtClose {
+    pub id: OrganizationId,
+    pub logical_id: LogicalId,
+    pub name: String,
+    pub settlement_id: SettlementId,
+    pub founded_year: Year,
+    pub dissolved_year: Option<Year>,
+    pub founders: Vec<PersonId>,
+    pub culture_values: Vec<CultureTraitAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrganizationsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub organizations: Vec<OrganizationAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstitutionAffiliationAtClose {
+    pub institution_id: chargen_domain::InstitutionId,
+    pub settlement_id: SettlementId,
+    pub validity: chargen_domain::YearInterval,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrganizationAffiliationAtClose {
+    pub organization_id: OrganizationId,
+    pub organization_name: String,
+    pub settlement_id: SettlementId,
+    pub founder: bool,
+    pub validity: chargen_domain::YearInterval,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PersonAffiliationsAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub person_id: PersonId,
+    pub institutions: Vec<InstitutionAffiliationAtClose>,
+    pub organizations: Vec<OrganizationAffiliationAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrganizationMembersAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub organization_id: OrganizationId,
+    pub total: usize,
+    pub member_ids: Vec<PersonId>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ResidenceAtClose {
+    pub settlement_id: SettlementId,
+    pub validity: chargen_domain::YearInterval,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProfessionAtClose {
+    pub profession_id: chargen_domain::ProfessionId,
+    pub validity: chargen_domain::YearInterval,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PersonResidenceAtClose {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub person: PersonRecord,
+    pub residences: Vec<ResidenceAtClose>,
+    pub professions: Vec<ProfessionAtClose>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -85,11 +277,14 @@ impl HistoryQuery {
         let world_id = world_id.into();
         let branch_id = branch_id.into();
         let state = store.load_state_at(&world_id, &branch_id, year)?;
+        let scenario: Scenario =
+            serde_json::from_str(&store.scenario_json_at(&world_id, &branch_id, year)?)?;
         Ok(Self {
             world_id,
             branch_id,
             year,
             state,
+            scenario,
             store,
         })
     }
@@ -102,6 +297,446 @@ impl HistoryQuery {
     }
     pub fn year(&self) -> Year {
         self.year
+    }
+
+    pub fn scenario(&self) -> &Scenario {
+        &self.scenario
+    }
+
+    /// Return the saved settlements and their values visible at this close.
+    pub fn settlements(&self) -> SettlementsAtClose {
+        let census = self.census(None);
+        let populations = census
+            .settlements
+            .into_iter()
+            .map(|row| (row.settlement_id, row.population))
+            .collect::<BTreeMap<_, _>>();
+        let territory = self.scenario.territory.as_ref();
+        let settlements = self
+            .state
+            .settlements
+            .values()
+            .map(|settlement| SettlementView {
+                settlement_id: settlement.id,
+                settlement_name: settlement.name.clone(),
+                population: populations.get(&settlement.id).copied().unwrap_or_default(),
+                capacity: territory
+                    .and_then(|config| config.settlement_capacities.get(&settlement.id).copied()),
+                opportunity_score: territory
+                    .and_then(|config| config.opportunity_scores.get(&settlement.id).copied()),
+                balance: self
+                    .state
+                    .last_year_settlement_balances
+                    .get(&settlement.id)
+                    .copied(),
+            })
+            .collect();
+        SettlementsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            settlements,
+        }
+    }
+
+    /// List only directed routes open in this view's closing year.
+    pub fn open_routes(&self) -> OpenRoutesAtClose {
+        let territory = self.scenario.territory.as_ref();
+        let routes = territory
+            .into_iter()
+            .flat_map(|config| config.routes.iter())
+            .filter(|route| {
+                route.open_intervals.is_empty()
+                    || route
+                        .open_intervals
+                        .iter()
+                        .any(|interval| interval.contains(self.year))
+            })
+            .map(|route| OpenRouteAtClose {
+                logical_id: route.logical_id,
+                from: route.from,
+                to: route.to,
+                cost: route.cost,
+                capacity_per_year: route.capacity_per_year,
+            })
+            .collect();
+        OpenRoutesAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            route_revision: territory.map(|config| config.route_revision),
+            routes,
+        }
+    }
+
+    /// Per-settlement movement and demographic balance for the selected close.
+    pub fn migration(&self, settlement_id: Option<SettlementId>) -> MigrationAtClose {
+        MigrationAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            settlements: self
+                .state
+                .last_year_settlement_balances
+                .values()
+                .filter(|balance| {
+                    settlement_id.is_none_or(|requested| requested == balance.settlement_id)
+                })
+                .copied()
+                .collect(),
+        }
+    }
+
+    /// Cultural aggregates for every settlement (or one selected settlement).
+    /// Missing/zero-weight aggregates have `current_value: None`.
+    pub fn culture(&self, settlement_id: Option<SettlementId>) -> CultureAtClose {
+        let config = self.scenario.culture.as_ref();
+        let settlements = self
+            .state
+            .settlements
+            .values()
+            .filter(|settlement| settlement_id.is_none_or(|requested| requested == settlement.id))
+            .map(|settlement| {
+                let aggregates = self.state.culture.settlements.get(&settlement.id);
+                let mut keys = BTreeSet::new();
+                if let Some(dimensions) = config.map(|value| &value.dimensions) {
+                    keys.extend(dimensions.keys().cloned());
+                }
+                if let Some(aggregates) = aggregates {
+                    keys.extend(aggregates.keys().cloned());
+                }
+                let traits = keys
+                    .into_iter()
+                    .map(|key| {
+                        let aggregate = aggregates
+                            .and_then(|values| values.get(&key))
+                            .copied()
+                            .unwrap_or_else(CultureAggregate::default);
+                        let policy = config.and_then(|value| value.dimensions.get(&key));
+                        CultureTraitAtClose {
+                            key,
+                            weighted_sum: aggregate.weighted_sum,
+                            total_weight: aggregate.total_weight,
+                            member_count: aggregate.member_count,
+                            current_value: aggregate.value(),
+                            minimum: policy.map(|policy| policy.minimum),
+                            maximum: policy.map(|policy| policy.maximum),
+                        }
+                    })
+                    .collect();
+                SettlementCultureAtClose {
+                    settlement_id: settlement.id,
+                    settlement_name: settlement.name.clone(),
+                    traits,
+                }
+            })
+            .collect();
+        CultureAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            enabled: config.is_some(),
+            settlements,
+        }
+    }
+
+    /// Configured definitions plus affiliations active at this historical close.
+    pub fn institutions(
+        &self,
+        settlement_id: Option<SettlementId>,
+        person_id: Option<PersonId>,
+    ) -> InstitutionsAtClose {
+        let definitions = self
+            .scenario
+            .culture
+            .as_ref()
+            .into_iter()
+            .flat_map(|config| config.institutions.iter());
+        let institutions = definitions
+            .map(|definition| InstitutionAtClose {
+                definition: definition.clone(),
+                active_affiliation_count: self
+                    .state
+                    .culture
+                    .institution_memberships
+                    .iter()
+                    .filter(|membership| {
+                        self.institution_membership_matches(
+                            definition,
+                            membership,
+                            settlement_id,
+                            person_id,
+                        )
+                    })
+                    .count(),
+            })
+            .collect();
+        InstitutionsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            institutions,
+        }
+    }
+
+    /// Return one bounded page of current affiliations for a configured
+    /// institution. The list endpoint exposes only a count.
+    pub fn institution_affiliations(
+        &self,
+        institution_id: &chargen_domain::InstitutionId,
+        settlement_id: Option<SettlementId>,
+        person_id: Option<PersonId>,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<InstitutionAffiliationsAtClose> {
+        let definition = self
+            .scenario
+            .culture
+            .as_ref()
+            .into_iter()
+            .flat_map(|culture| culture.institutions.iter())
+            .find(|definition| &definition.id == institution_id)
+            .ok_or_else(|| QueryError::InstitutionNotFound(institution_id.0.clone()))?;
+        let total = self
+            .state
+            .culture
+            .institution_memberships
+            .iter()
+            .filter(|membership| {
+                self.institution_membership_matches(
+                    definition,
+                    membership,
+                    settlement_id,
+                    person_id,
+                )
+            })
+            .count();
+        let affiliations = self
+            .state
+            .culture
+            .institution_memberships
+            .iter()
+            .filter(|membership| {
+                self.institution_membership_matches(
+                    definition,
+                    membership,
+                    settlement_id,
+                    person_id,
+                )
+            })
+            .skip(offset)
+            .take(limit)
+            .map(|membership| InstitutionMembership {
+                validity: visible_interval(membership.validity, self.year),
+                ..membership.clone()
+            })
+            .collect();
+        Ok(InstitutionAffiliationsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            institution_id: institution_id.clone(),
+            total,
+            affiliations,
+        })
+    }
+
+    fn institution_membership_matches(
+        &self,
+        definition: &InstitutionDefinition,
+        membership: &InstitutionMembership,
+        settlement_id: Option<SettlementId>,
+        person_id: Option<PersonId>,
+    ) -> bool {
+        if membership.institution_id != definition.id || !membership.active_at_close(self.year) {
+            return false;
+        }
+        let scope_matches = match definition.scope {
+            chargen_domain::InstitutionScope::World => settlement_id.is_none_or(|requested| {
+                self.state
+                    .persons
+                    .get(&membership.person_id)
+                    .is_some_and(|person| person.settlement_id == requested)
+            }),
+            chargen_domain::InstitutionScope::Settlement => {
+                settlement_id.is_none_or(|requested| requested == membership.settlement_id)
+            }
+        };
+        scope_matches
+            && definition
+                .allowed_settlements
+                .as_ref()
+                .is_none_or(|allowed| allowed.contains(&membership.settlement_id))
+            && person_id.is_none_or(|requested| requested == membership.person_id)
+    }
+
+    /// Return organizations founded by this cutoff, preserving dissolved
+    /// records while calculating active members strictly for this year.
+    pub fn organizations(&self, settlement_id: Option<SettlementId>) -> OrganizationsAtClose {
+        let organizations = self
+            .state
+            .culture
+            .organizations
+            .values()
+            .filter(|organization| organization.founded_year <= self.year)
+            .filter(|organization| {
+                settlement_id.is_none_or(|requested| requested == organization.settlement_id)
+            })
+            .map(|organization| OrganizationAtClose {
+                active_at_close: organization.active_at_close(self.year),
+                active_member_count: organization.members_at_close(self.year).count(),
+                organization: OrganizationRecordAtClose {
+                    id: organization.id,
+                    logical_id: organization.logical_id,
+                    name: organization.name.clone(),
+                    settlement_id: organization.settlement_id,
+                    founded_year: organization.founded_year,
+                    dissolved_year: organization
+                        .dissolved_year
+                        .filter(|dissolved| *dissolved <= self.year),
+                    founders: organization.founders.iter().copied().collect(),
+                    culture_values: organization
+                        .culture_values
+                        .iter()
+                        .map(|(key, aggregate)| CultureTraitAtClose {
+                            key: key.clone(),
+                            weighted_sum: aggregate.weighted_sum,
+                            total_weight: aggregate.total_weight,
+                            member_count: aggregate.member_count,
+                            current_value: aggregate.value(),
+                            minimum: None,
+                            maximum: None,
+                        })
+                        .collect(),
+                },
+            })
+            .collect();
+        OrganizationsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            organizations,
+        }
+    }
+
+    /// Return only the page of members active in an organization at this close.
+    pub fn organization_members(
+        &self,
+        organization_id: OrganizationId,
+        offset: usize,
+        limit: usize,
+    ) -> QueryResult<OrganizationMembersAtClose> {
+        let organization = self
+            .state
+            .culture
+            .organizations
+            .get(&organization_id)
+            .filter(|organization| organization.founded_year <= self.year)
+            .ok_or(QueryError::OrganizationNotFound(organization_id.0))?;
+        let total = organization.members_at_close(self.year).count();
+        let member_ids = organization
+            .members_at_close(self.year)
+            .skip(offset)
+            .take(limit)
+            .collect();
+        Ok(OrganizationMembersAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            organization_id,
+            total,
+            member_ids,
+        })
+    }
+
+    /// Residence and profession histories visible for a person at this close.
+    pub fn residence(&self, person_id: PersonId) -> QueryResult<PersonResidenceAtClose> {
+        let person = self
+            .person(person_id)
+            .ok_or(QueryError::PersonNotFound(person_id.0))?;
+        let residences = self
+            .state
+            .residences
+            .get(&person_id)
+            .into_iter()
+            .flatten()
+            .filter(|interval| interval.validity.start <= self.year)
+            .map(|interval| ResidenceAtClose {
+                settlement_id: interval.settlement_id,
+                validity: visible_interval(interval.validity, self.year),
+            })
+            .collect();
+        let professions = self
+            .state
+            .profession_intervals
+            .get(&person_id)
+            .into_iter()
+            .flatten()
+            .filter(|interval| interval.validity.start <= self.year)
+            .map(|interval| ProfessionAtClose {
+                profession_id: interval.profession_id.clone(),
+                validity: visible_interval(interval.validity, self.year),
+            })
+            .collect();
+        Ok(PersonResidenceAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            person,
+            residences,
+            professions,
+        })
+    }
+
+    /// Current and historical memberships/affiliations for a person.
+    pub fn affiliations(&self, person_id: PersonId) -> QueryResult<PersonAffiliationsAtClose> {
+        if self.person(person_id).is_none() {
+            return Err(QueryError::PersonNotFound(person_id.0));
+        }
+        let institutions = self
+            .state
+            .culture
+            .institution_memberships
+            .iter()
+            .filter(|membership| {
+                membership.person_id == person_id && membership.validity.start <= self.year
+            })
+            .map(|membership| InstitutionAffiliationAtClose {
+                institution_id: membership.institution_id.clone(),
+                settlement_id: membership.settlement_id,
+                validity: visible_interval(membership.validity, self.year),
+            })
+            .collect();
+        let organizations = self
+            .state
+            .culture
+            .organizations
+            .values()
+            .filter(|organization| organization.founded_year <= self.year)
+            .flat_map(|organization| {
+                organization
+                    .memberships
+                    .iter()
+                    .filter(move |membership| {
+                        membership.person_id == person_id && membership.validity.start <= self.year
+                    })
+                    .map(move |membership| OrganizationAffiliationAtClose {
+                        organization_id: organization.id,
+                        organization_name: organization.name.clone(),
+                        settlement_id: organization.settlement_id,
+                        founder: membership.founder,
+                        validity: visible_interval(membership.validity, self.year),
+                    })
+            })
+            .collect();
+        Ok(PersonAffiliationsAtClose {
+            world_id: self.world_id.clone(),
+            branch_id: self.branch_id.clone(),
+            year: self.year,
+            person_id,
+            institutions,
+            organizations,
+        })
     }
 
     pub fn census(&self, settlement_id: Option<SettlementId>) -> Census {
@@ -227,6 +862,16 @@ impl HistoryQuery {
     }
 }
 
+fn visible_interval(mut interval: YearInterval, cutoff: Year) -> YearInterval {
+    if interval
+        .end_exclusive
+        .is_some_and(|end_exclusive| end_exclusive > cutoff)
+    {
+        interval.end_exclusive = None;
+    }
+    interval
+}
+
 fn person_record(person: &Person, year: Year) -> PersonRecord {
     PersonRecord {
         person: person.clone(),
@@ -295,8 +940,10 @@ fn _link_kind_is_explicit(_kind: FamilyLinkKind) {}
 mod tests {
     use super::*;
     use chargen_domain::{
-        DemographicPolicies, EntityRef, FamilyLinkId, FamilyLinkKind, GeneticCatalog, Genome,
-        HistoricalEventKind, LogicalId, Person, ReproductiveProfile, Scenario, Settlement, WorldId,
+        CultureConfig, CultureDimensionPolicy, CultureEligibility, DemographicPolicies,
+        DirectedRoute, EntityRef, FamilyLinkId, FamilyLinkKind, GeneticCatalog, Genome,
+        HistoricalEventKind, LogicalId, MigrationPolicy, Person, ReproductiveProfile, Scenario,
+        Settlement, TerritoryConfig, TraitDefinition, WorldId,
     };
     use chargen_engine::Engine;
     use std::collections::{BTreeMap, BTreeSet};
@@ -341,6 +988,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         };
         let child = Person {
             id: PersonId(2),
@@ -353,6 +1001,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         };
         let link = |id, logical_id, kind| FamilyLink {
             id: FamilyLinkId(id),
@@ -388,7 +1037,67 @@ mod tests {
             initial_population_profiles: Vec::new(),
             policies: DemographicPolicies::default(),
             genetics: GeneticCatalog::default(),
+            territory: None,
+            culture: None,
         }
+    }
+
+    fn territorial_scenario() -> Scenario {
+        let mut scenario = scenario();
+        scenario.schema_version = Scenario::TERRITORIAL_SCHEMA_VERSION;
+        scenario.rules_version = Scenario::TERRITORIAL_RULES_VERSION;
+        scenario.settlements.push(Settlement {
+            id: SettlementId(2),
+            logical_id: LogicalId(12),
+            name: "Hill".into(),
+            culture_values: BTreeMap::new(),
+        });
+        let key = TraitKey {
+            namespace: "culture".into(),
+            name: "cohesion".into(),
+        };
+        scenario.trait_catalog.push(TraitDefinition {
+            key: key.clone(),
+            minimum: 0,
+            maximum: 100,
+            unit: None,
+            description: None,
+        });
+        for person in &mut scenario.initial_people {
+            person.traits.insert(key.clone(), 50);
+        }
+        scenario.territory = Some(TerritoryConfig {
+            route_revision: 1,
+            routes: vec![DirectedRoute {
+                logical_id: LogicalId(901),
+                from: SettlementId(1),
+                to: SettlementId(2),
+                cost: 2,
+                capacity_per_year: None,
+                open_intervals: Vec::new(),
+            }],
+            migration: MigrationPolicy::default(),
+            ..TerritoryConfig::default()
+        });
+        scenario.culture = Some(CultureConfig {
+            dimensions: [(
+                key,
+                CultureDimensionPolicy {
+                    eligibility: CultureEligibility::AllLiving,
+                    member_weight: 1,
+                    parent_weight: 1,
+                    local_weight: 1,
+                    variation_max: 0,
+                    minimum: 0,
+                    maximum: 100,
+                    founder_value: Some(50),
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..CultureConfig::default()
+        });
+        scenario
     }
 
     #[test]
@@ -472,6 +1181,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         };
         mother_year_one.state.persons.insert(newborn.id, newborn);
         mother_year_one.state.next_person_id = 4;
@@ -546,5 +1256,139 @@ mod tests {
             .events_for_person(PersonId(2))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn e2_child_configuration_does_not_leak_into_its_shared_cutoff() {
+        let temp = TempWorkspace::new();
+        let parent_scenario = territorial_scenario();
+        let parent_validated = parent_scenario.validate().unwrap();
+        let initial = Engine::from_scenario(parent_validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        let parent_json = serde_json::to_string(&parent_scenario).unwrap();
+        store
+            .create_world("201", "main", &parent_json, &initial)
+            .unwrap();
+
+        let mut parent_engine = Engine::new(parent_validated, initial).unwrap();
+        {
+            let mut writer = store.acquire_writer("201", "main").unwrap();
+            writer
+                .commit_year(&parent_engine.advance_year(None).unwrap())
+                .unwrap();
+            writer
+                .commit_year(&parent_engine.advance_year(None).unwrap())
+                .unwrap();
+        }
+
+        let mut child_scenario = parent_scenario.clone();
+        child_scenario.territory.as_mut().unwrap().routes[0].open_intervals =
+            vec![chargen_domain::YearInterval {
+                start: Year(0),
+                end_exclusive: Some(Year(1)),
+            }];
+        child_scenario.territory.as_mut().unwrap().route_revision = 2;
+        child_scenario
+            .culture
+            .as_mut()
+            .unwrap()
+            .dimensions
+            .values_mut()
+            .next()
+            .unwrap()
+            .maximum = 90;
+        let child_validated = child_scenario.validate().unwrap();
+        let child_json = serde_json::to_string(&child_scenario).unwrap();
+        let child_initial = store
+            .fork_branch("201", "main", "child-e2", Year(0), &child_json)
+            .unwrap();
+        let mut child_engine = Engine::new(child_validated, child_initial).unwrap();
+        store
+            .acquire_writer("201", "child-e2")
+            .unwrap()
+            .commit_year(&child_engine.advance_year(None).unwrap())
+            .unwrap();
+
+        let child_cut = HistoryQuery::open(temp.db(), "201", "child-e2", Year(0)).unwrap();
+        assert_eq!(
+            child_cut
+                .scenario()
+                .territory
+                .as_ref()
+                .unwrap()
+                .route_revision,
+            1
+        );
+        assert_eq!(child_cut.open_routes().routes.len(), 1);
+        let cutoff_culture = child_cut.culture(Some(SettlementId(1)));
+        assert_eq!(cutoff_culture.settlements[0].traits[0].maximum, Some(100));
+
+        let child_next = HistoryQuery::open(temp.db(), "201", "child-e2", Year(1)).unwrap();
+        assert_eq!(
+            child_next
+                .scenario()
+                .territory
+                .as_ref()
+                .unwrap()
+                .route_revision,
+            2
+        );
+        assert!(child_next.open_routes().routes.is_empty());
+        assert_eq!(
+            child_next.culture(Some(SettlementId(1))).settlements[0].traits[0].maximum,
+            Some(90)
+        );
+
+        let parent_next = HistoryQuery::open(temp.db(), "201", "main", Year(1)).unwrap();
+        assert_eq!(parent_next.open_routes().routes.len(), 1);
+        assert_eq!(
+            parent_next.culture(Some(SettlementId(1))).settlements[0].traits[0].maximum,
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn organization_member_projection_is_paged_and_cutoff_specific() {
+        let temp = TempWorkspace::new();
+        let scenario: Scenario = serde_json::from_str(include_str!(
+            "../../../scenarios/demos/e2-territory-culture.json"
+        ))
+        .unwrap();
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                &scenario.world_id.0.to_string(),
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        store
+            .acquire_writer(&scenario.world_id.0.to_string(), "main")
+            .unwrap()
+            .commit_year(&engine.advance_year(None).unwrap())
+            .unwrap();
+
+        let query = HistoryQuery::open(temp.db(), scenario.world_id.0.to_string(), "main", Year(0))
+            .unwrap();
+        let organization = query.organizations(None).organizations.remove(0);
+        let page = query
+            .organization_members(organization.organization.id, 1, 1)
+            .unwrap();
+        assert_eq!(page.total, organization.active_member_count);
+        assert_eq!(page.member_ids.len(), 1);
+        assert!(organization
+            .organization
+            .founders
+            .contains(&page.member_ids[0]));
     }
 }

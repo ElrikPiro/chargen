@@ -55,6 +55,7 @@ jobs:
           node scripts/check-package.mjs "$package_dir" "${{ matrix.target }}" "${{ matrix.executable }}"
           node scripts/smoke-api.mjs "$package_dir/${{ matrix.executable }}"
           node scripts/validate-e1.mjs "$package_dir/${{ matrix.executable }}"
+          node scripts/validate-e2.mjs "$package_dir/${{ matrix.executable }}"
       - name: Upload platform release files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

@@ -45,6 +45,8 @@ progress { width: 100%; height: .7rem; accent-color: var(--accent); }
 .results table { width: 100%; border-collapse: collapse; text-align: left; }
 .results th, .results td { padding: .68rem .55rem; border-bottom: 1px solid var(--line); }
 .results th { color: var(--muted); font-size: .78rem; }
+.e2-table-section { margin-top: 1.5rem; }
+.e2-table-section h3 { margin-bottom: .5rem; }
 .messages { min-height: 0; }
 .notice { margin: 0; padding: .85rem 1rem; border-radius: 8px; background: #e9f3ed; color: var(--accent-dark); font-size: .88rem; }
 .notice.error { background: #faece6; color: #822f1c; }

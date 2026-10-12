@@ -6,10 +6,10 @@ export type LogicalId = string;
 export type TraitKey = `${string}::${string}`;
 export type TraitValues = Partial<Record<TraitKey, number>>;
 
-export interface Scenario {
+export interface ScenarioBase {
   world_id: DomainId;
-  schema_version: number;
-  rules_version: number;
+  schema_version: 1 | 2;
+  rules_version: 1 | 2;
   seed: DomainId;
   start_year: Year;
   settlements: Settlement[];
@@ -22,6 +22,20 @@ export interface Scenario {
   policies: DemographicPolicies;
   genetics: GeneticCatalog;
 }
+
+export interface ScenarioV1 extends ScenarioBase {
+  schema_version: 1;
+  rules_version: 1;
+}
+
+export interface ScenarioV2 extends ScenarioBase {
+  schema_version: 2;
+  rules_version: 2;
+  territory: TerritoryConfig;
+  culture: CultureConfig;
+}
+
+export type Scenario = ScenarioV1 | ScenarioV2;
 
 export interface Settlement {
   id: DomainId;
@@ -43,6 +57,125 @@ export interface Person {
   traits: TraitValues;
   genome: Genome;
   last_widowed_year: Year | null;
+  profession?: ProfessionId;
+}
+
+export type ProfessionId = string;
+export type MigrationUnit = "person" | "household";
+
+export interface DirectedRoute {
+  logical_id: LogicalId;
+  from: DomainId;
+  to: DomainId;
+  cost: number;
+  capacity_per_year: number | null;
+  open_intervals?: YearInterval[];
+}
+
+/** Historical API projection omits future opening-calendar details. */
+export interface OpenRouteAtClose {
+  logical_id: LogicalId;
+  from: DomainId;
+  to: DomainId;
+  cost: number;
+  capacity_per_year: number | null;
+}
+
+export interface MigrationPolicy {
+  enabled: boolean;
+  probability_ppm: number;
+  unit: MigrationUnit;
+  minimum_age: number;
+  maximum_age: number | null;
+  candidate_limit: number;
+  max_moving_units_per_year: number;
+  maximum_travel_cost: number | null;
+  minimum_net_opportunity_gain: number;
+}
+
+export interface ForcedDisplacementCommand {
+  id: LogicalId;
+  person_ids: DomainId[];
+  destination: DomainId;
+}
+
+export interface ScheduledDisplacement {
+  year: Year;
+  command: ForcedDisplacementCommand;
+}
+
+export interface ProfessionDefinition { id: ProfessionId; name: string }
+
+export interface TerritoryConfig {
+  route_revision: number;
+  routes: DirectedRoute[];
+  settlement_capacities?: Record<string, number>;
+  opportunity_scores?: Record<string, number>;
+  migration: MigrationPolicy;
+  scheduled_displacements?: ScheduledDisplacement[];
+  professions?: ProfessionDefinition[];
+  profession_options_by_settlement?: Record<string, ProfessionId[]>;
+}
+
+export type CultureEligibility =
+  | { kind: "all_living" }
+  | { kind: "minimum_age"; minimum_age: number }
+  | { kind: "age_range"; minimum_age: number; maximum_age: number };
+
+export interface CultureDimensionPolicy {
+  eligibility: CultureEligibility;
+  member_weight: number;
+  parent_weight: number;
+  local_weight: number;
+  variation_max: number;
+  minimum: number;
+  maximum: number;
+  founder_value: number | null;
+}
+
+export type InstitutionKind = "institution" | "religion";
+export type InstitutionScope = "world" | "settlement";
+
+export interface AffiliationPolicy {
+  enabled: boolean;
+  minimum_age: number;
+  maximum_age: number | null;
+  minimum_affinity_ppm: number;
+  opportunity_ppm: number;
+  candidate_limit: number;
+  maximum_affiliations_per_person: number | null;
+  continue_after_migration: boolean;
+}
+
+export interface InstitutionDefinition {
+  id: string;
+  name: string;
+  kind: InstitutionKind;
+  scope: InstitutionScope;
+  allowed_settlements?: DomainId[] | null;
+  values: TraitValues;
+  affiliation: AffiliationPolicy;
+}
+
+export interface OrganizationPolicy {
+  enabled: boolean;
+  cadence_years: number;
+  candidate_limit_per_settlement: number;
+  maximum_organizations_per_settlement: number;
+  minimum_founders: number;
+  maximum_members: number;
+  dissolve_below_members: number;
+  minimum_age: number;
+  maximum_age: number | null;
+  minimum_affinity_ppm: number;
+  formation_opportunity_ppm: number;
+  continue_after_migration: boolean;
+}
+
+export interface CultureConfig {
+  dimensions: Partial<Record<TraitKey, CultureDimensionPolicy>>;
+  institutions?: InstitutionDefinition[];
+  organizations: OrganizationPolicy;
 }
 
 export interface ReproductiveProfile {
@@ -271,6 +404,128 @@ export interface CensusResponse {
   settlements: CensusRow[];
   limit: number;
   offset: number;
+}
+
+export interface HistoricalPage<T> {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  total: number;
+  limit: number;
+  offset: number;
+  items: T[];
+}
+
+export interface SettlementView {
+  settlement_id: DomainId;
+  settlement_name: string;
+  population: number;
+  capacity: number | null;
+  opportunity_score: number | null;
+  balance: SettlementYearBalance | null;
+}
+
+export interface SettlementYearBalance {
+  settlement_id: DomainId;
+  before: number;
+  births: number;
+  deaths: number;
+  incoming: number;
+  outgoing: number;
+  after: number;
+}
+
+export interface RoutesPage extends HistoricalPage<OpenRouteAtClose> {
+  route_revision: number | null;
+}
+
+export interface CultureTraitAtClose {
+  key: TraitKey;
+  weighted_sum: number;
+  total_weight: number;
+  member_count: number;
+  current_value: number | null;
+  minimum: number | null;
+  maximum: number | null;
+}
+
+export interface SettlementCultureAtClose {
+  settlement_id: DomainId;
+  settlement_name: string;
+  traits: CultureTraitAtClose[];
+}
+
+export interface InstitutionMembership {
+  institution_id: string;
+  person_id: DomainId;
+  settlement_id: DomainId;
+  validity: YearInterval;
+}
+
+export interface InstitutionAtClose {
+  definition: InstitutionDefinition;
+  active_affiliation_count: number;
+}
+
+export interface InstitutionMembersPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  institution_id: string;
+  total: number;
+  limit: number;
+  offset: number;
+  affiliations: InstitutionMembership[];
+}
+
+export interface OrganizationMembership {
+  person_id: DomainId;
+  validity: YearInterval;
+  founder: boolean;
+}
+
+export interface OrganizationAtClose {
+  organization: {
+    id: DomainId;
+    logical_id: LogicalId;
+    name: string;
+    settlement_id: DomainId;
+    founded_year: Year;
+    dissolved_year: Year | null;
+    founders: DomainId[];
+    culture_values: CultureTraitAtClose[];
+  };
+  active_at_close: boolean;
+  active_member_count: number;
+}
+
+export interface OrganizationMembersPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  organization_id: DomainId;
+  total: number;
+  limit: number;
+  offset: number;
+  member_ids: DomainId[];
+}
+
+export interface PersonResidenceAtClose {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  person: PersonRecord;
+  residences: Array<{ settlement_id: DomainId; validity: YearInterval }>;
+  professions: Array<{ profession_id: ProfessionId; validity: YearInterval }>;
+}
+
+export interface PersonAffiliationsAtClose {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  person_id: DomainId;
+  institutions: Array<{ institution_id: string; settlement_id: DomainId; validity: YearInterval }>;
+  organizations: Array<{ organization_id: DomainId; organization_name: string; settlement_id: DomainId; founder: boolean; validity: YearInterval }>;
 }
 
 export interface PersonRecord {

@@ -1,5 +1,5 @@
 {
-  "profile_version": 1,
+  "profile_version": 3,
   "profiles": [
     {
       "id": "B0",
@@ -24,6 +24,66 @@
       "years": 200,
       "seed": 421339,
       "description": "Curvas de escalado y carga histórica; la población evoluciona según sus políticas."
+    },
+    {
+      "id": "E2-B0",
+      "population": 40,
+      "settlements": 3,
+      "years": 10,
+      "seed": 421440,
+      "description": "Validación E2 pequeña con migración, agregados culturales y catálogos sintéticos; población estable sin nacimientos, mortalidad, uniones ni adopciones.",
+      "e2": true,
+      "culture_dimensions": 6,
+      "institutions": 4,
+      "professions": 4
+    },
+    {
+      "id": "E2-B1",
+      "population": 1000,
+      "settlements": 10,
+      "years": 100,
+      "seed": 421441,
+      "description": "Perfil E2 medio para costes de rutas, cultura, afiliaciones e historial; mide carga territorial y cultural con población estable.",
+      "e2": true,
+      "culture_dimensions": 20,
+      "institutions": 16,
+      "professions": 8
+    },
+    {
+      "id": "E2-B2",
+      "population": 10000,
+      "settlements": 50,
+      "years": 200,
+      "seed": 421442,
+      "description": "Carga E2 territorial/cultural de 10.000 residentes iniciales, 50 asentamientos y 200 cierres, sin evolución demográfica; no equivale a E1 B2.",
+      "e2": true,
+      "culture_dimensions": 50,
+      "institutions": 50,
+      "professions": 16
+    },
+    {
+      "id": "E2-CATALOG-CURRENT",
+      "population": 1000,
+      "settlements": 10,
+      "years": 20,
+      "seed": 421443,
+      "description": "Catálogo sintético con 83 dimensiones, comparable en tamaño a 50 facetas más 33 opiniones; no reproduce datos externos.",
+      "e2": true,
+      "culture_dimensions": 83,
+      "institutions": 16,
+      "professions": 8
+    },
+    {
+      "id": "E2-CATALOG-LARGE",
+      "population": 1000,
+      "settlements": 10,
+      "years": 20,
+      "seed": 421444,
+      "description": "Escenario sintético de catálogo mayor con 166 dimensiones, 32 instituciones y 12 profesiones.",
+      "e2": true,
+      "culture_dimensions": 166,
+      "institutions": 32,
+      "professions": 12
     }
   ]
 }

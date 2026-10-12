@@ -17,16 +17,22 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chargen_domain::{
-    PersonId, Scenario, SettlementId, State as WorldState, ValidationIssue, Year,
+    PersonId, Scenario, SettlementId, State as WorldState, ValidatedScenario, ValidationIssue, Year,
 };
 use chargen_engine::{CancellationToken, Engine, YearCommit};
-use chargen_query::{Census, Genealogy, HistoryQuery, PersonRecord, QueryError};
+use chargen_query::{
+    Census, CultureAtClose, Genealogy, HistoryQuery, InstitutionAffiliationsAtClose,
+    InstitutionAtClose, MigrationAtClose, OpenRouteAtClose, OpenRoutesAtClose, OrganizationAtClose,
+    OrganizationMembersAtClose, PersonAffiliationsAtClose, PersonRecord, PersonResidenceAtClose,
+    QueryError, SettlementCultureAtClose, SettlementView,
+};
 use chargen_store::{
     BranchSummary, ExportManifest, HistoryStore, StoreError, WorldSummary, WorldWriter,
 };
 use serde::{Deserialize, Serialize};
 
 const DEMO_SCENARIO: &str = include_str!("../../../scenarios/demos/b0-family.json");
+const DEMO_E2_SCENARIO: &str = include_str!("../../../scenarios/demos/e2-territory-culture.json");
 const INDEX_HTML: &str = include_str!("../../../web/index.html");
 const APP_JS: &str = include_str!("../../../web/app.js");
 const STYLES_CSS: &str = include_str!("../../../web/styles.css");
@@ -258,6 +264,7 @@ pub struct CreateBranchResponse {
 pub struct PageQuery {
     pub year: i32,
     pub settlement_id: Option<u64>,
+    pub person_id: Option<u64>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
 }
@@ -265,6 +272,60 @@ pub struct PageQuery {
 #[derive(Clone, Debug, Deserialize)]
 pub struct YearQuery {
     pub year: i32,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct YearPageQuery {
+    pub year: i32,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct HistoricalPage<T> {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub items: Vec<T>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RoutesPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub route_revision: Option<u64>,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub items: Vec<OpenRouteAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct OrganizationMembersPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub organization_id: chargen_domain::OrganizationId,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub member_ids: Vec<PersonId>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct InstitutionMembersPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub institution_id: chargen_domain::InstitutionId,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub affiliations: Vec<chargen_domain::InstitutionMembership>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -534,6 +595,35 @@ pub trait HistoricalView: Send + Sync {
         &self,
         person: PersonId,
     ) -> Result<Vec<chargen_domain::HistoricalEvent>, ServiceFault>;
+    fn settlements(&self) -> chargen_query::SettlementsAtClose;
+    fn open_routes(&self) -> OpenRoutesAtClose;
+    fn migration(&self, settlement: Option<SettlementId>) -> MigrationAtClose;
+    fn culture(&self, settlement: Option<SettlementId>) -> CultureAtClose;
+    fn institutions(
+        &self,
+        settlement: Option<SettlementId>,
+        person: Option<PersonId>,
+    ) -> chargen_query::InstitutionsAtClose;
+    fn institution_affiliations(
+        &self,
+        institution: &chargen_domain::InstitutionId,
+        settlement: Option<SettlementId>,
+        person: Option<PersonId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<InstitutionAffiliationsAtClose, ServiceFault>;
+    fn organizations(
+        &self,
+        settlement: Option<SettlementId>,
+    ) -> chargen_query::OrganizationsAtClose;
+    fn organization_members(
+        &self,
+        organization: chargen_domain::OrganizationId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<OrganizationMembersAtClose, ServiceFault>;
+    fn residence(&self, person: PersonId) -> Result<PersonResidenceAtClose, ServiceFault>;
+    fn affiliations(&self, person: PersonId) -> Result<PersonAffiliationsAtClose, ServiceFault>;
 }
 
 impl HistoricalView for HistoryQuery {
@@ -560,6 +650,57 @@ impl HistoricalView for HistoryQuery {
         person: PersonId,
     ) -> Result<Vec<chargen_domain::HistoricalEvent>, ServiceFault> {
         HistoryQuery::events_for_person(self, person).map_err(map_query_error)
+    }
+    fn settlements(&self) -> chargen_query::SettlementsAtClose {
+        HistoryQuery::settlements(self)
+    }
+    fn open_routes(&self) -> OpenRoutesAtClose {
+        HistoryQuery::open_routes(self)
+    }
+    fn migration(&self, settlement: Option<SettlementId>) -> MigrationAtClose {
+        HistoryQuery::migration(self, settlement)
+    }
+    fn culture(&self, settlement: Option<SettlementId>) -> CultureAtClose {
+        HistoryQuery::culture(self, settlement)
+    }
+    fn institutions(
+        &self,
+        settlement: Option<SettlementId>,
+        person: Option<PersonId>,
+    ) -> chargen_query::InstitutionsAtClose {
+        HistoryQuery::institutions(self, settlement, person)
+    }
+    fn institution_affiliations(
+        &self,
+        institution: &chargen_domain::InstitutionId,
+        settlement: Option<SettlementId>,
+        person: Option<PersonId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<InstitutionAffiliationsAtClose, ServiceFault> {
+        HistoryQuery::institution_affiliations(self, institution, settlement, person, offset, limit)
+            .map_err(map_query_error)
+    }
+    fn organizations(
+        &self,
+        settlement: Option<SettlementId>,
+    ) -> chargen_query::OrganizationsAtClose {
+        HistoryQuery::organizations(self, settlement)
+    }
+    fn organization_members(
+        &self,
+        organization: chargen_domain::OrganizationId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<OrganizationMembersAtClose, ServiceFault> {
+        HistoryQuery::organization_members(self, organization, offset, limit)
+            .map_err(map_query_error)
+    }
+    fn residence(&self, person: PersonId) -> Result<PersonResidenceAtClose, ServiceFault> {
+        HistoryQuery::residence(self, person).map_err(map_query_error)
+    }
+    fn affiliations(&self, person: PersonId) -> Result<PersonAffiliationsAtClose, ServiceFault> {
+        HistoryQuery::affiliations(self, person).map_err(map_query_error)
     }
 }
 
@@ -660,7 +801,16 @@ fn map_query_error(error: QueryError) -> ServiceFault {
         QueryError::PersonNotFound(_) => {
             ServiceFault::NotFound("La persona no existe en el año consultado.".into())
         }
+        QueryError::OrganizationNotFound(_) => {
+            ServiceFault::NotFound("La organización no existe en el año consultado.".into())
+        }
+        QueryError::InstitutionNotFound(_) => {
+            ServiceFault::NotFound("La institución no existe en el año consultado.".into())
+        }
         QueryError::Store(error) => map_store_error(error),
+        QueryError::Scenario(_) => {
+            ServiceFault::Internal("stored scenario could not be decoded".into())
+        }
     }
 }
 
@@ -816,6 +966,7 @@ impl AppContainer {
             .route("/styles.css", get(styles_css))
             .route("/api/health", get(health))
             .route("/api/demo-scenario", get(demo_scenario))
+            .route("/api/demo-scenario-e2", get(demo_e2_scenario))
             .route("/api/scenarios/validate", post(validate_scenario))
             .route("/api/worlds", get(list_worlds).post(create_world))
             .route(
@@ -837,6 +988,46 @@ impl AppContainer {
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/genealogy",
                 get(get_genealogy),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/settlements",
+                get(get_settlements),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/routes",
+                get(get_routes),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/migration",
+                get(get_migration),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/culture",
+                get(get_culture),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/institutions",
+                get(get_institutions),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/institutions/{institution_id}/members",
+                get(get_institution_members),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/organizations",
+                get(get_organizations),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/organizations/{organization_id}/members",
+                get(get_organization_members),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/residence",
+                get(get_residence),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/affiliations",
+                get(get_affiliations),
             )
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/runs",
@@ -933,6 +1124,13 @@ async fn demo_scenario() -> Response {
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
         .body(Body::from(DEMO_SCENARIO))
         .expect("embedded scenario is valid")
+}
+
+async fn demo_e2_scenario() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(Body::from(DEMO_E2_SCENARIO))
+        .expect("embedded E2 scenario is valid")
 }
 
 async fn validate_scenario(
@@ -1053,6 +1251,7 @@ async fn get_census(
     if let Some(id) = query.settlement_id {
         validate_numeric_id(id, "asentamiento")?;
     }
+    validate_optional_id(query.person_id, "persona")?;
     let factory = app.query_factory.clone();
     let year = Year(query.year);
     let context = QueryContext::new(world_id.clone(), branch_id.clone(), year);
@@ -1089,6 +1288,7 @@ async fn list_people(
     if let Some(id) = query.settlement_id {
         validate_numeric_id(id, "asentamiento")?;
     }
+    validate_optional_id(query.person_id, "persona")?;
     let factory = app.query_factory.clone();
     let year = Year(query.year);
     let context = QueryContext::new(world_id.clone(), branch_id.clone(), year);
@@ -1170,6 +1370,298 @@ async fn get_genealogy(
     Ok(Json(genealogy))
 }
 
+async fn get_settlements(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalPage<SettlementView>>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    validate_optional_id(query.person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.settlements();
+    let (total, items) = paginate(result.settlements, limit, offset);
+    Ok(Json(HistoricalPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_routes(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<RoutesPage>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    validate_optional_id(query.person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.open_routes();
+    let (total, items) = paginate(result.routes, limit, offset);
+    Ok(Json(RoutesPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        route_revision: result.route_revision,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_migration(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalPage<chargen_domain::SettlementYearBalance>>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.migration(query.settlement_id.map(SettlementId));
+    let (total, items) = paginate(result.settlements, limit, offset);
+    Ok(Json(HistoricalPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_culture(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalPage<SettlementCultureAtClose>>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.culture(query.settlement_id.map(SettlementId));
+    let (total, items) = paginate(result.settlements, limit, offset);
+    Ok(Json(HistoricalPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_institutions(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalPage<InstitutionAtClose>>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    validate_optional_id(query.person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.institutions(
+        query.settlement_id.map(SettlementId),
+        query.person_id.map(PersonId),
+    );
+    let (total, items) = paginate(result.institutions, limit, offset);
+    Ok(Json(HistoricalPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_institution_members(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, institution_id)): AxumPath<(String, String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<InstitutionMembersPage>, ServiceFault> {
+    validate_institution_id(&institution_id)?;
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    validate_optional_id(query.person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.institution_affiliations(
+        &chargen_domain::InstitutionId(institution_id),
+        query.settlement_id.map(SettlementId),
+        query.person_id.map(PersonId),
+        offset,
+        limit,
+    )?;
+    Ok(Json(InstitutionMembersPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        institution_id: result.institution_id,
+        total: result.total,
+        limit,
+        offset,
+        affiliations: result.affiliations,
+    }))
+}
+
+async fn get_organizations(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<PageQuery>,
+) -> Result<Json<HistoricalPage<OrganizationAtClose>>, ServiceFault> {
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    validate_optional_id(query.person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.organizations(query.settlement_id.map(SettlementId));
+    let (total, items) = paginate(result.organizations, limit, offset);
+    Ok(Json(HistoricalPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        total,
+        limit,
+        offset,
+        items,
+    }))
+}
+
+async fn get_organization_members(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, organization_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Json<OrganizationMembersPage>, ServiceFault> {
+    validate_numeric_id(organization_id, "organización")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.organization_members(
+        chargen_domain::OrganizationId(organization_id),
+        offset,
+        limit,
+    )?;
+    Ok(Json(OrganizationMembersPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        organization_id: result.organization_id,
+        total: result.total,
+        limit,
+        offset,
+        member_ids: result.member_ids,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ResidenceHistoryPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub person: PersonRecord,
+    pub residence_total: usize,
+    pub residences: Vec<chargen_query::ResidenceAtClose>,
+    pub profession_total: usize,
+    pub professions: Vec<chargen_query::ProfessionAtClose>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+async fn get_residence(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Json<ResidenceHistoryPage>, ServiceFault> {
+    validate_numeric_id(person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.residence(PersonId(person_id))?;
+    let (residence_total, residences) = paginate(result.residences, limit, offset);
+    let (profession_total, professions) = paginate(result.professions, limit, offset);
+    Ok(Json(ResidenceHistoryPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        person: sanitize_person_record(result.person, Year(query.year)),
+        residence_total,
+        residences,
+        profession_total,
+        professions,
+        limit,
+        offset,
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AffiliationsHistoryPage {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Year,
+    pub person_id: PersonId,
+    pub institution_total: usize,
+    pub institutions: Vec<chargen_query::InstitutionAffiliationAtClose>,
+    pub organization_total: usize,
+    pub organizations: Vec<chargen_query::OrganizationAffiliationAtClose>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+async fn get_affiliations(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Json<AffiliationsHistoryPage>, ServiceFault> {
+    validate_numeric_id(person_id, "persona")?;
+    let (limit, offset) = checked_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let result = view.affiliations(PersonId(person_id))?;
+    let (institution_total, institutions) = paginate(result.institutions, limit, offset);
+    let (organization_total, organizations) = paginate(result.organizations, limit, offset);
+    Ok(Json(AffiliationsHistoryPage {
+        world_id: result.world_id,
+        branch_id: result.branch_id,
+        year: result.year,
+        person_id: result.person_id,
+        institution_total,
+        institutions,
+        organization_total,
+        organizations,
+        limit,
+        offset,
+    }))
+}
+
+async fn open_historical_view(
+    app: &AppContainer,
+    world_id: &str,
+    branch_id: &str,
+    year: Year,
+) -> Result<Box<dyn HistoricalView>, ServiceFault> {
+    validate_context(world_id, branch_id)?;
+    let factory = app.query_factory.clone();
+    let context = QueryContext::new(world_id.to_owned(), branch_id.to_owned(), year);
+    tokio::task::spawn_blocking(move || factory.open(&context))
+        .await
+        .map_err(|error| ServiceFault::Internal(error.to_string()))?
+}
+
+fn paginate<T>(items: Vec<T>, limit: usize, offset: usize) -> (usize, Vec<T>) {
+    let total = items.len();
+    (total, items.into_iter().skip(offset).take(limit).collect())
+}
+
+fn validate_optional_id(value: Option<u64>, label: &str) -> Result<(), ServiceFault> {
+    if let Some(value) = value {
+        validate_numeric_id(value, label)?;
+    }
+    Ok(())
+}
+
 async fn checkpoint(
     State(app): State<AppContainer>,
     AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
@@ -1248,6 +1740,7 @@ struct PreparedRun {
     start_year: i32,
     current_year: Option<i32>,
     total_years: u64,
+    branch_revision_pending: bool,
 }
 
 /// Owns the immutable world/branch identity, durable store and writer lease for
@@ -1266,18 +1759,34 @@ fn prepare_run(world: WorldServices, through_year: i32) -> Result<PreparedRun, S
     let scenario: Scenario = serde_json::from_str(&scenario_json)
         .map_err(|_| ServiceFault::Internal("stored scenario could not be decoded".into()))?;
     validate_safe_scenario_ids(&scenario)?;
-    let validated = scenario.validate().map_err(validation_fault)?;
     if scenario.world_id.0.to_string() != world.world_id {
         return Err(ServiceFault::Conflict(
             "La revisión de escenario pertenece a otro mundo.".into(),
         ));
     }
     let state = world.load_state()?;
-    validated.validate_state(&state).map_err(validation_fault)?;
+    let branch = world
+        .repository
+        .list_branches(&world.world_id)?
+        .into_iter()
+        .find(|branch| branch.branch_id == world.branch_id)
+        .ok_or_else(|| ServiceFault::NotFound("No se encontró la rama solicitada.".into()))?;
+    let branch_revision_candidate = branch.parent_branch_id.is_some()
+        && branch.fork_year.is_some()
+        && branch.fork_year == branch.head_year
+        && state.current_year.map(|year| year.0) == branch.head_year;
+    let (validated, branch_revision_pending) =
+        validate_run_scenario(&scenario, branch_revision_candidate).map_err(validation_fault)?;
+    if branch_revision_pending {
+        state.validate().map_err(validation_fault)?;
+    } else {
+        validated.validate_state(&state).map_err(validation_fault)?;
+    }
     if state.next_person_id > MAX_SAFE_INTEGER - 100_000
         || state.next_household_id > MAX_SAFE_INTEGER - 100_000
         || state.next_union_id > MAX_SAFE_INTEGER - 100_000
         || state.next_family_link_id > MAX_SAFE_INTEGER - 100_000
+        || state.culture.next_organization_id > MAX_SAFE_INTEGER - 100_000
     {
         return Err(ServiceFault::Invalid(
             "Los contadores de identidad están demasiado cerca del límite seguro del navegador."
@@ -1310,7 +1819,22 @@ fn prepare_run(world: WorldServices, through_year: i32) -> Result<PreparedRun, S
         start_year,
         current_year,
         total_years,
+        branch_revision_pending,
     })
+}
+
+fn validate_run_scenario(
+    scenario: &Scenario,
+    branch_revision_candidate: bool,
+) -> Result<(ValidatedScenario, bool), Vec<ValidationIssue>> {
+    let uses_territorial_revision =
+        branch_revision_candidate && scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION;
+    let validated = if uses_territorial_revision {
+        scenario.validate_for_branch_revision()?
+    } else {
+        scenario.validate()?
+    };
+    Ok((validated, uses_territorial_revision))
 }
 
 fn run_worker(
@@ -1328,76 +1852,114 @@ fn run_worker(
         scenario,
         state,
         mut writer,
+        branch_revision_pending,
         ..
     } = prepared;
     set_job_status(&job, RunStatus::Running, None);
-    let mut engine = match Engine::new(scenario, state) {
+    let outcome = execute_run_until(RunExecution {
+        metrics: metrics.as_ref(),
+        clock: clock.as_ref(),
+        world: &world,
+        job: &job,
+        scenario,
+        state,
+        writer: writer.as_mut(),
+        through_year,
+        branch_revision_pending,
+    });
+    drop(writer);
+    match outcome {
+        WorkerTerminal::Completed => set_job_status(&job, RunStatus::Completed, None),
+        WorkerTerminal::Cancelled(message) => {
+            set_job_status(&job, RunStatus::Cancelled, Some(message));
+        }
+        WorkerTerminal::Failed(detail) => fail_job(&job, detail),
+    }
+}
+
+enum WorkerTerminal {
+    Completed,
+    Cancelled(String),
+    Failed(String),
+}
+
+struct RunExecution<'a> {
+    metrics: &'a dyn MetricsSink,
+    clock: &'a dyn MeasurementClock,
+    world: &'a WorldServices,
+    job: &'a Arc<JobControl>,
+    scenario: chargen_domain::ValidatedScenario,
+    state: WorldState,
+    writer: &'a mut dyn CommitWriter,
+    through_year: i32,
+    branch_revision_pending: bool,
+}
+
+fn execute_run_until(run: RunExecution<'_>) -> WorkerTerminal {
+    let engine_result = if run.branch_revision_pending {
+        Engine::new_for_branch_revision(run.scenario, run.state)
+    } else {
+        Engine::new(run.scenario, run.state)
+    };
+    let mut engine = match engine_result {
         Ok(engine) => engine,
         Err(error) => {
-            fail_job(&job, format!("engine initialization failed: {error}"));
-            return;
+            return WorkerTerminal::Failed(format!("engine initialization failed: {error}"))
         }
     };
     loop {
-        if !await_run_gate(&job, writer.as_mut(), engine.state().current_year.is_some()) {
-            break;
+        match await_run_gate(run.job, run.writer, engine.state().current_year.is_some()) {
+            Ok(true) => {}
+            Ok(false) => {
+                return if run.job.cancellation.is_cancelled() {
+                    WorkerTerminal::Cancelled(
+                        "Cancelado; se conserva el último cierre confirmado.".into(),
+                    )
+                } else {
+                    WorkerTerminal::Completed
+                };
+            }
+            Err(detail) => return WorkerTerminal::Failed(detail),
         }
-        if job.cancellation.is_cancelled() {
-            break;
+        if run.job.cancellation.is_cancelled() {
+            return WorkerTerminal::Cancelled(
+                "Cancelado; se conserva el último cierre confirmado.".into(),
+            );
         }
         let next_year = engine
             .state()
             .current_year
             .and_then(|year| year.0.checked_add(1))
             .unwrap_or(engine.state().start_year.0);
-        if next_year > through_year {
-            break;
+        if next_year > run.through_year {
+            return WorkerTerminal::Completed;
         }
-        let started = clock.now_micros();
-        match engine.advance_year(Some(&job.cancellation)) {
+        let started = run.clock.now_micros();
+        match engine.advance_year(Some(&run.job.cancellation)) {
             Ok(commit) => {
-                if let Err(error) = writer.commit(&commit) {
-                    fail_job(&job, format!("year commit failed: {error:?}"));
-                    return;
+                if let Err(error) = run.writer.commit(&commit) {
+                    return WorkerTerminal::Failed(format!("year commit failed: {error:?}"));
                 }
                 let current_year = commit.year.0;
                 let population = commit.state.living_people_at(commit.year).count();
                 let event_count = commit.events.len();
-                update_after_commit(&job, current_year);
-                metrics.year_committed(YearMetric {
-                    world_id: world.world_id.clone(),
-                    branch_id: world.branch_id.clone(),
+                update_after_commit(run.job, current_year);
+                run.metrics.year_committed(YearMetric {
+                    world_id: run.world.world_id.clone(),
+                    branch_id: run.world.branch_id.clone(),
                     year: current_year,
-                    elapsed_micros: clock.now_micros().saturating_sub(started),
+                    elapsed_micros: run.clock.now_micros().saturating_sub(started),
                     population,
                     event_count,
                 });
             }
-            Err(_error) if job.cancellation.is_cancelled() => {
-                set_job_status(
-                    &job,
-                    RunStatus::Cancelled,
-                    Some("Cancelado en el límite anual seguro.".into()),
-                );
-                return;
+            Err(_error) if run.job.cancellation.is_cancelled() => {
+                return WorkerTerminal::Cancelled("Cancelado en el límite anual seguro.".into());
             }
             Err(error) => {
-                fail_job(&job, format!("engine annual step failed: {error}"));
-                return;
+                return WorkerTerminal::Failed(format!("engine annual step failed: {error}"));
             }
         }
-    }
-    if job_snapshot(&job).status == RunStatus::Failed {
-        return;
-    }
-    if job.cancellation.is_cancelled() {
-        set_job_status(
-            &job,
-            RunStatus::Cancelled,
-            Some("Cancelado; se conserva el último cierre confirmado.".into()),
-        );
-    } else {
-        set_job_status(&job, RunStatus::Completed, None);
     }
 }
 
@@ -1405,25 +1967,21 @@ fn await_run_gate(
     job: &Arc<JobControl>,
     writer: &mut dyn CommitWriter,
     has_confirmed_close: bool,
-) -> bool {
+) -> Result<bool, String> {
     let mut gate = match job.gate.lock() {
         Ok(gate) => gate,
-        Err(_) => {
-            fail_job(job, "run gate lock poisoned".into());
-            return false;
-        }
+        Err(_) => return Err("run gate lock poisoned".into()),
     };
     if gate.cancelled {
-        return false;
+        return Ok(false);
     }
     if !gate.pause_requested {
-        return true;
+        return Ok(true);
     }
     drop(gate);
     if has_confirmed_close {
         if let Err(error) = writer.checkpoint() {
-            fail_job(job, format!("pause checkpoint failed: {error:?}"));
-            return false;
+            return Err(format!("pause checkpoint failed: {error:?}"));
         }
     }
     set_job_status(
@@ -1433,10 +1991,7 @@ fn await_run_gate(
     );
     gate = match job.gate.lock() {
         Ok(gate) => gate,
-        Err(_) => {
-            fail_job(job, "run gate lock poisoned".into());
-            return false;
-        }
+        Err(_) => return Err("run gate lock poisoned".into()),
     };
     while gate.pause_requested && !gate.cancelled {
         match job
@@ -1444,18 +1999,15 @@ fn await_run_gate(
             .wait_timeout(gate, Duration::from_millis(250))
         {
             Ok((next, _)) => gate = next,
-            Err(_) => {
-                fail_job(job, "run gate wait poisoned".into());
-                return false;
-            }
+            Err(_) => return Err("run gate wait poisoned".into()),
         }
     }
     if gate.cancelled {
-        return false;
+        return Ok(false);
     }
     drop(gate);
     set_job_status(job, RunStatus::Running, None);
-    true
+    Ok(true)
 }
 
 fn set_job_status(job: &JobControl, status: RunStatus, message: Option<String>) {
@@ -1700,6 +2252,20 @@ fn validate_numeric_id(value: u64, label: &str) -> Result<(), ServiceFault> {
     Ok(())
 }
 
+fn validate_institution_id(value: &str) -> Result<(), ServiceFault> {
+    if value.is_empty()
+        || value.len() > 256
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:".contains(&byte))
+    {
+        return Err(ServiceFault::Invalid(
+            "El ID de institución debe contener entre 1 y 256 caracteres seguros.".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_safe_scenario_ids(scenario: &Scenario) -> Result<(), ServiceFault> {
     let mut ids = vec![scenario.world_id.0, scenario.seed];
     ids.extend(
@@ -1732,6 +2298,18 @@ fn validate_safe_scenario_ids(scenario: &Scenario) -> Result<(), ServiceFault> {
             .iter()
             .flat_map(|item| [item.id.0, item.logical_id.0]),
     );
+    ids.extend(scenario.territory.iter().flat_map(|territory| {
+        territory
+            .routes
+            .iter()
+            .map(|route| route.logical_id.0)
+            .chain(
+                territory
+                    .scheduled_displacements
+                    .iter()
+                    .map(|displacement| displacement.command.id.0),
+            )
+    }));
     if ids.into_iter().any(|id| id > MAX_SAFE_INTEGER) {
         return Err(ServiceFault::Invalid(
             "Los IDs y la semilla deben quedar dentro del rango entero exacto del navegador."
@@ -1797,6 +2375,14 @@ struct BenchmarkProfile {
     years: u32,
     seed: u64,
     description: String,
+    #[serde(default)]
+    e2: bool,
+    #[serde(default)]
+    culture_dimensions: u32,
+    #[serde(default)]
+    institutions: u32,
+    #[serde(default)]
+    professions: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -1813,6 +2399,12 @@ struct BenchmarkReport {
     cpu_name: Option<String>,
     logical_cpu_count: Option<usize>,
     host_memory_bytes: Option<u64>,
+    configured_culture_dimensions: u32,
+    configured_institutions: u32,
+    configured_professions: u32,
+    culture_projection_rows: usize,
+    institution_projection_rows: usize,
+    organization_projection_rows: usize,
     initial_population: u64,
     mean_population: f64,
     peak_population: u64,
@@ -1829,6 +2421,10 @@ struct BenchmarkReport {
     engine_max_year_micros: u128,
     engine_phase_mean_micros: BTreeMap<String, u128>,
     historical_census_micros: u128,
+    historical_culture_micros: u128,
+    historical_institutions_micros: u128,
+    historical_organizations_micros: u128,
+    historical_routes_micros: u128,
     database_bytes: u64,
     sampled_peak_rss_bytes: Option<u64>,
     deterministic_digest: String,
@@ -1836,7 +2432,7 @@ struct BenchmarkReport {
 
 /// Stable command-line help for the standalone local executable.
 pub fn command_usage() -> &'static str {
-    "Chargen E1 local population-history prototype\n\nUso: chargen-app [serve] [--database RUTA] [--bind 127.0.0.1:7878] [--no-open]\n     chargen-app bench --profile B0|B1|B2 [--database RUTA] [--output RUTA]"
+    "Chargen E2 local population-history prototype\n\nUso: chargen-app [serve] [--database RUTA] [--bind 127.0.0.1:7878] [--no-open]\n     chargen-app bench --profile B0|B1|B2|E2-B0|E2-B1|E2-B2|E2-CATALOG-CURRENT|E2-CATALOG-LARGE [--database RUTA] [--output RUTA]"
 }
 
 /// Run a fully local, reproducible workload and emit measured runtime, query,
@@ -1878,14 +2474,15 @@ pub fn run_bench_cli(args: &[String]) -> Result<(), String> {
         index += 1;
     }
     let profile_id = profile_id.ok_or_else(|| format!("Falta --profile. {}", command_usage()))?;
-    let profiles: BenchmarkProfiles =
-        serde_json::from_str(include_str!("../../../scenarios/benchmarks/profiles.json"))
-            .map_err(|_| "No se pudo leer el catálogo de perfiles B0–B2.".to_owned())?;
+    let profiles: BenchmarkProfiles = serde_json::from_str(include_str!(
+        "../../../scenarios/benchmarks/profiles.json"
+    ))
+    .map_err(|_| "No se pudo leer el catálogo de perfiles B0–B2 y E2-B0–E2-B2.".to_owned())?;
     let profile = profiles
         .profiles
         .iter()
         .find(|profile| profile.id == profile_id)
-        .ok_or_else(|| format!("Perfil desconocido: {profile_id}. Usa B0, B1 o B2."))?;
+        .ok_or_else(|| format!("Perfil desconocido: {profile_id}. Usa B0, B1, B2, E2-B0, E2-B1, E2-B2, E2-CATALOG-CURRENT o E2-CATALOG-LARGE."))?;
     let database = database.unwrap_or_else(|| {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1909,7 +2506,7 @@ pub fn run_bench_cli(args: &[String]) -> Result<(), String> {
         }
         fs::write(&output, format!("{serialized}\n"))
             .map_err(|_| "No se pudo escribir el informe de benchmark.".to_owned())?;
-        println!("Informe B{}: {}", report.profile, output.display());
+        println!("Informe {}: {}", report.profile, output.display());
         println!("Huella determinista: {}", report.deterministic_digest);
     } else {
         println!("{serialized}");
@@ -1923,7 +2520,12 @@ fn run_benchmark(
     database: &Path,
 ) -> Result<BenchmarkReport, String> {
     let initialization_started = Instant::now();
-    let mut scenario: Scenario = serde_json::from_str(DEMO_SCENARIO).map_err(|_| {
+    let scenario_template = if profile.e2 {
+        DEMO_E2_SCENARIO
+    } else {
+        DEMO_SCENARIO
+    };
+    let mut scenario: Scenario = serde_json::from_str(scenario_template).map_err(|_| {
         "El escenario demostrativo no coincide con el modelo de dominio.".to_owned()
     })?;
     configure_benchmark_scenario(&mut scenario, profile)?;
@@ -2013,6 +2615,25 @@ fn run_benchmark(
         })?;
     let final_population = query.census(None).total_population;
     let historical_census_micros = query_started.elapsed().as_micros();
+    let culture_started = Instant::now();
+    let culture_projection = query.culture(None);
+    let historical_culture_micros = culture_started.elapsed().as_micros();
+    let culture_projection_rows = culture_projection
+        .settlements
+        .iter()
+        .map(|settlement| settlement.traits.len())
+        .sum();
+    let institutions_started = Instant::now();
+    let institution_projection = query.institutions(None, None);
+    let historical_institutions_micros = institutions_started.elapsed().as_micros();
+    let institution_projection_rows = institution_projection.institutions.len();
+    let organizations_started = Instant::now();
+    let organization_projection = query.organizations(None);
+    let historical_organizations_micros = organizations_started.elapsed().as_micros();
+    let organization_projection_rows = organization_projection.organizations.len();
+    let routes_started = Instant::now();
+    let _route_projection = query.open_routes();
+    let historical_routes_micros = routes_started.elapsed().as_micros();
     let database_bytes = fs::metadata(database)
         .map_err(|_| "No se pudo medir el archivo histórico del benchmark.".to_owned())?
         .len();
@@ -2027,7 +2648,7 @@ fn run_benchmark(
         .map(|(phase, total)| (phase, total / years / 1_000))
         .collect();
     Ok(BenchmarkReport {
-        report_version: 2,
+        report_version: 3,
         profile_version,
         profile: profile.id.clone(),
         description: profile.description.clone(),
@@ -2041,6 +2662,16 @@ fn run_benchmark(
             .ok()
             .map(|count| count.get()),
         host_memory_bytes: host_memory_bytes(),
+        configured_culture_dimensions: if profile.e2 {
+            profile.culture_dimensions
+        } else {
+            0
+        },
+        configured_institutions: if profile.e2 { profile.institutions } else { 0 },
+        configured_professions: if profile.e2 { profile.professions } else { 0 },
+        culture_projection_rows,
+        institution_projection_rows,
+        organization_projection_rows,
         initial_population: profile.population.into(),
         mean_population: total_population as f64 / f64::from(profile.years),
         peak_population,
@@ -2057,6 +2688,10 @@ fn run_benchmark(
         engine_max_year_micros: engine_year_max_nanos / 1_000,
         engine_phase_mean_micros,
         historical_census_micros,
+        historical_culture_micros,
+        historical_institutions_micros,
+        historical_organizations_micros,
+        historical_routes_micros,
         database_bytes,
         sampled_peak_rss_bytes: peak_rss,
         deterministic_digest: digest.finish(),
@@ -2084,14 +2719,24 @@ fn configure_benchmark_scenario(
             profile.id
         ));
     }
+    if profile.e2 {
+        configure_e2_catalogs(scenario, profile)?;
+    }
     scenario.world_id = WorldId(profile.seed);
     scenario.seed = profile.seed;
     scenario.start_year = Year(0);
-    let template = scenario
+    let mut template = scenario
         .settlements
         .first()
         .cloned()
         .ok_or("El demo no tiene asentamientos.")?;
+    if profile.e2 {
+        template.culture_values = scenario
+            .trait_catalog
+            .iter()
+            .map(|definition| (definition.key.clone(), 50))
+            .collect();
+    }
     scenario.settlements = (0..profile.settlements)
         .map(|index| Settlement {
             id: SettlementId(u64::from(index) + 1),
@@ -2167,6 +2812,178 @@ fn configure_benchmark_scenario(
             weight: 1,
         },
     ];
+    if profile.e2 {
+        configure_e2_territory(scenario, profile)?;
+    }
+    Ok(())
+}
+
+fn configure_e2_catalogs(
+    scenario: &mut Scenario,
+    profile: &BenchmarkProfile,
+) -> Result<(), String> {
+    use chargen_domain::{
+        AffiliationPolicy, CultureConfig, CultureDimensionPolicy, InstitutionDefinition,
+        InstitutionId, InstitutionKind, InstitutionScope, OrganizationPolicy, TraitDefinition,
+        TraitInheritancePolicy, TraitKey,
+    };
+
+    scenario.schema_version = chargen_domain::Scenario::TERRITORIAL_SCHEMA_VERSION;
+    scenario.rules_version = chargen_domain::Scenario::TERRITORIAL_RULES_VERSION;
+    let dimension_count = profile.culture_dimensions.max(1);
+    let trait_keys = (0..dimension_count)
+        .map(|index| TraitKey::new("synthetic", format!("dimension_{index:03}")))
+        .collect::<Vec<_>>();
+    scenario.trait_catalog = trait_keys
+        .iter()
+        .map(|key| TraitDefinition {
+            key: key.clone(),
+            minimum: 0,
+            maximum: 100,
+            unit: None,
+            description: None,
+        })
+        .collect();
+    let inheritance =
+        scenario
+            .policies
+            .traits
+            .values()
+            .next()
+            .cloned()
+            .unwrap_or(TraitInheritancePolicy {
+                parent_weight: 2,
+                local_weight: 1,
+                variation_max: 0,
+                minimum: 0,
+                maximum: 100,
+            });
+    scenario.policies.traits = trait_keys
+        .iter()
+        .cloned()
+        .map(|key| (key, inheritance.clone()))
+        .collect();
+
+    let mut culture = CultureConfig::default();
+    for key in &trait_keys {
+        culture.dimensions.insert(
+            key.clone(),
+            CultureDimensionPolicy {
+                eligibility: chargen_domain::CultureEligibility::AllLiving,
+                member_weight: 1,
+                parent_weight: 2,
+                local_weight: 1,
+                variation_max: 0,
+                minimum: 0,
+                maximum: 100,
+                founder_value: Some(50),
+            },
+        );
+    }
+    let institution_count = profile.institutions.max(1);
+    for index in 0..institution_count {
+        let values = trait_keys.iter().cloned().map(|key| (key, 50)).collect();
+        culture.institutions.push(InstitutionDefinition {
+            id: InstitutionId(format!("synthetic::institution_{index:04}")),
+            name: format!("Institution {index:04}"),
+            kind: if index % 5 == 0 {
+                InstitutionKind::Religion
+            } else {
+                InstitutionKind::Institution
+            },
+            scope: if index % 2 == 0 {
+                InstitutionScope::World
+            } else {
+                InstitutionScope::Settlement
+            },
+            allowed_settlements: None,
+            values,
+            affiliation: AffiliationPolicy {
+                enabled: true,
+                minimum_age: 0,
+                maximum_age: None,
+                minimum_affinity_ppm: 0,
+                opportunity_ppm: 10_000,
+                candidate_limit: 8,
+                maximum_affiliations_per_person: Some(3),
+                continue_after_migration: true,
+            },
+        });
+    }
+    culture.organizations = OrganizationPolicy {
+        enabled: true,
+        cadence_years: 5,
+        candidate_limit_per_settlement: 64,
+        maximum_organizations_per_settlement: 2,
+        minimum_founders: 3,
+        maximum_members: 100,
+        dissolve_below_members: 1,
+        minimum_age: 18,
+        maximum_age: None,
+        minimum_affinity_ppm: 700_000,
+        formation_opportunity_ppm: 25_000,
+        continue_after_migration: true,
+    };
+    scenario.culture = Some(culture);
+    Ok(())
+}
+
+fn configure_e2_territory(
+    scenario: &mut Scenario,
+    profile: &BenchmarkProfile,
+) -> Result<(), String> {
+    use chargen_domain::{
+        DirectedRoute, LogicalId, MigrationPolicy, MigrationUnit, ProfessionDefinition,
+        ProfessionId, TerritoryConfig,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let mut territory = TerritoryConfig {
+        route_revision: 1,
+        migration: MigrationPolicy {
+            enabled: profile.settlements > 1,
+            probability_ppm: 10_000,
+            unit: MigrationUnit::Person,
+            minimum_age: 18,
+            maximum_age: None,
+            candidate_limit: 16,
+            max_moving_units_per_year: profile.population.min(100),
+            maximum_travel_cost: None,
+            minimum_net_opportunity_gain: 1,
+        },
+        ..TerritoryConfig::default()
+    };
+    for index in 0..profile.settlements {
+        let settlement_id = SettlementId(u64::from(index) + 1);
+        territory
+            .opportunity_scores
+            .insert(settlement_id, i64::from(index) * 2);
+        if index + 1 < profile.settlements {
+            territory.routes.push(DirectedRoute {
+                logical_id: LogicalId(80_001 + u64::from(index)),
+                from: settlement_id,
+                to: SettlementId(u64::from(index) + 2),
+                cost: 1,
+                capacity_per_year: None,
+                open_intervals: Vec::new(),
+            });
+        }
+        territory.profession_options_by_settlement.insert(
+            settlement_id,
+            (0..profile.professions)
+                .map(|profession| ProfessionId(format!("synthetic::profession_{profession:03}")))
+                .collect::<BTreeSet<_>>(),
+        );
+    }
+    territory.professions = (0..profile.professions)
+        .map(|index| ProfessionDefinition {
+            id: ProfessionId(format!("synthetic::profession_{index:03}")),
+            name: format!("Profession {index:03}"),
+        })
+        .collect();
+    territory.settlement_capacities = BTreeMap::new();
+    territory.scheduled_displacements.clear();
+    scenario.territory = Some(territory);
     Ok(())
 }
 
@@ -2333,7 +3150,7 @@ fn host_memory_bytes() -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::{AtomicBool, AtomicU64};
 
     struct StepClock(AtomicU64);
 
@@ -2352,16 +3169,31 @@ mod tests {
         }
     }
 
-    struct RecordingWriter(Arc<Mutex<Vec<YearCommit>>>);
+    struct RecordingWriter {
+        commits: Arc<Mutex<Vec<YearCommit>>>,
+        job: Arc<JobControl>,
+        dropped_before_terminal: Arc<AtomicBool>,
+    }
 
     impl CommitWriter for RecordingWriter {
         fn commit(&mut self, year: &YearCommit) -> Result<(), ServiceFault> {
-            self.0.lock().unwrap().push(year.clone());
+            self.commits.lock().unwrap().push(year.clone());
             Ok(())
         }
 
         fn checkpoint(&mut self) -> Result<(), ServiceFault> {
             Ok(())
+        }
+    }
+
+    impl Drop for RecordingWriter {
+        fn drop(&mut self) {
+            let terminal = matches!(
+                job_snapshot(&self.job).status,
+                RunStatus::Completed | RunStatus::Cancelled | RunStatus::Failed
+            );
+            self.dropped_before_terminal
+                .store(!terminal, Ordering::SeqCst);
         }
     }
 
@@ -2440,6 +3272,22 @@ mod tests {
     }
 
     #[test]
+    fn e1_child_policy_revision_uses_the_standard_engine_constructor() {
+        let scenario: Scenario = serde_json::from_str(DEMO_SCENARIO).unwrap();
+        let mut parent = Engine::from_scenario(scenario.validate().unwrap()).unwrap();
+        let cut_state = parent.advance_year(None).unwrap().state;
+
+        let mut revised = scenario;
+        revised.policies.births.probability_ppm = 0;
+        let (validated, uses_territorial_revision) = validate_run_scenario(&revised, true).unwrap();
+
+        assert_eq!(revised.rules_version, Scenario::SUPPORTED_RULES_VERSION);
+        assert!(!uses_territorial_revision);
+        let mut child = Engine::new(validated, cut_state).unwrap();
+        assert_eq!(child.advance_year(None).unwrap().year, Year(1));
+    }
+
+    #[test]
     fn worker_uses_injected_clock_metrics_and_commit_writer() {
         let scenario: Scenario = serde_json::from_str(DEMO_SCENARIO).unwrap();
         let validated = scenario.validate().unwrap();
@@ -2448,6 +3296,7 @@ mod tests {
         let world_id = scenario.world_id.0.to_string();
         let commits = Arc::new(Mutex::new(Vec::new()));
         let records = Arc::new(RecordingMetrics::default());
+        let dropped_before_terminal = Arc::new(AtomicBool::new(false));
         let job = Arc::new(JobControl {
             cancellation: CancellationToken::new(),
             gate: Mutex::new(JobGate::default()),
@@ -2475,10 +3324,15 @@ mod tests {
             prepared: PreparedRun {
                 scenario: validated,
                 state,
-                writer: Box::new(RecordingWriter(commits.clone())),
+                writer: Box::new(RecordingWriter {
+                    commits: commits.clone(),
+                    job: job.clone(),
+                    dropped_before_terminal: dropped_before_terminal.clone(),
+                }),
                 start_year,
                 current_year: None,
                 total_years: 1,
+                branch_revision_pending: false,
             },
             through_year: start_year,
         };
@@ -2492,6 +3346,7 @@ mod tests {
         let commits = commits.lock().unwrap();
         assert_eq!(commits.len(), 1);
         assert_eq!(commits[0].year, Year(start_year));
+        assert!(dropped_before_terminal.load(Ordering::SeqCst));
         let metrics = records.0.lock().unwrap();
         assert_eq!(metrics.len(), 1);
         assert_eq!(metrics[0].elapsed_micros, 10);

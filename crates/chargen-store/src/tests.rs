@@ -52,6 +52,8 @@ fn tiny_scenario(world: u64, with_person: bool) -> Scenario {
         initial_population_profiles: Vec::new(),
         policies: DemographicPolicies::default(),
         genetics: GeneticCatalog::default(),
+        territory: None,
+        culture: None,
     };
     if with_person {
         scenario.initial_people.push(Person {
@@ -65,6 +67,7 @@ fn tiny_scenario(world: u64, with_person: bool) -> Scenario {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         });
     }
     scenario
@@ -269,6 +272,75 @@ fn historical_fork_rejects_changes_to_the_initial_prefix() {
         .unwrap_err();
     assert!(matches!(error, StoreError::ScenarioInvalid(_)));
     assert_eq!(store.list_branches("103").unwrap().len(), 1);
+}
+
+#[test]
+fn e2_branch_revision_keeps_cutoff_displacements_and_referenced_institutions() {
+    let workspace = TempWorkspace::new();
+    let scenario: Scenario = serde_json::from_str(include_str!(
+        "../../../scenarios/demos/e2-territory-culture.json"
+    ))
+    .unwrap();
+    let (store, state) = create_store(&workspace, &scenario, "main");
+    let mut engine = engine_for(&scenario, state);
+    {
+        let mut writer = store.acquire_writer("2", "main").unwrap();
+        for _ in 0..=1 {
+            writer
+                .commit_year(&next_year(&mut engine).unwrap())
+                .unwrap();
+        }
+    }
+
+    let mut revised = scenario.clone();
+    revised
+        .territory
+        .as_mut()
+        .unwrap()
+        .scheduled_displacements
+        .clear();
+    let error = store
+        .fork_branch(
+            "2",
+            "main",
+            "removed-command",
+            Year(1),
+            &serde_json::to_string(&revised).unwrap(),
+        )
+        .unwrap_err();
+    assert!(matches!(error, StoreError::ScenarioInvalid(_)));
+
+    let mut revised = scenario.clone();
+    revised.culture.as_mut().unwrap().institutions.clear();
+    let error = store
+        .fork_branch(
+            "2",
+            "main",
+            "removed-institution",
+            Year(0),
+            &serde_json::to_string(&revised).unwrap(),
+        )
+        .unwrap_err();
+    assert!(matches!(error, StoreError::ScenarioInvalid(_)));
+
+    let mut revised = scenario.clone();
+    revised
+        .culture
+        .as_mut()
+        .unwrap()
+        .organizations
+        .formation_opportunity_ppm = 500_000;
+    store
+        .fork_branch(
+            "2",
+            "main",
+            "future-policy",
+            Year(0),
+            &serde_json::to_string(&revised).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(store.head("2", "future-policy").unwrap(), Some(Year(0)));
+    assert_eq!(store.list_branches("2").unwrap().len(), 2);
 }
 
 #[test]

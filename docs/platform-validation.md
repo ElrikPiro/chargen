@@ -6,4 +6,4 @@ El destino Windows es `x86_64-pc-windows-msvc`. [`.cargo/config.toml`](../.cargo
 
 La configuración del workflow ya está preparada, pero la validación formal de Windows queda pendiente de una ejecución completada en GitHub Actions para el commit que incorpora estos cambios. El parser PE se probó localmente con un ejecutable sintético; eso no valida el binario Windows real. La validación Linux local tampoco sustituye esa evidencia. No se afirma aquí que el paquete Windows ya se haya ejecutado.
 
-La protección de la rama principal también requiere una acción manual del administrador del repositorio. Debe exigir `Verify (ubuntu-24.04)`, `Verify (windows-2022)` y `Compare Linux and Windows B0 output`. Estos archivos no cambian la configuración remota del repositorio.
+La protección de la rama principal también requiere una acción manual del administrador del repositorio. Debe exigir `Verify (ubuntu-24.04)`, `Verify (windows-2022)` y `Compare Linux and Windows B0 and E2-B0 output`. Estos archivos no cambian la configuración remota del repositorio.

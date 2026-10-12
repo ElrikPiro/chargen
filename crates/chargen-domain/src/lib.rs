@@ -2,6 +2,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+pub mod culture;
+pub mod territory;
+
+pub use culture::*;
+pub use territory::*;
+
 macro_rules! integer_id {
     ($name:ident, $inner:ty) => {
         #[derive(
@@ -237,6 +243,9 @@ pub struct Person {
     pub genome: Genome,
     /// The year in which a previous union ended by a partner's death.
     pub last_widowed_year: Option<Year>,
+    /// Optional ruleset-2 occupation. Omitted for legacy rulesets and snapshots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profession: Option<ProfessionId>,
 }
 
 impl Person {
@@ -481,6 +490,12 @@ pub struct Scenario {
     pub initial_population_profiles: Vec<InitialPopulationProfile>,
     pub policies: DemographicPolicies,
     pub genetics: GeneticCatalog,
+    /// Geographic and migration rules are opt-in and only valid with ruleset 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub territory: Option<TerritoryConfig>,
+    /// Cultural dynamics are opt-in and only valid with ruleset 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub culture: Option<CultureConfig>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -532,10 +547,40 @@ pub struct WeightedTraitValue {
 
 impl Scenario {
     pub const SUPPORTED_SCHEMA_VERSION: u32 = 1;
+    pub const TERRITORIAL_SCHEMA_VERSION: u32 = 2;
     pub const SUPPORTED_RULES_VERSION: u32 = 1;
+    pub const TERRITORIAL_RULES_VERSION: u32 = 2;
 
     pub fn validate(&self) -> Result<ValidatedScenario, Vec<ValidationIssue>> {
         let issues = validate_scenario(self);
+        if issues.is_empty() {
+            Ok(ValidatedScenario {
+                scenario: self.clone(),
+            })
+        } else {
+            Err(issues)
+        }
+    }
+
+    /// Validates a revised rules-2 scenario for the first child-branch close.
+    /// The stored cut is validated under its parent revision; only an initial person's
+    /// profession availability may differ because the new policy takes effect at A0.
+    pub fn validate_for_branch_revision(&self) -> Result<ValidatedScenario, Vec<ValidationIssue>> {
+        if self.rules_version != Self::TERRITORIAL_RULES_VERSION {
+            return Err(vec![ValidationIssue::new(
+                "rules_version",
+                "revision_rules_unsupported",
+                "branch policy revisions require rules version 2",
+            )]);
+        }
+        let issues: Vec<_> = validate_scenario(self)
+            .into_iter()
+            .filter(|issue| {
+                !(issue.code == "profession_unavailable"
+                    && issue.path.starts_with("initial_people[")
+                    && issue.path.ends_with(".profession"))
+            })
+            .collect();
         if issues.is_empty() {
             Ok(ValidatedScenario {
                 scenario: self.clone(),
@@ -561,7 +606,7 @@ impl ValidatedScenario {
     }
 
     pub fn initial_state(&self) -> State {
-        State {
+        let mut state = State {
             world_id: self.scenario.world_id,
             rules_version: self.scenario.rules_version,
             seed: self.scenario.seed,
@@ -608,7 +653,84 @@ impl ValidatedScenario {
                 .collect(),
             last_gestational_birth_year: BTreeMap::new(),
             last_year_phases: Vec::new(),
+            residences: if self.scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+                self.scenario
+                    .initial_people
+                    .iter()
+                    .filter(|person| person.alive_at_close(self.scenario.start_year))
+                    .map(|person| {
+                        (
+                            person.id,
+                            vec![ResidenceInterval {
+                                settlement_id: person.settlement_id,
+                                validity: YearInterval {
+                                    start: self.scenario.start_year,
+                                    end_exclusive: None,
+                                },
+                            }],
+                        )
+                    })
+                    .collect()
+            } else {
+                BTreeMap::new()
+            },
+            profession_intervals: if self.scenario.rules_version
+                == Scenario::TERRITORIAL_RULES_VERSION
+            {
+                self.scenario
+                    .initial_people
+                    .iter()
+                    .filter(|person| {
+                        person.alive_at_close(self.scenario.start_year)
+                            && person.profession.is_some()
+                    })
+                    .map(|person| {
+                        (
+                            person.id,
+                            vec![ProfessionInterval {
+                                profession_id: person.profession.clone().expect("filtered above"),
+                                validity: YearInterval {
+                                    start: self.scenario.start_year,
+                                    end_exclusive: None,
+                                },
+                            }],
+                        )
+                    })
+                    .collect()
+            } else {
+                BTreeMap::new()
+            },
+            last_year_settlement_balances: BTreeMap::new(),
+            culture: CultureState::default(),
+        };
+        if self.scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+            let living: BTreeSet<_> = state
+                .persons
+                .values()
+                .filter(|person| person.alive_at_close(self.scenario.start_year))
+                .map(|person| person.id)
+                .collect();
+            let mut detached = Vec::new();
+            for household in state.households.values_mut() {
+                household.members.retain(|person_id| {
+                    if living.contains(person_id) {
+                        true
+                    } else {
+                        detached.push(*person_id);
+                        false
+                    }
+                });
+                if household.members.is_empty() {
+                    household.closed_year = Some(self.scenario.start_year);
+                }
+            }
+            for person_id in detached {
+                if let Some(person) = state.persons.get_mut(&person_id) {
+                    person.household_id = None;
+                }
+            }
         }
+        state
     }
 
     pub fn validate_state(&self, state: &State) -> Result<(), Vec<ValidationIssue>> {
@@ -784,6 +906,18 @@ pub struct State {
     /// Last realized birth year for each gestational parent, independent of parenthood links.
     #[serde(default)]
     pub last_gestational_birth_year: BTreeMap<PersonId, Year>,
+    /// Ruleset-2 residence history; empty in ruleset 1 to preserve the v1 wire format.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub residences: BTreeMap<PersonId, Vec<ResidenceInterval>>,
+    /// Historical profession intervals, keyed by person.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub profession_intervals: BTreeMap<PersonId, Vec<ProfessionInterval>>,
+    /// Demographic and movement balance from the last closed year.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub last_year_settlement_balances: BTreeMap<SettlementId, SettlementYearBalance>,
+    /// Ruleset-2 culture projections and institutional history.
+    #[serde(default, skip_serializing_if = "CultureState::is_empty")]
+    pub culture: CultureState,
     /// Explicit execution state for every A0-A11 phase of the last year.
     pub last_year_phases: Vec<PhaseRecord>,
 }
@@ -882,6 +1016,48 @@ pub enum HistoricalEventKind {
         from: Option<HouseholdId>,
         to: Option<HouseholdId>,
     },
+    ResidentsMoved {
+        person_ids: Vec<PersonId>,
+        from: SettlementId,
+        to: SettlementId,
+        reason: MovementReason,
+    },
+    ProfessionChanged {
+        person_id: PersonId,
+        from: Option<ProfessionId>,
+        to: Option<ProfessionId>,
+        reason: ProfessionChangeReason,
+    },
+    InstitutionAffiliationStarted {
+        institution_id: InstitutionId,
+        person_id: PersonId,
+        settlement_id: Option<SettlementId>,
+    },
+    InstitutionAffiliationEnded {
+        institution_id: InstitutionId,
+        person_id: PersonId,
+        settlement_id: Option<SettlementId>,
+        reason: InstitutionAffiliationEndReason,
+    },
+    OrganizationFounded {
+        organization_id: OrganizationId,
+        settlement_id: SettlementId,
+        founders: Vec<PersonId>,
+    },
+    OrganizationDissolved {
+        organization_id: OrganizationId,
+        reason: OrganizationDissolutionReason,
+    },
+    OrganizationMembershipStarted {
+        organization_id: OrganizationId,
+        person_id: PersonId,
+        founder: bool,
+    },
+    OrganizationMembershipEnded {
+        organization_id: OrganizationId,
+        person_id: PersonId,
+        reason: OrganizationMembershipEndReason,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -913,6 +1089,7 @@ pub enum EntityRef {
     Household(HouseholdId),
     Union(UnionId),
     FamilyLink(FamilyLinkId),
+    Organization(OrganizationId),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -988,14 +1165,20 @@ impl fmt::Display for ValidationIssue {
 
 fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    if scenario.schema_version != Scenario::SUPPORTED_SCHEMA_VERSION {
+    if !matches!(
+        scenario.schema_version,
+        Scenario::SUPPORTED_SCHEMA_VERSION | Scenario::TERRITORIAL_SCHEMA_VERSION
+    ) {
         issues.push(ValidationIssue::new(
             "schema_version",
             "unsupported_version",
             "unsupported scenario schema version",
         ));
     }
-    if scenario.rules_version != Scenario::SUPPORTED_RULES_VERSION {
+    if !matches!(
+        scenario.rules_version,
+        Scenario::SUPPORTED_RULES_VERSION | Scenario::TERRITORIAL_RULES_VERSION
+    ) {
         issues.push(ValidationIssue::new(
             "rules_version",
             "unsupported_version",
@@ -1004,6 +1187,50 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
     }
     validate_policies(&scenario.policies, &mut issues);
     validate_genetics(&scenario.genetics, &mut issues);
+    match scenario.rules_version {
+        Scenario::SUPPORTED_RULES_VERSION => {
+            if scenario.schema_version != Scenario::SUPPORTED_SCHEMA_VERSION {
+                issues.push(ValidationIssue::new(
+                    "schema_version",
+                    "schema_rules_mismatch",
+                    "schema version 1 is paired with rules version 1",
+                ));
+            }
+            if scenario.territory.is_some() || scenario.culture.is_some() {
+                issues.push(ValidationIssue::new(
+                    "rules_version",
+                    "unsupported_e2_configuration",
+                    "territory and culture configuration require rules version 2",
+                ));
+            }
+            for (index, person) in scenario.initial_people.iter().enumerate() {
+                if person.profession.is_some() {
+                    issues.push(ValidationIssue::new(
+                        format!("initial_people[{index}].profession"),
+                        "unsupported_e2_configuration",
+                        "initial professions require rules version 2",
+                    ));
+                }
+            }
+        }
+        Scenario::TERRITORIAL_RULES_VERSION => {
+            if scenario.schema_version != Scenario::TERRITORIAL_SCHEMA_VERSION {
+                issues.push(ValidationIssue::new(
+                    "schema_version",
+                    "schema_rules_mismatch",
+                    "schema version 2 is paired with rules version 2",
+                ));
+            }
+            if scenario.territory.is_none() || scenario.culture.is_none() {
+                issues.push(ValidationIssue::new(
+                    "rules_version",
+                    "missing_e2_configuration",
+                    "rules version 2 requires territory and culture configuration",
+                ));
+            }
+        }
+        _ => {}
+    }
     let locus_catalog: BTreeMap<_, _> = scenario
         .genetics
         .loci
@@ -1117,6 +1344,54 @@ fn validate_scenario(scenario: &Scenario) -> Vec<ValidationIssue> {
         .iter()
         .map(|h| (h.id, h))
         .collect();
+    if let Some(config) = &scenario.territory {
+        let household_members = households
+            .iter()
+            .map(|(id, household)| (*id, &household.members))
+            .collect();
+        issues.extend(validate_territory_config(
+            config,
+            scenario.start_year,
+            &settlement_ids,
+            &people,
+            &household_members,
+        ));
+    }
+    if let Some(config) = &scenario.culture {
+        let ranges: BTreeMap<_, _> = scenario
+            .trait_catalog
+            .iter()
+            .map(|definition| {
+                (
+                    definition.key.clone(),
+                    (definition.minimum, definition.maximum),
+                )
+            })
+            .collect();
+        issues.extend(validate_culture_config(config, &ranges));
+        issues.extend(validate_culture_settlement_references(
+            config,
+            &settlement_ids,
+        ));
+        for (index, person) in scenario.initial_people.iter().enumerate() {
+            for (key, policy) in &config.dimensions {
+                if person
+                    .traits
+                    .get(key)
+                    .is_some_and(|value| !(policy.minimum..=policy.maximum).contains(value))
+                {
+                    issues.push(ValidationIssue::new(
+                        format!(
+                            "initial_people[{index}].traits.{}::{}",
+                            key.namespace, key.name
+                        ),
+                        "trait_value_out_of_range",
+                        "initial cultural trait value is outside its configured range",
+                    ));
+                }
+            }
+        }
+    }
     for (index, settlement) in scenario.settlements.iter().enumerate() {
         if settlement.name.trim().is_empty() {
             issues.push(ValidationIssue::new(
@@ -1917,6 +2192,32 @@ fn has_cycle(parents_by_child: &BTreeMap<PersonId, Vec<PersonId>>) -> bool {
 
 fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<ValidationIssue>> {
     let mut issues = Vec::new();
+    if !matches!(
+        state.rules_version,
+        Scenario::SUPPORTED_RULES_VERSION | Scenario::TERRITORIAL_RULES_VERSION
+    ) {
+        issues.push(ValidationIssue::new(
+            "rules_version",
+            "unsupported_version",
+            "unsupported state rules version",
+        ));
+    }
+    if state.rules_version == Scenario::SUPPORTED_RULES_VERSION
+        && (!state.residences.is_empty()
+            || !state.profession_intervals.is_empty()
+            || !state.last_year_settlement_balances.is_empty()
+            || !state.culture.is_empty()
+            || state
+                .persons
+                .values()
+                .any(|person| person.profession.is_some()))
+    {
+        issues.push(ValidationIssue::new(
+            "state",
+            "unsupported_e2_state",
+            "rules version 1 cannot contain rules version 2 state",
+        ));
+    }
     let trait_catalog: BTreeMap<_, _> = scenario
         .into_iter()
         .flat_map(|scenario| scenario.trait_catalog.iter())
@@ -2067,6 +2368,9 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
             );
         }
     }
+    validate_residence_history(state, &mut issues);
+    validate_profession_history(state, scenario, &mut issues);
+    validate_settlement_balances(state, &mut issues);
     for (person_id, birth_year) in &state.last_gestational_birth_year {
         let path = format!("last_gestational_birth_year[{}]", person_id.0);
         match state.persons.get(person_id) {
@@ -2336,11 +2640,256 @@ fn validate_state(state: &State, scenario: Option<&Scenario>) -> Result<(), Vec<
                 &mut issues,
             );
         }
+        if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+            if scenario.territory.is_none() || scenario.culture.is_none() {
+                issues.push(ValidationIssue::new(
+                    "state",
+                    "missing_e2_configuration",
+                    "rules version 2 state requires both territory and culture configuration",
+                ));
+            }
+            if let Some(territory) = &scenario.territory {
+                let year = state.current_year.unwrap_or(state.start_year);
+                let mut living_counts: BTreeMap<SettlementId, u64> = BTreeMap::new();
+                for person in state.living_people_at(year) {
+                    *living_counts.entry(person.settlement_id).or_default() += 1;
+                    if let Some(profession) = &person.profession {
+                        let offered = territory
+                            .profession_options_by_settlement
+                            .get(&person.settlement_id)
+                            .is_some_and(|options| options.contains(profession));
+                        if !territory
+                            .professions
+                            .iter()
+                            .any(|definition| &definition.id == profession)
+                            || !offered
+                        {
+                            issues.push(ValidationIssue::new(
+                                format!("persons[{}].profession", person.id.0),
+                                "profession_unavailable",
+                                "current profession must be cataloged and offered in the person's settlement",
+                            ));
+                        }
+                    }
+                }
+                for (settlement_id, capacity) in &territory.settlement_capacities {
+                    if living_counts
+                        .get(settlement_id)
+                        .copied()
+                        .unwrap_or_default()
+                        > u64::from(*capacity)
+                    {
+                        issues.push(ValidationIssue::new(
+                            format!("settlements[{}]", settlement_id.0),
+                            "settlement_over_capacity",
+                            "living population exceeds settlement capacity",
+                        ));
+                    }
+                }
+            }
+        }
     }
     if issues.is_empty() {
         Ok(())
     } else {
         Err(issues)
+    }
+}
+
+fn validate_residence_history(state: &State, issues: &mut Vec<ValidationIssue>) {
+    let at_year = state.current_year.unwrap_or(state.start_year);
+    for (person_id, intervals) in &state.residences {
+        let path = format!("residences[{}]", person_id.0);
+        if !state.persons.contains_key(person_id) {
+            issues.push(ValidationIssue::new(
+                &path,
+                "unknown_reference",
+                "residence history references an unknown person",
+            ));
+        }
+        if intervals.is_empty() {
+            issues.push(ValidationIssue::new(
+                &path,
+                "empty_history",
+                "residence history cannot be stored as an empty list",
+            ));
+        }
+        let mut previous_end = None;
+        let mut ordered = intervals.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|interval| interval.validity.start);
+        for (index, interval) in ordered.iter().enumerate() {
+            if !interval.validity.is_valid() {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "invalid_interval",
+                    "residence interval end cannot precede its start",
+                ));
+            }
+            if !state.settlements.contains_key(&interval.settlement_id) {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].settlement_id"),
+                    "unknown_reference",
+                    "residence interval references an unknown settlement",
+                ));
+            }
+            if interval.validity.start > at_year
+                || interval
+                    .validity
+                    .end_exclusive
+                    .is_some_and(|end| end > at_year)
+            {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "future_interval",
+                    "closed residence history cannot contain future dates",
+                ));
+            }
+            if index > 0 && previous_end.is_none_or(|end| end > interval.validity.start) {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "overlapping_intervals",
+                    "a person cannot reside in two places at once",
+                ));
+            }
+            previous_end = interval.validity.end_exclusive;
+        }
+        if let Some(person) = state.persons.get(person_id) {
+            if person.alive_at_close(at_year) {
+                let active = intervals
+                    .iter()
+                    .filter(|interval| interval.validity.contains(at_year))
+                    .collect::<Vec<_>>();
+                if active.len() != 1 || active[0].settlement_id != person.settlement_id {
+                    issues.push(ValidationIssue::new(
+                        &path,
+                        "current_residence_mismatch",
+                        "a living person's active residence must match their current settlement",
+                    ));
+                }
+            }
+        }
+    }
+    if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+        for person in state.living_people_at(at_year) {
+            if !state.residences.contains_key(&person.id) {
+                issues.push(ValidationIssue::new(
+                    format!("residences[{}]", person.id.0),
+                    "missing_history",
+                    "every living rules version 2 resident must have a residence history",
+                ));
+            }
+        }
+    }
+}
+
+fn validate_profession_history(
+    state: &State,
+    _scenario: Option<&Scenario>,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    let at_year = state.current_year.unwrap_or(state.start_year);
+    for (person_id, intervals) in &state.profession_intervals {
+        let path = format!("profession_intervals[{}]", person_id.0);
+        let person = state.persons.get(person_id);
+        if person.is_none() {
+            issues.push(ValidationIssue::new(
+                &path,
+                "unknown_reference",
+                "profession history references an unknown person",
+            ));
+        }
+        if intervals.is_empty() {
+            issues.push(ValidationIssue::new(
+                &path,
+                "empty_history",
+                "profession history cannot be stored as an empty list",
+            ));
+        }
+        let mut ordered = intervals.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|interval| interval.validity.start);
+        let mut previous_end = None;
+        for (index, interval) in ordered.iter().enumerate() {
+            if !interval.validity.is_valid() {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "invalid_interval",
+                    "profession interval end cannot precede its start",
+                ));
+            }
+            if interval.validity.start > at_year
+                || interval
+                    .validity
+                    .end_exclusive
+                    .is_some_and(|end| end > at_year)
+            {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "future_interval",
+                    "closed profession history cannot contain future dates",
+                ));
+            }
+            if index > 0 && previous_end.is_none_or(|end| end > interval.validity.start) {
+                issues.push(ValidationIssue::new(
+                    format!("{path}[{index}].validity"),
+                    "overlapping_intervals",
+                    "a person cannot hold two professions at once",
+                ));
+            }
+            previous_end = interval.validity.end_exclusive;
+        }
+    }
+    if state.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+        for person in state.living_people_at(at_year) {
+            let active = state
+                .profession_intervals
+                .get(&person.id)
+                .into_iter()
+                .flatten()
+                .filter(|interval| interval.validity.contains(at_year))
+                .map(|interval| &interval.profession_id)
+                .collect::<Vec<_>>();
+            match (&person.profession, active.as_slice()) {
+                (Some(profession), [active]) if profession == *active => {}
+                (None, []) => {}
+                _ => issues.push(ValidationIssue::new(
+                    format!("persons[{}].profession", person.id.0),
+                    "profession_history_mismatch",
+                    "active profession history must match the person's current profession",
+                )),
+            }
+        }
+    }
+}
+
+fn validate_settlement_balances(state: &State, issues: &mut Vec<ValidationIssue>) {
+    for (settlement_id, balance) in &state.last_year_settlement_balances {
+        if *settlement_id != balance.settlement_id {
+            issues.push(ValidationIssue::new(
+                "last_year_settlement_balances",
+                "map_key_mismatch",
+                "settlement balance key must match settlement ID",
+            ));
+        }
+        if !state.settlements.contains_key(settlement_id) {
+            issues.push(ValidationIssue::new(
+                format!("last_year_settlement_balances[{}]", settlement_id.0),
+                "unknown_reference",
+                "settlement balance references an unknown settlement",
+            ));
+        }
+        let expected = balance
+            .before
+            .checked_add(balance.births)
+            .and_then(|value| value.checked_sub(balance.deaths))
+            .and_then(|value| value.checked_add(balance.incoming))
+            .and_then(|value| value.checked_sub(balance.outgoing));
+        if expected != Some(balance.after) {
+            issues.push(ValidationIssue::new(
+                format!("last_year_settlement_balances[{}]", settlement_id.0),
+                "balance_mismatch",
+                "before + births - deaths + incoming - outgoing must equal after",
+            ));
+        }
     }
 }
 
@@ -2363,6 +2912,7 @@ mod tests {
             traits: [(trait_key.clone(), 3)].into_iter().collect(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         };
         let p2 = Person {
             id: PersonId(2),
@@ -2375,6 +2925,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         };
         Scenario {
             world_id: WorldId(1),
@@ -2409,6 +2960,8 @@ mod tests {
             initial_population_profiles: Vec::new(),
             policies: DemographicPolicies::default(),
             genetics: GeneticCatalog::default(),
+            territory: None,
+            culture: None,
         }
     }
 

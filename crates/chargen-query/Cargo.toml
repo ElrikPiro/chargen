@@ -9,8 +9,8 @@ license-file.workspace = true
 chargen-domain.workspace = true
 chargen-store.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 chargen-engine.workspace = true
-serde_json.workspace = true

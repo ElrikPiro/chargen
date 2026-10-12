@@ -259,19 +259,34 @@ impl HistoryStore {
             [branch.revision_id],
             |row| row.get(0),
         )?;
-        let validated_scenario = parse_validated_scenario(&scenario_json)?;
-        validated_scenario
-            .validate_state(&cached_state)
-            .map_err(|issues| {
-                StoreError::ScenarioInvalid(format!(
-                    "saved branch state does not match its active scenario: {}",
-                    issues
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                ))
-            })?;
+        let is_unadvanced_child_revision = branch.parent_branch_id.is_some()
+            && branch.head_year == branch.base_year
+            && branch.head_year.is_some();
+        let validated_scenario = if is_unadvanced_child_revision {
+            parse_branch_revision_scenario(&scenario_json)?
+        } else {
+            parse_validated_scenario(&scenario_json)?
+        };
+        let validation_result = if is_unadvanced_child_revision {
+            let parent = branch.parent_branch_id.as_deref().expect("checked above");
+            let cutoff = year_from_i32(branch.head_year.expect("checked above"))?;
+            let parent_json = self.scenario_json_at(world_id, parent, cutoff)?;
+            parse_and_validate_scenario(&parent_json, &cached_state).map(|_| ())
+        } else {
+            validated_scenario
+                .validate_state(&cached_state)
+                .map_err(|issues| {
+                    StoreError::ScenarioInvalid(format!(
+                        "saved branch state does not match its active scenario: {}",
+                        issues
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    ))
+                })
+        };
+        validation_result?;
         Ok(WorldWriter {
             conn,
             _lock_file: lock_file,
@@ -300,7 +315,7 @@ impl HistoryStore {
     ) -> StoreResult<State> {
         let cutoff = year_value(cut_year)?;
         let fork_state = self.load_state_at(world_id, parent_branch_id, cut_year)?;
-        let revised_scenario = parse_and_validate_scenario(scenario_json, &fork_state)?;
+        let revised_validated = parse_branch_revision_scenario(scenario_json)?;
         let parent = get_branch(&open_ro(&self.path)?, world_id, parent_branch_id)?;
         if parent.head_year.is_none_or(|head| cutoff > head) {
             return Err(StoreError::YearUnavailable {
@@ -313,9 +328,15 @@ impl HistoryStore {
                 "materialized fork state does not end at requested cutoff".into(),
             ));
         }
-        let parent_scenario: Scenario =
-            serde_json::from_str(&self.scenario_json(world_id, parent_branch_id)?)?;
-        ensure_only_policies_changed(&parent_scenario, &revised_scenario)?;
+        let parent_scenario_json = self.scenario_json_at(world_id, parent_branch_id, cut_year)?;
+        let parent_scenario = parse_and_validate_scenario(&parent_scenario_json, &fork_state)?;
+        ensure_only_policies_changed(&parent_scenario, revised_validated.scenario())?;
+        ensure_past_territory_and_culture_unchanged(
+            &parent_scenario,
+            revised_validated.scenario(),
+            &fork_state,
+            cut_year,
+        )?;
         let core = state_core_value(&fork_state)?;
         let core_json = canonical_json(&core)?;
         let full_json = canonical_json(&core)?;
@@ -566,6 +587,27 @@ impl HistoryStore {
             [branch.revision_id],
             |r| r.get(0),
         )?)
+    }
+
+    /// Return the scenario revision visible at a historical close. A child
+    /// branch shares its parent's scenario through its inclusive fork close;
+    /// its revised configuration applies only to later closes. The caller
+    /// should first validate that the requested close exists in the branch.
+    pub fn scenario_json_at(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+    ) -> StoreResult<String> {
+        let branch = get_branch(&open_ro(&self.path)?, world_id, branch_id)?;
+        if let (Some(parent), Some(fork_year)) =
+            (branch.parent_branch_id.as_deref(), branch.fork_year)
+        {
+            if year.0 <= fork_year {
+                return self.scenario_json_at(world_id, parent, year);
+            }
+        }
+        self.scenario_json(world_id, branch_id)
     }
 
     /// Read semantic events involving an entity through the selected branch
@@ -1124,12 +1166,83 @@ fn parse_validated_scenario(scenario_json: &str) -> StoreResult<ValidatedScenari
     })
 }
 
+fn parse_branch_revision_scenario(scenario_json: &str) -> StoreResult<ValidatedScenario> {
+    let scenario: Scenario = serde_json::from_str(scenario_json)
+        .map_err(|error| StoreError::ScenarioInvalid(error.to_string()))?;
+    let validation = if scenario.rules_version == Scenario::TERRITORIAL_RULES_VERSION {
+        scenario.validate_for_branch_revision()
+    } else {
+        scenario.validate()
+    };
+    validation.map_err(|issues| {
+        StoreError::ScenarioInvalid(
+            issues
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; "),
+        )
+    })
+}
+
 fn ensure_only_policies_changed(original: &Scenario, revised: &Scenario) -> StoreResult<()> {
     let mut comparable_revision = revised.clone();
     comparable_revision.policies = original.policies.clone();
+    comparable_revision.territory = original.territory.clone();
+    comparable_revision.culture = original.culture.clone();
     if comparable_revision != *original {
         return Err(StoreError::ScenarioInvalid(
-            "a branch with a committed prefix may change policies only; initial entities, identities, catalogs, genetics, profiles and start metadata must remain fixed".into(),
+            "a branch with a committed prefix may revise demographic, territory and culture policies only; initial entities, identities, trait/genetic catalogs, profiles, schema, rules and start metadata must remain fixed".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_past_territory_and_culture_unchanged(
+    original: &Scenario,
+    revised: &Scenario,
+    prefix: &State,
+    cutoff: Year,
+) -> StoreResult<()> {
+    let original_displacements = original
+        .territory
+        .as_ref()
+        .into_iter()
+        .flat_map(|territory| territory.scheduled_displacements.iter())
+        .filter(|item| item.year <= cutoff)
+        .collect::<Vec<_>>();
+    let revised_displacements = revised
+        .territory
+        .as_ref()
+        .into_iter()
+        .flat_map(|territory| territory.scheduled_displacements.iter())
+        .filter(|item| item.year <= cutoff)
+        .collect::<Vec<_>>();
+    if original_displacements != revised_displacements {
+        return Err(StoreError::ScenarioInvalid(
+            "scheduled displacements at or before the branch cutoff are immutable".into(),
+        ));
+    }
+
+    let revised_institutions = revised
+        .culture
+        .as_ref()
+        .into_iter()
+        .flat_map(|culture| culture.institutions.iter())
+        .map(|institution| &institution.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    if prefix
+        .culture
+        .institution_memberships
+        .iter()
+        .any(|membership| {
+            membership.validity.start <= cutoff
+                && !revised_institutions.contains(&membership.institution_id)
+        })
+    {
+        return Err(StoreError::ScenarioInvalid(
+            "an institution or religion referenced by the historical prefix cannot be removed"
+                .into(),
         ));
     }
     Ok(())

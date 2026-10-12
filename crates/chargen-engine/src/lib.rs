@@ -4,8 +4,9 @@ use chargen_domain::{
     AdoptionPolicy, AgeMortalityBand, Allele, BirthPolicy, DeathCause, EntityRef, FamilyLink,
     FamilyLinkEndReason, FamilyLinkId, FamilyLinkKind, GeneticCatalog, HistoricalEvent,
     HistoricalEventKind, Household, HouseholdId, LogicalId, Person, PersonId, PhaseDisposition,
-    PhaseRecord, ReproductiveProfile, SettlementId, State, TraitKey, Union, UnionEndReason,
-    UnionId, ValidatedScenario, ValidationIssue, Year, YearInterval, YearPhase,
+    PhaseRecord, ReproductiveProfile, ResidenceInterval, SettlementId, SettlementYearBalance,
+    State, TraitKey, Union, UnionEndReason, UnionId, ValidatedScenario, ValidationIssue, Year,
+    YearInterval, YearPhase,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{
@@ -14,6 +15,10 @@ use std::sync::{
 };
 use std::time::Instant;
 use thiserror::Error;
+
+pub mod culture;
+mod migration;
+pub use culture::*;
 
 /// Keyed RNG contract. Changing its mixing or domain numbers requires a new version.
 pub const RNG_VERSION: u32 = 1;
@@ -41,6 +46,15 @@ pub enum DecisionDomain {
     ReproductiveProfile = 17,
     InitialAge = 18,
     InitialTrait = 19,
+    CultureVariation = 20,
+    InstitutionAffiliation = 21,
+    OrganizationCandidate = 22,
+    OrganizationIdentity = 23,
+    CultureEvent = 24,
+    MigrationOpportunity = 25,
+    MigrationDestination = 26,
+    MigrationPriority = 27,
+    ForcedDisplacementPriority = 28,
 }
 
 /// A cancellation request is observed between annual phases; the pending year is discarded.
@@ -98,6 +112,8 @@ pub struct DemographicBalance {
     pub before: u64,
     pub births: u64,
     pub deaths: u64,
+    pub incoming: u64,
+    pub outgoing: u64,
     pub after: u64,
 }
 
@@ -121,12 +137,20 @@ pub enum EngineError {
     InvalidState(Vec<ValidationIssue>),
     #[error("invalid generated population: {0}")]
     InvalidPopulation(String),
-    #[error("demographic balance failed for settlement {settlement_id:?}: expected {expected}, found {actual}")]
+    #[error("invalid migration: {0}")]
+    InvalidMigration(String),
+    #[error("culture processing failed: {0}")]
+    Culture(String),
+    #[error(
+        "demographic balance failed for settlement {settlement_id:?}: expected {expected}, found {actual}"
+    )]
     DemographicBalance {
         settlement_id: SettlementId,
         expected: u64,
         actual: u64,
     },
+    #[error("global demographic balance failed: expected {expected}, found {actual}")]
+    GlobalDemographicBalance { expected: u64, actual: u64 },
 }
 
 pub struct Engine {
@@ -134,6 +158,8 @@ pub struct Engine {
     state: State,
     clock: Arc<dyn MetricsClock>,
     last_metrics: Option<EngineMetrics>,
+    route_cache: migration::RouteCache,
+    rebase_culture_pending: bool,
 }
 
 /// Per-year indexes prevent each person from rescanning every relationship or household.
@@ -440,6 +466,8 @@ impl Engine {
             state,
             clock,
             last_metrics: None,
+            route_cache: migration::RouteCache::default(),
+            rebase_culture_pending: false,
         })
     }
 
@@ -451,6 +479,41 @@ impl Engine {
             state,
             clock: Arc::new(MonotonicClock::default()),
             last_metrics: None,
+            route_cache: migration::RouteCache::default(),
+            rebase_culture_pending: false,
+        })
+    }
+
+    /// Resume a child branch at its inclusive cut while applying a revised ruleset only to
+    /// subsequent annual closes. The parent revision must validate the cut before this call.
+    pub fn new_for_branch_revision(
+        scenario: ValidatedScenario,
+        state: State,
+    ) -> Result<Self, EngineError> {
+        state.validate().map_err(EngineError::InvalidState)?;
+        if state.world_id != scenario.scenario().world_id
+            || state.rules_version != scenario.scenario().rules_version
+            || state.seed != scenario.scenario().seed
+            || state.start_year != scenario.scenario().start_year
+        {
+            return Err(EngineError::InvalidState(vec![ValidationIssue {
+                path: "state".into(),
+                code: "scenario_mismatch".into(),
+                message: "branch cut state identity must match the revised scenario".into(),
+            }]));
+        }
+        if state.rules_version != chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+            return Err(EngineError::InvalidMigration(
+                "policy revision constructor is only valid for rules version 2".into(),
+            ));
+        }
+        Ok(Self {
+            scenario,
+            state,
+            clock: Arc::new(MonotonicClock::default()),
+            last_metrics: None,
+            route_cache: migration::RouteCache::default(),
+            rebase_culture_pending: true,
         })
     }
 
@@ -471,12 +534,43 @@ impl Engine {
         &mut self,
         cancellation: Option<&CancellationToken>,
     ) -> Result<YearCommit, EngineError> {
+        self.advance_year_with_commands(cancellation, &[])
+    }
+
+    /// Advances one year with additional A1 displacement commands. Commands are validated as a
+    /// complete batch before the pending annual state is created.
+    pub fn advance_year_with_commands(
+        &mut self,
+        cancellation: Option<&CancellationToken>,
+        commands: &[chargen_domain::ForcedDisplacementCommand],
+    ) -> Result<YearCommit, EngineError> {
         ensure_not_cancelled(cancellation)?;
-        let total_started = self.clock.now_nanos();
         let year = match self.state.current_year {
             Some(last) => last.checked_add(1).ok_or(EngineError::YearOverflow)?,
             None => self.state.start_year,
         };
+        if self.scenario.scenario().rules_version
+            != chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+            && !commands.is_empty()
+        {
+            return Err(EngineError::InvalidMigration(
+                "forced displacement commands require rules version 2".into(),
+            ));
+        }
+        let (forced_moves, mut movement_usage) =
+            if let Some(territory) = &self.scenario.scenario().territory {
+                migration::prepare_forced_displacements(
+                    &self.scenario,
+                    &self.state,
+                    territory,
+                    year,
+                    commands,
+                    &mut self.route_cache,
+                )?
+            } else {
+                (Vec::new(), migration::MigrationUsage::default())
+            };
+        let total_started = self.clock.now_nanos();
         let mut pending = self.state.clone();
         let mut events = Vec::new();
         let mut phases = Vec::with_capacity(YearPhase::ALL.len());
@@ -490,8 +584,72 @@ impl Engine {
             ensure_not_cancelled(cancellation)?;
             let phase_started = self.clock.now_nanos();
             let record = match phase {
-                YearPhase::A0 => deferred(phase, "sin comandos de año configurados en este hito"),
-                YearPhase::A1 => deferred(phase, "agenda de eventos programados pendiente"),
+                YearPhase::A0 => {
+                    if self.rebase_culture_pending {
+                        if let Some(territory) = &self.scenario.scenario().territory {
+                            reconcile_territorial_professions(
+                                territory,
+                                &mut pending,
+                                year,
+                                &mut events,
+                            );
+                        }
+                        if let Some(culture_config) = &self.scenario.scenario().culture {
+                            let current_year =
+                                self.state.current_year.unwrap_or(self.state.start_year);
+                            culture::reconcile_culture_config(
+                                culture_config,
+                                &mut pending,
+                                current_year,
+                            )
+                            .map_err(|error| EngineError::Culture(error.to_string()))?;
+                        }
+                    }
+                    if let (Some(culture), Some(previous_year)) =
+                        (&self.scenario.scenario().culture, self.state.current_year)
+                    {
+                        culture::apply_culture_age_transitions(
+                            culture,
+                            &mut pending,
+                            previous_year,
+                            year,
+                        )
+                        .map_err(|error| EngineError::Culture(error.to_string()))?;
+                    }
+                    if self.scenario.scenario().rules_version
+                        == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+                    {
+                        implemented(phase, "transiciones anuales de elegibilidad cultural")
+                    } else {
+                        deferred(phase, "sin comandos de año configurados en este hito")
+                    }
+                }
+                YearPhase::A1 => {
+                    if let Some(territory) = &self.scenario.scenario().territory {
+                        migration::apply_forced_displacements(
+                            &self.scenario,
+                            &mut pending,
+                            territory,
+                            year,
+                            &forced_moves,
+                            &mut events,
+                        )?;
+                        if !forced_moves.is_empty() {
+                            indexes = AnnualIndexes::rebuild(
+                                &pending,
+                                year,
+                                &policies.adoption,
+                                &policies.births,
+                            );
+                        }
+                        implemented(
+                            phase,
+                            "desplazamientos forzados validados y aplicados en lote",
+                        )
+                    } else {
+                        deferred(phase, "agenda de eventos programados pendiente")
+                    }
+                }
                 YearPhase::A2 => {
                     apply_ordinary_mortality(
                         &self.scenario,
@@ -508,14 +666,50 @@ impl Engine {
                     );
                     implemented(phase, "mortalidad ordinaria y viudedad")
                 }
-                YearPhase::A3 => deferred(
-                    phase,
-                    "reconciliación agregada de hogares y empleo pendiente",
-                ),
+                YearPhase::A3 => {
+                    if pending.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+                    {
+                        reconcile_territorial_state(&mut pending, year, &mut events)?;
+                        implemented(
+                            phase,
+                            "hogares, ocupación y residencias reconciliados tras mortalidad",
+                        )
+                    } else {
+                        deferred(
+                            phase,
+                            "reconciliación agregada de hogares y empleo pendiente",
+                        )
+                    }
+                }
                 YearPhase::A4 => deferred(phase, "producción pendiente"),
                 YearPhase::A5 => deferred(phase, "mercados pendientes"),
                 YearPhase::A6 => deferred(phase, "consumo y necesidades pendientes"),
-                YearPhase::A7 => deferred(phase, "migración pendiente"),
+                YearPhase::A7 => {
+                    if let Some(territory) = &self.scenario.scenario().territory {
+                        migration::apply_voluntary_migration(
+                            &self.scenario,
+                            &mut pending,
+                            territory,
+                            year,
+                            &mut self.route_cache,
+                            &mut movement_usage,
+                            &mut events,
+                        )?;
+                        indexes = AnnualIndexes::rebuild(
+                            &pending,
+                            year,
+                            &policies.adoption,
+                            &policies.births,
+                        );
+                        if territory.migration.enabled {
+                            implemented(phase, "propuestas voluntarias resueltas en lote estable")
+                        } else {
+                            implemented(phase, "no hay política de migración voluntaria activa")
+                        }
+                    } else {
+                        deferred(phase, "migración pendiente")
+                    }
+                }
                 YearPhase::A8 => {
                     apply_union_and_care_policies(
                         &self.scenario,
@@ -534,12 +728,76 @@ impl Engine {
                         year,
                         &mut events,
                     )?;
+                    if let Some(culture_config) = &self.scenario.scenario().culture {
+                        let birth_inputs: Vec<_> = events
+                            .iter()
+                            .filter_map(|event| match &event.kind {
+                                HistoricalEventKind::PersonBorn {
+                                    person_id,
+                                    genetic_parents,
+                                    ..
+                                } => pending.persons.get(person_id).map(|person| {
+                                    culture::CultureBirthInput {
+                                        person_id: *person_id,
+                                        logical_id: person.logical_id,
+                                        settlement_id: person.settlement_id,
+                                        genetic_parents: genetic_parents.clone(),
+                                    }
+                                }),
+                                _ => None,
+                            })
+                            .collect();
+                        let assignments = culture::prepare_birth_culture_batch(
+                            culture_config,
+                            &pending,
+                            year,
+                            &birth_inputs,
+                            |logical_id, trait_key, variation_max| {
+                                let span = u64::from(variation_max) * 2 + 1;
+                                let draw = random_below(
+                                    pending.seed,
+                                    pending.rules_version,
+                                    DecisionDomain::CultureVariation,
+                                    year,
+                                    logical_id,
+                                    stable_trait_ordinal(trait_key),
+                                    span,
+                                ) as i32;
+                                (draw - i32::from(variation_max)) as i16
+                            },
+                        )
+                        .map_err(|error| EngineError::Culture(error.to_string()))?;
+                        culture::apply_birth_culture_batch(
+                            culture_config,
+                            &mut pending,
+                            year,
+                            &assignments,
+                        )
+                        .map_err(|error| EngineError::Culture(error.to_string()))?;
+                    }
                     implemented(
                         phase,
                         "nacimientos, alelos heredados y mortalidad infantil configurada",
                     )
                 }
-                YearPhase::A10 => deferred(phase, "organizaciones e instituciones pendientes"),
+                YearPhase::A10 => {
+                    if let Some(culture_config) = &self.scenario.scenario().culture {
+                        let seed = pending.seed;
+                        let rules_version = pending.rules_version;
+                        culture::apply_a10_culture(
+                            culture_config,
+                            &mut pending,
+                            year,
+                            seed,
+                            rules_version,
+                            &mut events,
+                        )
+                        .map_err(|error| EngineError::Culture(error.to_string()))?;
+                        implemented(phase, "afiliaciones e instituciones procesadas en lote")
+                    } else {
+                        deferred(phase, "organizaciones e instituciones pendientes")
+                    }
+                }
                 YearPhase::A11 => {
                     pending.current_year = Some(year);
                     pending.last_year_phases = phases
@@ -550,10 +808,35 @@ impl Engine {
                             "validación de cierre anual",
                         )))
                         .collect();
+                    if let Some(culture_config) = &self.scenario.scenario().culture {
+                        culture::validate_culture_state(culture_config, &pending, year)
+                            .map_err(|error| EngineError::Culture(error.to_string()))?;
+                    }
+                    validate_census_balance(&pending, year, &before_census, &events)?;
+                    if pending.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION
+                    {
+                        pending.last_year_settlement_balances =
+                            census_balance(&pending, year, &before_census, &events)
+                                .into_iter()
+                                .map(|balance| {
+                                    (
+                                        balance.settlement_id,
+                                        SettlementYearBalance {
+                                            settlement_id: balance.settlement_id,
+                                            before: balance.before,
+                                            births: balance.births,
+                                            deaths: balance.deaths,
+                                            incoming: balance.incoming,
+                                            outgoing: balance.outgoing,
+                                            after: balance.after,
+                                        },
+                                    )
+                                })
+                                .collect();
+                    }
                     self.scenario
                         .validate_state(&pending)
                         .map_err(EngineError::InvalidState)?;
-                    validate_census_balance(&pending, year, &before_census, &events)?;
                     implemented(phase, "validación de cierre anual")
                 }
             };
@@ -570,6 +853,7 @@ impl Engine {
         let census_balance = census_balance(&pending, year, &before_census, &events);
         let total_duration_nanos = self.clock.now_nanos().saturating_sub(total_started);
         self.state = pending.clone();
+        self.rebase_culture_pending = false;
         self.last_metrics = Some(EngineMetrics {
             year,
             phases: phase_metrics,
@@ -589,6 +873,41 @@ pub fn generate_initial_state(scenario: &ValidatedScenario) -> Result<State, Eng
     let mut state = scenario.initial_state();
     generate_initial_population(scenario, &mut state)?;
     materialize_founder_genomes(scenario, &mut state)?;
+    if scenario.scenario().rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+        let initial_residents: Vec<_> = state
+            .living_people_at(scenario.scenario().start_year)
+            .map(|person| (person.id, person.settlement_id, person.profession.clone()))
+            .collect();
+        for (person_id, settlement_id, profession_id) in initial_residents {
+            state.residences.entry(person_id).or_insert_with(|| {
+                vec![ResidenceInterval {
+                    settlement_id,
+                    validity: YearInterval {
+                        start: scenario.scenario().start_year,
+                        end_exclusive: None,
+                    },
+                }]
+            });
+            if let Some(profession_id) = profession_id {
+                state
+                    .profession_intervals
+                    .entry(person_id)
+                    .or_insert_with(|| {
+                        vec![chargen_domain::ProfessionInterval {
+                            profession_id,
+                            validity: YearInterval {
+                                start: scenario.scenario().start_year,
+                                end_exclusive: None,
+                            },
+                        }]
+                    });
+            }
+        }
+        if let Some(culture_config) = &scenario.scenario().culture {
+            culture::initialize_culture(culture_config, &mut state, scenario.scenario().start_year)
+                .map_err(|error| EngineError::Culture(error.to_string()))?;
+        }
+    }
     scenario
         .validate_state(&state)
         .map_err(EngineError::InvalidState)?;
@@ -644,15 +963,31 @@ fn census_balance(
 ) -> Vec<DemographicBalance> {
     let mut births: BTreeMap<SettlementId, u64> = BTreeMap::new();
     let mut deaths: BTreeMap<SettlementId, u64> = BTreeMap::new();
+    let mut incoming: BTreeMap<SettlementId, u64> = BTreeMap::new();
+    let mut outgoing: BTreeMap<SettlementId, u64> = BTreeMap::new();
     for event in events {
-        let (person_id, is_birth) = match &event.kind {
-            HistoricalEventKind::PersonBorn { person_id, .. } => (*person_id, true),
-            HistoricalEventKind::PersonDied { person_id, .. } => (*person_id, false),
-            _ => continue,
-        };
-        if let Some(person) = state.persons.get(&person_id) {
-            let counts = if is_birth { &mut births } else { &mut deaths };
-            *counts.entry(person.settlement_id).or_default() += 1;
+        match &event.kind {
+            HistoricalEventKind::PersonBorn { person_id, .. } => {
+                if let Some(person) = state.persons.get(person_id) {
+                    *births.entry(person.settlement_id).or_default() += 1;
+                }
+            }
+            HistoricalEventKind::PersonDied { person_id, .. } => {
+                if let Some(person) = state.persons.get(person_id) {
+                    *deaths.entry(person.settlement_id).or_default() += 1;
+                }
+            }
+            HistoricalEventKind::ResidentsMoved {
+                person_ids,
+                from,
+                to,
+                ..
+            } => {
+                let count = person_ids.len() as u64;
+                *outgoing.entry(*from).or_default() += count;
+                *incoming.entry(*to).or_default() += count;
+            }
+            _ => {}
         }
     }
     let mut after: BTreeMap<_, _> = state
@@ -673,6 +1008,8 @@ fn census_balance(
             before: before.get(&settlement_id).copied().unwrap_or(0),
             births: births.get(&settlement_id).copied().unwrap_or(0),
             deaths: deaths.get(&settlement_id).copied().unwrap_or(0),
+            incoming: incoming.get(&settlement_id).copied().unwrap_or(0),
+            outgoing: outgoing.get(&settlement_id).copied().unwrap_or(0),
             after: after.get(&settlement_id).copied().unwrap_or(0),
         })
         .collect()
@@ -684,11 +1021,20 @@ fn validate_census_balance(
     before: &BTreeMap<SettlementId, u64>,
     events: &[HistoricalEvent],
 ) -> Result<(), EngineError> {
-    for balance in census_balance(state, year, before, events) {
+    let balances = census_balance(state, year, before, events);
+    let mut global_before = 0_u64;
+    let mut global_births = 0_u64;
+    let mut global_deaths = 0_u64;
+    let mut global_after = 0_u64;
+    let mut global_incoming = 0_u64;
+    let mut global_outgoing = 0_u64;
+    for balance in balances {
         let expected = balance
             .before
             .checked_add(balance.births)
-            .and_then(|total| total.checked_sub(balance.deaths));
+            .and_then(|total| total.checked_sub(balance.deaths))
+            .and_then(|total| total.checked_add(balance.incoming))
+            .and_then(|total| total.checked_sub(balance.outgoing));
         if expected != Some(balance.after) {
             return Err(EngineError::DemographicBalance {
                 settlement_id: balance.settlement_id,
@@ -696,8 +1042,219 @@ fn validate_census_balance(
                 actual: balance.after,
             });
         }
+        global_before = global_before.checked_add(balance.before).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+        global_births = global_births.checked_add(balance.births).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+        global_deaths = global_deaths.checked_add(balance.deaths).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+        global_after = global_after.checked_add(balance.after).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+        global_incoming = global_incoming.checked_add(balance.incoming).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+        global_outgoing = global_outgoing.checked_add(balance.outgoing).ok_or(
+            EngineError::GlobalDemographicBalance {
+                expected: u64::MAX,
+                actual: u64::MAX,
+            },
+        )?;
+    }
+    let expected_global = global_before
+        .checked_add(global_births)
+        .and_then(|total| total.checked_sub(global_deaths))
+        .and_then(|total| total.checked_add(global_incoming))
+        .and_then(|total| total.checked_sub(global_outgoing));
+    if expected_global != Some(global_after) {
+        return Err(EngineError::GlobalDemographicBalance {
+            expected: expected_global.unwrap_or(u64::MAX),
+            actual: global_after,
+        });
     }
     Ok(())
+}
+
+fn reconcile_territorial_state(
+    state: &mut State,
+    year: Year,
+    events: &mut Vec<HistoricalEvent>,
+) -> Result<(), EngineError> {
+    let active_households: Vec<_> = state
+        .households
+        .values()
+        .filter(|household| household.closed_year.is_none())
+        .map(|household| household.id)
+        .collect();
+    for household_id in active_households {
+        let household = state.households[&household_id].clone();
+        let deceased_members: Vec<_> = household
+            .members
+            .iter()
+            .copied()
+            .filter(|person_id| !state.alive_at_close(*person_id, year))
+            .collect();
+        for person_id in deceased_members {
+            state
+                .households
+                .get_mut(&household_id)
+                .expect("active household exists")
+                .members
+                .remove(&person_id);
+            let detached_logical_id = state.persons.get_mut(&person_id).and_then(|person| {
+                if person.household_id == Some(household_id) {
+                    person.household_id = None;
+                    Some(person.logical_id)
+                } else {
+                    None
+                }
+            });
+            if let Some(logical_id) = detached_logical_id {
+                emit_event(
+                    state,
+                    events,
+                    year,
+                    logical_id,
+                    vec![
+                        EntityRef::Person(person_id),
+                        EntityRef::Household(household_id),
+                    ],
+                    HistoricalEventKind::HouseholdChanged {
+                        person_id,
+                        from: Some(household_id),
+                        to: None,
+                    },
+                );
+            }
+        }
+        let (members, settlement_id) = {
+            let household = state
+                .households
+                .get(&household_id)
+                .expect("household exists");
+            (household.members.clone(), household.settlement_id)
+        };
+        if members.is_empty() {
+            state
+                .households
+                .get_mut(&household_id)
+                .expect("household exists")
+                .closed_year = Some(year);
+            continue;
+        }
+        for person_id in &members {
+            let person = state.persons.get(person_id).ok_or_else(|| {
+                EngineError::InvalidPopulation("household has missing member".into())
+            })?;
+            if person.household_id != Some(household_id) || person.settlement_id != settlement_id {
+                return Err(EngineError::InvalidPopulation(
+                    "household membership or residence is inconsistent after mortality".into(),
+                ));
+            }
+        }
+    }
+    for person in state.living_people_at(year) {
+        let active_residence_count = state
+            .residences
+            .get(&person.id)
+            .into_iter()
+            .flatten()
+            .filter(|interval| interval.validity.contains(year))
+            .count();
+        if active_residence_count != 1
+            || state
+                .residences
+                .get(&person.id)
+                .into_iter()
+                .flatten()
+                .find(|interval| interval.validity.contains(year))
+                .is_none_or(|interval| interval.settlement_id != person.settlement_id)
+        {
+            return Err(EngineError::InvalidPopulation(
+                "living resident has inconsistent territorial history".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn reconcile_territorial_professions(
+    territory: &chargen_domain::TerritoryConfig,
+    state: &mut State,
+    year: Year,
+    events: &mut Vec<HistoricalEvent>,
+) {
+    let unavailable: Vec<_> = state
+        .living_people_at(year)
+        .filter_map(|person| {
+            let profession = person.profession.as_ref()?;
+            let offered = territory
+                .profession_options_by_settlement
+                .get(&person.settlement_id)
+                .is_some_and(|options| options.contains(profession));
+            let defined = territory
+                .professions
+                .iter()
+                .any(|definition| &definition.id == profession);
+            (!offered || !defined).then_some((
+                person.id,
+                person.logical_id,
+                person.settlement_id,
+                profession.clone(),
+            ))
+        })
+        .collect();
+    for (person_id, logical_id, settlement_id, profession_id) in unavailable {
+        if let Some(intervals) = state.profession_intervals.get_mut(&person_id) {
+            if let Some(active) = intervals
+                .iter_mut()
+                .rev()
+                .find(|interval| interval.validity.end_exclusive.is_none())
+            {
+                active.validity.end_exclusive = Some(year);
+            }
+        }
+        state
+            .persons
+            .get_mut(&person_id)
+            .expect("living person was collected")
+            .profession = None;
+        emit_event(
+            state,
+            events,
+            year,
+            logical_id,
+            vec![
+                EntityRef::World(state.world_id),
+                EntityRef::Person(person_id),
+                EntityRef::Settlement(settlement_id),
+            ],
+            HistoricalEventKind::ProfessionChanged {
+                person_id,
+                from: Some(profession_id),
+                to: None,
+                reason: chargen_domain::ProfessionChangeReason::DestinationDoesNotOfferProfession,
+            },
+        );
+    }
 }
 
 /// Derives a portable pseudorandom word from stable logical inputs. No branch/storage ID is included.
@@ -721,6 +1278,14 @@ pub fn keyed_random_u64(
         value = splitmix64(value ^ splitmix64(word.wrapping_add(0x9e37_79b9_7f4a_7c15)));
     }
     splitmix64(value)
+}
+
+fn stable_trait_ordinal(key: &TraitKey) -> u64 {
+    format!("{}::{}", key.namespace, key.name)
+        .bytes()
+        .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+        })
 }
 
 fn splitmix64(mut value: u64) -> u64 {
@@ -947,6 +1512,7 @@ fn generate_initial_population(
                     traits,
                     genome: Default::default(),
                     last_widowed_year: None,
+                    profession: None,
                 };
                 household.members.insert(id);
                 state.persons.insert(id, person);
@@ -1072,6 +1638,7 @@ fn apply_ordinary_mortality(
             probability,
         ) {
             apply_death(
+                scenario,
                 state,
                 indexes,
                 year,
@@ -1095,6 +1662,7 @@ fn mortality_probability(bands: &[AgeMortalityBand], age: u32, fallback: u32) ->
 }
 
 fn apply_death(
+    scenario: &ValidatedScenario,
     state: &mut State,
     indexes: &mut AnnualIndexes,
     year: Year,
@@ -1111,6 +1679,24 @@ fn apply_death(
     let person_logical = person.logical_id;
     let settlement_id = person.settlement_id;
     let old_household = person.household_id;
+    if let Some(history) = state.residences.get_mut(&person_id) {
+        if let Some(active) = history
+            .iter_mut()
+            .rev()
+            .find(|interval| interval.validity.end_exclusive.is_none())
+        {
+            active.validity.end_exclusive = Some(year);
+        }
+    }
+    if let Some(intervals) = state.profession_intervals.get_mut(&person_id) {
+        if let Some(active) = intervals
+            .iter_mut()
+            .rev()
+            .find(|interval| interval.validity.end_exclusive.is_none())
+        {
+            active.validity.end_exclusive = Some(year);
+        }
+    }
     state
         .persons
         .get_mut(&person_id)
@@ -1128,6 +1714,20 @@ fn apply_death(
         ],
         HistoricalEventKind::PersonDied { person_id, cause },
     );
+    if let Some(culture_config) = &scenario.scenario().culture {
+        culture::apply_population_delta(
+            culture_config,
+            state,
+            year,
+            culture::CulturePopulationDelta {
+                person_id,
+                from: Some(settlement_id),
+                to: None,
+            },
+            events,
+        )
+        .map_err(|error| EngineError::Culture(error.to_string()))?;
+    }
 
     if let Some(household_id) = old_household {
         if let Some(household) = state.households.get_mut(&household_id) {
@@ -2041,8 +2641,21 @@ fn apply_births(
                 traits,
                 genome,
                 last_widowed_year: None,
+                profession: None,
             };
             state.persons.insert(person_id, person);
+            if state.rules_version == chargen_domain::Scenario::TERRITORIAL_RULES_VERSION {
+                state.residences.insert(
+                    person_id,
+                    vec![ResidenceInterval {
+                        settlement_id,
+                        validity: YearInterval {
+                            start: year,
+                            end_exclusive: None,
+                        },
+                    }],
+                );
+            }
             indexes
                 .settlement_people
                 .entry(settlement_id)
@@ -2107,6 +2720,7 @@ fn apply_births(
                 policy.infant_mortality_probability_ppm,
             ) {
                 apply_death(
+                    scenario,
                     state,
                     indexes,
                     year,
@@ -2518,10 +3132,11 @@ fn allocate_family_link_id(state: &mut State) -> Result<FamilyLinkId, EngineErro
 mod tests {
     use super::*;
     use chargen_domain::{
-        AdoptionPolicy, BirthPolicy, DemographicPolicies, FamilyLink, FamilyLinkKind,
-        GeneticCatalog, GeneticExpression, GeneticLocus, Genome, HouseholdKind,
-        InitialPopulationProfile, LocusId, MortalityPolicy, Person, ReproductiveProfile, Scenario,
-        Settlement, UnionKind, UnionPolicy, VariantId, WeightedAgeBand,
+        AdoptionPolicy, BirthPolicy, CultureConfig, DemographicPolicies, DirectedRoute, FamilyLink,
+        FamilyLinkKind, ForcedDisplacementCommand, GeneticCatalog, GeneticExpression, GeneticLocus,
+        Genome, HouseholdKind, InitialPopulationProfile, LocusId, MigrationPolicy, MigrationUnit,
+        MortalityPolicy, Person, ProfessionDefinition, ProfessionId, ReproductiveProfile, Scenario,
+        Settlement, TerritoryConfig, UnionId, UnionKind, UnionPolicy, VariantId, WeightedAgeBand,
         WeightedReproductiveProfile, WeightedVariant,
     };
     use std::collections::{BTreeMap, BTreeSet};
@@ -2549,6 +3164,7 @@ mod tests {
                 traits: BTreeMap::new(),
                 genome: Genome::default(),
                 last_widowed_year: None,
+                profession: None,
             },
             Person {
                 id: PersonId(2),
@@ -2561,6 +3177,7 @@ mod tests {
                 traits: BTreeMap::new(),
                 genome: Genome::default(),
                 last_widowed_year: None,
+                profession: None,
             },
         ];
         Scenario {
@@ -2599,7 +3216,34 @@ mod tests {
             initial_population_profiles: vec![],
             policies: DemographicPolicies::default(),
             genetics: GeneticCatalog::default(),
+            territory: None,
+            culture: None,
         }
+    }
+
+    fn territorial_scenario() -> Scenario {
+        let mut scenario = base_scenario();
+        scenario.schema_version = Scenario::TERRITORIAL_SCHEMA_VERSION;
+        scenario.rules_version = Scenario::TERRITORIAL_RULES_VERSION;
+        scenario.settlements.push(Settlement {
+            id: SettlementId(2),
+            logical_id: LogicalId(2),
+            name: "Hill".into(),
+            culture_values: BTreeMap::new(),
+        });
+        scenario.territory = Some(TerritoryConfig {
+            routes: vec![DirectedRoute {
+                logical_id: LogicalId(900),
+                from: SettlementId(1),
+                to: SettlementId(2),
+                cost: 0,
+                capacity_per_year: None,
+                open_intervals: Vec::new(),
+            }],
+            ..TerritoryConfig::default()
+        });
+        scenario.culture = Some(CultureConfig::default());
+        scenario
     }
 
     fn one_locus_catalog() -> GeneticCatalog {
@@ -2657,7 +3301,250 @@ mod tests {
             commit.state.last_year_phases[3].disposition,
             PhaseDisposition::DeferredNoop
         );
+        assert_eq!(
+            commit.state.last_year_phases[3].description,
+            "reconciliación agregada de hogares y empleo pendiente"
+        );
         assert_eq!(commit.state.current_year, Some(Year(20)));
+    }
+
+    #[test]
+    fn voluntary_migration_resolves_shared_route_and_destination_capacity_as_a_batch() {
+        let mut raw = territorial_scenario();
+        let territory = raw.territory.as_mut().unwrap();
+        territory.routes[0].capacity_per_year = Some(1);
+        territory.settlement_capacities.insert(SettlementId(2), 1);
+        territory.opportunity_scores = [(SettlementId(1), 0), (SettlementId(2), 100)]
+            .into_iter()
+            .collect();
+        territory.migration = MigrationPolicy {
+            enabled: true,
+            probability_ppm: 1_000_000,
+            unit: MigrationUnit::Person,
+            minimum_age: 0,
+            maximum_age: None,
+            candidate_limit: 1,
+            max_moving_units_per_year: 8,
+            maximum_travel_cost: None,
+            minimum_net_opportunity_gain: 0,
+        };
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let commit = engine.advance_year(None).unwrap();
+
+        assert_eq!(
+            commit
+                .state
+                .living_people_at(Year(20))
+                .filter(|person| person.settlement_id == SettlementId(2))
+                .count(),
+            1
+        );
+        assert_eq!(
+            commit
+                .events
+                .iter()
+                .filter(|event| matches!(&event.kind, HistoricalEventKind::ResidentsMoved { .. }))
+                .count(),
+            1
+        );
+        let metrics = engine.last_metrics().unwrap();
+        let destination = metrics
+            .census_balance
+            .iter()
+            .find(|balance| balance.settlement_id == SettlementId(2))
+            .unwrap();
+        assert_eq!(
+            (destination.before, destination.incoming, destination.after),
+            (0, 1, 1)
+        );
+        assert_eq!(
+            metrics
+                .census_balance
+                .iter()
+                .map(|balance| balance.incoming)
+                .sum::<u64>(),
+            metrics
+                .census_balance
+                .iter()
+                .map(|balance| balance.outgoing)
+                .sum::<u64>()
+        );
+        let moved = commit
+            .events
+            .iter()
+            .find_map(|event| match &event.kind {
+                HistoricalEventKind::ResidentsMoved { person_ids, .. } => person_ids.first(),
+                _ => None,
+            })
+            .copied()
+            .unwrap();
+        assert_eq!(commit.state.persons[&moved].household_id, None);
+        assert_eq!(commit.state.households[&HouseholdId(1)].members.len(), 1);
+    }
+
+    #[test]
+    fn forced_household_displacement_moves_the_whole_home_atomically() {
+        let mut raw = territorial_scenario();
+        raw.territory.as_mut().unwrap().migration.unit = MigrationUnit::Household;
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let command = ForcedDisplacementCommand {
+            id: LogicalId(777),
+            person_ids: [PersonId(1)].into_iter().collect(),
+            destination: SettlementId(2),
+        };
+        let commit = engine.advance_year_with_commands(None, &[command]).unwrap();
+
+        assert!(commit.state.persons.values().all(|person| {
+            person.settlement_id == SettlementId(2) && person.household_id == Some(HouseholdId(1))
+        }));
+        assert_eq!(
+            commit.state.households[&HouseholdId(1)].settlement_id,
+            SettlementId(2)
+        );
+        assert!(commit.events.iter().any(|event| matches!(
+            &event.kind,
+            HistoricalEventKind::ResidentsMoved {
+                person_ids,
+                reason: chargen_domain::MovementReason::ForcedDisplacement,
+                ..
+            } if person_ids.len() == 2
+        )));
+        let source = engine
+            .last_metrics()
+            .unwrap()
+            .census_balance
+            .iter()
+            .find(|balance| balance.settlement_id == SettlementId(1))
+            .unwrap();
+        assert_eq!((source.before, source.outgoing, source.after), (2, 2, 0));
+    }
+
+    #[test]
+    fn invalid_forced_displacement_leaves_the_previous_close_unchanged() {
+        let mut raw = territorial_scenario();
+        let territory = raw.territory.as_mut().unwrap();
+        territory.migration.unit = MigrationUnit::Household;
+        territory.settlement_capacities.insert(SettlementId(2), 1);
+        let mut engine = Engine::from_scenario(raw.validate().unwrap()).unwrap();
+        let before = engine.state().clone();
+        let command = ForcedDisplacementCommand {
+            id: LogicalId(778),
+            person_ids: [PersonId(1)].into_iter().collect(),
+            destination: SettlementId(2),
+        };
+
+        assert!(matches!(
+            engine.advance_year_with_commands(None, &[command]),
+            Err(EngineError::InvalidMigration(_))
+        ));
+        assert_eq!(engine.state(), &before);
+    }
+
+    #[test]
+    fn cancellation_after_forced_preparation_discards_the_pending_year() {
+        use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+
+        struct CancelDuringA0 {
+            calls: AtomicUsize,
+            token: CancellationToken,
+        }
+
+        impl MetricsClock for CancelDuringA0 {
+            fn now_nanos(&self) -> u128 {
+                if self.calls.fetch_add(1, AtomicOrdering::SeqCst) + 1 == 3 {
+                    self.token.cancel();
+                }
+                0
+            }
+        }
+
+        let mut raw = territorial_scenario();
+        raw.territory.as_mut().unwrap().migration.unit = MigrationUnit::Household;
+        let validated = raw.validate().unwrap();
+        let state = generate_initial_state(&validated).unwrap();
+        let token = CancellationToken::new();
+        let clock = Arc::new(CancelDuringA0 {
+            calls: AtomicUsize::new(0),
+            token: token.clone(),
+        });
+        let mut engine = Engine::new_with_clock(validated, state, clock).unwrap();
+        let before = engine.state().clone();
+        let command = ForcedDisplacementCommand {
+            id: LogicalId(779),
+            person_ids: [PersonId(1)].into_iter().collect(),
+            destination: SettlementId(2),
+        };
+
+        assert!(matches!(
+            engine.advance_year_with_commands(Some(&token), &[command]),
+            Err(EngineError::Cancelled)
+        ));
+        assert_eq!(engine.state(), &before);
+    }
+
+    #[test]
+    fn branch_revision_retires_an_unavailable_profession_at_the_first_new_close() {
+        let mut raw = territorial_scenario();
+        raw.initial_people[0].profession = Some(ProfessionId::from("farmer"));
+        let territory = raw.territory.as_mut().unwrap();
+        territory.professions.push(ProfessionDefinition {
+            id: ProfessionId::from("farmer"),
+            name: "Farmer".into(),
+        });
+        territory.profession_options_by_settlement.insert(
+            SettlementId(1),
+            [ProfessionId::from("farmer")].into_iter().collect(),
+        );
+        let validated = raw.validate().unwrap();
+        let mut parent = Engine::from_scenario(validated).unwrap();
+        let cut = parent.advance_year(None).unwrap().state;
+
+        let mut revised = raw;
+        revised
+            .territory
+            .as_mut()
+            .unwrap()
+            .profession_options_by_settlement
+            .remove(&SettlementId(1));
+        assert!(revised.validate().is_err());
+        let revised = revised.validate_for_branch_revision().unwrap();
+        let mut child = Engine::new_for_branch_revision(revised, cut).unwrap();
+        let commit = child.advance_year(None).unwrap();
+
+        assert_eq!(commit.year, Year(21));
+        assert_eq!(commit.state.persons[&PersonId(1)].profession, None);
+        assert!(commit.events.iter().any(|event| matches!(
+            &event.kind,
+            HistoricalEventKind::ProfessionChanged {
+                person_id,
+                from: Some(_),
+                to: None,
+                ..
+            } if *person_id == PersonId(1)
+        )));
+    }
+
+    #[test]
+    fn identical_branch_cut_and_rules_produce_the_same_next_annual_commit() {
+        let mut raw = territorial_scenario();
+        raw.policies.mortality = MortalityPolicy {
+            default_probability_ppm: 350_000,
+            age_bands: Vec::new(),
+        };
+        let validated = raw.validate().unwrap();
+        let mut continuing = Engine::from_scenario(validated.clone()).unwrap();
+        let mut fork_source = Engine::from_scenario(validated.clone()).unwrap();
+        assert_eq!(
+            continuing.advance_year(None).unwrap(),
+            fork_source.advance_year(None).unwrap()
+        );
+
+        let mut child =
+            Engine::new_for_branch_revision(validated, fork_source.state().clone()).unwrap();
+        assert_eq!(
+            continuing.advance_year(None).unwrap(),
+            child.advance_year(None).unwrap()
+        );
     }
 
     #[test]
@@ -2795,6 +3682,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         }));
         raw.policies.unions = UnionPolicy {
             enabled: true,
@@ -3014,6 +3902,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         });
         raw.initial_family_links = vec![
             FamilyLink {
@@ -3076,6 +3965,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         });
         raw.initial_households.push(Household {
             id: orphan_household_id,
@@ -3136,6 +4026,7 @@ mod tests {
             traits: BTreeMap::new(),
             genome: Genome::default(),
             last_widowed_year: None,
+            profession: None,
         });
         raw.policies.mortality = MortalityPolicy {
             default_probability_ppm: 0,

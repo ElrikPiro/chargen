@@ -18,7 +18,7 @@ async fn run() -> Result<(), String> {
         .is_some_and(|arg| arg == "--help" || arg == "-h")
     {
         println!(
-            "{}\n\nComandos:\n  serve [opciones]\n  bench --profile B0|B1|B2 [--database RUTA]",
+            "{}\n\nComandos:\n  serve [opciones]\n  bench --profile B0|B1|B2|E2-B0|E2-B1|E2-B2|E2-CATALOG-CURRENT|E2-CATALOG-LARGE [--database RUTA] [--output RUTA]",
             chargen_app::command_usage()
         );
         return Ok(());

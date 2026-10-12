@@ -54,7 +54,7 @@
     },
     "TraitDefinition": {
       "type": "object", "required": ["key", "minimum", "maximum"],
-      "properties": {"key": {"$ref": "#/$defs/TraitKey"}, "minimum": {"type": "integer", "minimum": -32768, "maximum": 32767}, "maximum": {"type": "integer", "minimum": -32768, "maximum": 32767}}
+      "properties": {"key": {"$ref": "#/$defs/TraitKey"}, "minimum": {"type": "integer", "minimum": -32768, "maximum": 32767}, "maximum": {"type": "integer", "minimum": -32768, "maximum": 32767}, "unit": {"type": ["string", "null"]}, "description": {"type": ["string", "null"]}}
     },
     "WeightedAgeBand": {
       "type": "object", "required": ["minimum_age", "maximum_age", "weight"],

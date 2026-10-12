@@ -1,4 +1,4 @@
-# Decisiones de arquitectura para E0/E1
+# Decisiones de arquitectura para E0/E2
 
 ## ADR-001: servidor local con recursos estáticos
 
@@ -29,3 +29,11 @@ Las reglas de mundo viven en los tipos `Scenario` y `DemographicPolicies` de `ch
 El motor aplica la semilla y `rules_version` del escenario a decisiones aleatorias identificadas por `DecisionDomain`; el algoritmo se etiqueta `chargen-splitmix-keyed-v1` y su constante pública `RNG_VERSION`. Los IDs de almacenamiento no forman parte de las claves RNG. Cambiar mezcla, dominios u orden de decisiones requiere versionar el contrato. No se comparte un generador mutable entre corridas ni entre una consulta y una simulación.
 
 El reloj inyectable del motor (`MetricsClock`) y el del servicio (`MeasurementClock`) miden duración monotónica solamente. Nunca alimentan años, decisiones, IDs o estado persistido. El sink `MetricsSink` recibe métricas después de confirmar el commit anual. La prueba del worker usa reloj, escritor y sink falsos para comprobar el contrato sin depender del tiempo real o de SQLite.
+
+## ADR-006: territorio, cultura y compatibilidad de reglas
+
+E2 incorpora territorio y cultura como opciones tipadas del escenario. `rules_version: 1` deja ambas configuraciones ausentes y conserva las fases E1; `rules_version: 2` las valida antes de crear o bifurcar un mundo. Las rutas son dirigidas y versionadas, los cambios de residencia se expresan como intervalos, y los eventos anuales se confirman junto al estado. Las consultas reciben explícitamente mundo, rama y año y nunca actualizan agregados ni historia.
+
+La persistencia genérica de estado/delta permite almacenar las nuevas secciones sin reinterpretar el prefijo E1. Los campos E2 ausentes o vacíos deben omitirse al serializar el estado E1 para mantener las huellas históricas; los lectores aceptan sus valores por defecto. La carga comprueba los hashes existentes antes de usar la forma tipada para continuar una corrida. El caso de compatibilidad usa una exportación SQL de una base E1 real con sus hashes originales.
+
+La interfaz sigue siendo HTML/CSS/JavaScript estático servido por el ejecutable. Sus consultas nuevas usan el mismo selector temporal y la misma API local; TypeScript y JSON Schema documentan el cableado, mientras la validación semántica se mantiene en Rust. Las reglas de movimiento no generan guerras ni epidemias (F09), y las profesiones no representan una economía (F08).
