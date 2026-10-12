@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Chargen · simulación local</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Chargen · prototipo E1</p>
+        <h1>Asentamientos y familias</h1>
+      </div>
+      <span id="connection" class="connection" aria-live="polite">Comprobando servicio…</span>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="context-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Mundo guardado</p>
+            <h2 id="context-heading">Abrir contexto</h2>
+          </div>
+          <button id="refresh-worlds" class="secondary">Actualizar</button>
+        </div>
+        <div class="context-grid">
+          <label>Mundo
+            <select id="world-select"><option value="">Selecciona o crea un mundo</option></select>
+          </label>
+          <label>Rama
+            <select id="branch-select"><option value="">Selecciona una rama</option></select>
+          </label>
+          <label>Año de cierre
+            <input id="year-input" type="number" value="0" step="1" />
+          </label>
+          <button id="load-census">Consultar censo</button>
+        </div>
+        <p id="context-note" class="muted">El estado y las consultas quedan fijados al año de cierre seleccionado.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="scenario-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Escenario local</p>
+            <h2 id="scenario-heading">Validar y crear un mundo</h2>
+          </div>
+          <span class="badge">JSON versionado</span>
+        </div>
+        <label for="scenario-json">Escenario</label>
+        <textarea id="scenario-json" spellcheck="false" aria-describedby="scenario-help"></textarea>
+        <p id="scenario-help" class="muted">Edita una copia del escenario de demostración. Los parámetros de demostración son ficticios.</p>
+        <div class="actions">
+          <button id="validate-scenario" class="secondary">Validar</button>
+          <button id="create-world">Crear mundo</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="run-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Evolución anual</p>
+            <h2 id="run-heading">Ejecutar y pausar</h2>
+          </div>
+          <span id="run-status" class="badge">Sin trabajo activo</span>
+        </div>
+        <div class="run-grid">
+          <label>Simular hasta el cierre del año
+            <input id="through-year" type="number" value="10" step="1" min="0" />
+          </label>
+          <div class="actions">
+            <button id="start-run">Iniciar</button>
+            <button id="pause-run" class="secondary" disabled>Pausar</button>
+            <button id="resume-run" class="secondary" disabled>Reanudar</button>
+            <button id="cancel-run" class="danger" disabled>Cancelar</button>
+          </div>
+        </div>
+        <progress id="run-progress" max="1" value="0"></progress>
+        <p id="progress-label" class="muted" aria-live="polite">Los años confirmados se publican después de guardar sus eventos y estado.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="results-heading">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Consulta</p>
+            <h2 id="results-heading">Censo del asentamiento</h2>
+          </div>
+        </div>
+        <div id="results" class="results" aria-live="polite">
+          <p class="muted">Selecciona un mundo, una rama y un año para consultar.</p>
+        </div>
+      </section>
+
+      <section id="messages" class="messages" aria-live="polite" aria-atomic="true"></section>
+    </main>
+
+    <footer>
+      <p>Servidor local · sin recursos externos · años mostrados al cierre anual</p>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

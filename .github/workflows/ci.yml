@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x86_64
+            rust_target: x86_64-unknown-linux-gnu
+            executable: chargen-app
+          - os: windows-2022
+            target: windows-x86_64
+            rust_target: x86_64-pc-windows-msvc
+            executable: chargen-app.exe
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.19.2
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+      - name: Check formatting
+        run: cargo +1.90.0 fmt --all -- --check
+      - name: Run Rust tests
+        run: cargo +1.90.0 test --workspace --all-targets --locked
+      - name: Run Clippy
+        run: cargo +1.90.0 clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build release executable
+        run: cargo +1.90.0 build --release --package chargen-app --locked --target ${{ matrix.rust_target }}
+      - name: Check static web and API
+        run: |
+          node --check web/app.js
+          node --check scripts/check-web.mjs
+          node --check scripts/smoke-api.mjs
+          node --check scripts/create-package-manifest.mjs
+          node --check scripts/check-package.mjs
+          node --check scripts/write-checksum.mjs
+          node --check scripts/assemble-release-manifest.mjs
+          node --check scripts/validate-e1.mjs
+          node scripts/check-web.mjs
+      - name: Type-check scenario contracts
+        run: npx --yes --package=typescript@5.9.3 tsc --project web/tsconfig.json
+      - name: Package standalone executable and docs
+        env:
+          CHARGEN_VERSION: ci-${{ github.run_number }}
+          CHARGEN_TARGET: ${{ matrix.target }}
+          CHARGEN_RUST_TARGET: ${{ matrix.rust_target }}
+          CHARGEN_COMMIT: ${{ github.sha }}
+        run: sh scripts/package.sh
+      - name: Extract package and smoke test packaged executable
+        shell: bash
+        run: |
+          mkdir -p target/package-smoke
+          archive="$(find dist -maxdepth 1 -name '*.tar.gz' -print -quit)"
+          test -n "$archive"
+          tar -xzf "$archive" -C target/package-smoke
+          package_dir="$(find target/package-smoke -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -f "$package_dir/MANIFEST.json"
+          test -f "$package_dir/${{ matrix.executable }}"
+          node scripts/check-package.mjs "$package_dir" "${{ matrix.target }}" "${{ matrix.executable }}"
+          echo "CHARGEN_PACKAGED_EXECUTABLE=$package_dir/${{ matrix.executable }}" >> "$GITHUB_ENV"
+          node scripts/smoke-api.mjs "$package_dir/${{ matrix.executable }}"
+          node scripts/validate-e1.mjs "$package_dir/${{ matrix.executable }}"
+      - name: Run deterministic B0 benchmark
+        shell: bash
+        run: |
+          "$CHARGEN_PACKAGED_EXECUTABLE" bench --profile B0 --database target/ci-b0.sqlite3 --output target/ci-b0-report.json
+          node scripts/extract-benchmark-digest.mjs target/ci-b0-report.json target/ci-b0-digest.txt
+      - name: Upload standalone package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chargen-package-${{ matrix.target }}
+          path: |
+            dist/chargen-*.tar.gz
+            dist/chargen-*.tar.gz.sha256
+            dist/chargen-*.manifest.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload deterministic benchmark digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deterministic-${{ matrix.os }}
+          path: target/ci-b0-digest.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  compare-determinism:
+    name: Compare Linux and Windows B0 output
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.19.2
+      - name: Download benchmark digests
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          pattern: deterministic-*
+          path: benchmark-digests
+          merge-multiple: false
+      - name: Compare deterministic result fingerprints
+        run: node scripts/compare-benchmark-digests.mjs benchmark-digests/deterministic-ubuntu-24.04/ci-b0-digest.txt benchmark-digests/deterministic-windows-2022/ci-b0-digest.txt

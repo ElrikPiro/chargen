@@ -1,0 +1,242 @@
+[
+  {
+    "path": "chargen/__init__.py",
+    "sha256": "acbb08336c8b3c097ec8693d0ebab43f0e934d42c7b458fbec0172e4645dab85"
+  },
+  {
+    "path": "chargen/render.py",
+    "sha256": "d827d3a4c295e7f5f02a1fa3847b6bbfb77faf0da2c044f8c8bd0354814b78c4"
+  },
+  {
+    "path": "chargen/grafolocalizaciones.py",
+    "sha256": "f24c1ba5cf53dee0d3091fc949f277b4b2d8f1800cd6455677728c87cd67da22"
+  },
+  {
+    "path": "chargen/character.py",
+    "sha256": "1b4fe9064da294d969483fb7af53d37363cce5198e04232ffd37efb16a3436ec"
+  },
+  {
+    "path": "chargen/core.py",
+    "sha256": "1582ff22c472f986414bc79101780600a9c508ba3df357d47c2e8d2abcbcdf4c"
+  },
+  {
+    "path": "chargen/casamentera.py",
+    "sha256": "cf26c555f238a4184a9642b6a7c64392b24c9d0da553798bb1f9c4a17a7e5fa8"
+  },
+  {
+    "path": "tests/__init__.py",
+    "sha256": "16209c2585c260dba7a2c6bd59151b24c3a3c6aa78dee64e82e9e4c6d35b1339"
+  },
+  {
+    "path": "tests/context.py",
+    "sha256": "8660210862e549f9e6ba0500fbc003b1684c623856ebbb7ea40d08ae48e21e94"
+  },
+  {
+    "path": "tests/test_render.py",
+    "sha256": "a63beec1b439fd3e7d46fad9bfc52af55a32194000675f7e5ef1cd65a0159828"
+  },
+  {
+    "path": "tests/test_character.py",
+    "sha256": "55c3d1e89928c912595588a2a293484ce55033c7f4e273174b79e2b3ee921267"
+  },
+  {
+    "path": "tests/test_refactor_configurable.py",
+    "sha256": "b77a61d5001fe0ac8b803485b1e53bce306f534e5c80cda2edf8b1823a9b36b2"
+  },
+  {
+    "path": "tests/testUtils.py",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tests/test_example.py",
+    "sha256": "b64e5854bd5df2c3d8f2529d53c97a423ac4ba620fea1821bb062af8c6ced97c"
+  },
+  {
+    "path": "tests/test_casamentera.py",
+    "sha256": "75ffab96d96588f0d2095c11cf2af0d15feb3a5f1ae2947f87ac6e0f89f3c283"
+  },
+  {
+    "path": "examples/configurable_character.py",
+    "sha256": "b1ca84afe8ea7c137461c95a1fc05dc0b7261ae3cdc25447f4ae527c4d0549dc"
+  },
+  {
+    "path": "examples/casamentera_simulation.py",
+    "sha256": "ff33e5ca59a29d676189cda0bed08b1f44a6194c5a06bd7a588f698aabd126ff"
+  },
+  {
+    "path": "examples/README.md",
+    "sha256": "eb32c00cd1c02f505916d52ca64f8ca8c5e796e4d1735b26a1efcb2443d7631a"
+  },
+  {
+    "path": "examples/render_markdown.py",
+    "sha256": "4377d030479e8bb9324c61973c7fe0494c43cc72e7b64f34a8fd2c5fc70c2c4d"
+  },
+  {
+    "path": "examples/basic_character.py",
+    "sha256": "48ee80c43bc412c812dc82494ffadf61266efde20a94a09b358debcf91305bf5"
+  },
+  {
+    "path": "PoC/run_simulation.py",
+    "sha256": "18392f8242df1bcd898682bb86ae50b9a870229455de2d63f777f5cb76dc6934"
+  },
+  {
+    "path": "PoC/run_poc.sh",
+    "sha256": "644dda491282b1cd1035ea1a8b5b28a4fbae784f1ea5271406e4bd42b57001c1"
+  },
+  {
+    "path": "PoC/json/jason.json",
+    "sha256": "67226d00a8295417d8109e2f10edeffb1a5c79dd7dd8223acb88c3a0efae309f"
+  },
+  {
+    "path": "PoC/json/config/rokugani.json",
+    "sha256": "2d99ffd6c4bd2292a6d9f52184f62107a7f6f29982f8a750676195340b0517fe"
+  },
+  {
+    "path": "PoC/json/config/obras.json",
+    "sha256": "7087e098bbe0c8b82ae16b0940cd50f9fa7b8f09a48a09ce063967f07054efd9"
+  },
+  {
+    "path": "PoC/json/config/localizaciones.json",
+    "sha256": "19bd8a6b03e4c192fb2a19f075fb6f9a649cbe4bb5faef3e3d2cf2b0aa876f59"
+  },
+  {
+    "path": "PoC/json/config/familias.json",
+    "sha256": "d914176fd50bd7f565700006a31aa97b79d3ad17cee20c8e5ff2061d5cb74817"
+  },
+  {
+    "path": "PoC/json/config/genoma.json",
+    "sha256": "e1d1b84a77e95b29263c05b24730c1976957677f15a971e76ace6b10f474c675"
+  },
+  {
+    "path": "PoC/json/config/necesidades.json",
+    "sha256": "3245c3171a1f6a819726b35edead5ceae8800c838f38537b941f1fa401fa8657"
+  },
+  {
+    "path": "PoC/json/config/personalidad.json",
+    "sha256": "506b75afc271e9da56bc3db6b008ccd2dd18a477ee22e798e235f7d1b6165829"
+  },
+  {
+    "path": "PoC/json/config/nombresPropios.json",
+    "sha256": "d914176fd50bd7f565700006a31aa97b79d3ad17cee20c8e5ff2061d5cb74817"
+  },
+  {
+    "path": "json/jason.json",
+    "sha256": "67226d00a8295417d8109e2f10edeffb1a5c79dd7dd8223acb88c3a0efae309f"
+  },
+  {
+    "path": "json/config/rokugani.json",
+    "sha256": "2d99ffd6c4bd2292a6d9f52184f62107a7f6f29982f8a750676195340b0517fe"
+  },
+  {
+    "path": "json/config/obras.json",
+    "sha256": "0f404a22a6b0a1cce1224d04a1edcc9766575e09e11cd21b3234ee2cf3a2c9b0"
+  },
+  {
+    "path": "json/config/localizaciones.json",
+    "sha256": "4b336b2f67473b5a7444995b792644bc31603e8e46b03262f4bfcde022a7ebfe"
+  },
+  {
+    "path": "json/config/familias.json",
+    "sha256": "8eb95bcbc154530931e15fc418c8b1fe991095671409552099ea1aa596999ede"
+  },
+  {
+    "path": "json/config/genoma.json",
+    "sha256": "e1d1b84a77e95b29263c05b24730c1976957677f15a971e76ace6b10f474c675"
+  },
+  {
+    "path": "json/config/necesidades.json",
+    "sha256": "3245c3171a1f6a819726b35edead5ceae8800c838f38537b941f1fa401fa8657"
+  },
+  {
+    "path": "json/config/personalidad.json",
+    "sha256": "506b75afc271e9da56bc3db6b008ccd2dd18a477ee22e798e235f7d1b6165829"
+  },
+  {
+    "path": "json/config/nombresPropios.json",
+    "sha256": "cb700519878a1bab8fb94c1e329437cf334be2747cbd3b78ec09a943bc5117c7"
+  },
+  {
+    "path": "build/lib/chargen/__init__.py",
+    "sha256": "acbb08336c8b3c097ec8693d0ebab43f0e934d42c7b458fbec0172e4645dab85"
+  },
+  {
+    "path": "build/lib/chargen/render.py",
+    "sha256": "d827d3a4c295e7f5f02a1fa3847b6bbfb77faf0da2c044f8c8bd0354814b78c4"
+  },
+  {
+    "path": "build/lib/chargen/grafolocalizaciones.py",
+    "sha256": "f24c1ba5cf53dee0d3091fc949f277b4b2d8f1800cd6455677728c87cd67da22"
+  },
+  {
+    "path": "build/lib/chargen/character.py",
+    "sha256": "1b4fe9064da294d969483fb7af53d37363cce5198e04232ffd37efb16a3436ec"
+  },
+  {
+    "path": "build/lib/chargen/core.py",
+    "sha256": "1582ff22c472f986414bc79101780600a9c508ba3df357d47c2e8d2abcbcdf4c"
+  },
+  {
+    "path": "build/lib/chargen/casamentera.py",
+    "sha256": "cf26c555f238a4184a9642b6a7c64392b24c9d0da553798bb1f9c4a17a7e5fa8"
+  },
+  {
+    "path": "setup.py",
+    "sha256": "37e1124f231260e4a353c488c0af9e5b8a2ac22eea6b217832f1d2e46b5577cc"
+  },
+  {
+    "path": "necesidadesCsvToJson.py",
+    "sha256": "51beeca28f8b1b2883bd62caa50e32ce17ad2b7df7c4567260d48b7182fe8506"
+  },
+  {
+    "path": "notebook.ipynb",
+    "sha256": "201ff8a910d00c97e0f89bcb53ce613c79d947ca945282bc0569e5ce1c2ec0c8"
+  },
+  {
+    "path": "necesidades.csv",
+    "sha256": "659788b978b09d798ad0386244e92069ed99190d7c1a97385ede10304c409aa4"
+  },
+  {
+    "path": "requirements.txt",
+    "sha256": "b9bdf821f389d05dab4b32f4f10be036469740f00f9d9bd91076cbe55cf36bef"
+  },
+  {
+    "path": "MANIFEST.in",
+    "sha256": "ff7157a19d43c458aae5102117bdab1eb614ea7fde5fbeaa75d71988150c82c3"
+  },
+  {
+    "path": "Makefile",
+    "sha256": "7217cf4607c1ffb6dc23754545ab2bd8933cdcd9a7cd945e3d687c7b0c042e5b"
+  },
+  {
+    "path": "README.md",
+    "sha256": "539e56ac74d5666149b58061aff500da149e70286b4dab1cd1c7e13e6759c227"
+  },
+  {
+    "path": "DOCUMENTATION.md",
+    "sha256": "62d87f5e3f41591e5590c5ac9d5feed7c85fd49ccf7ae145e46ac49f1bc2666f"
+  },
+  {
+    "path": "dist/chargen-0.1.0-py3-none-any.whl",
+    "sha256": "0dfc418c0e864c0c88a055c45eccaae97ca4020674eed504b4effa83213789b8"
+  },
+  {
+    "path": "dist/chargen-0.1.0.tar.gz",
+    "sha256": "acdafece21a4e0bb11e7653d043c28e119df293a5ba1977c5ec842e956e51ec9"
+  },
+  {
+    "path": "chargen.egg-info/top_level.txt",
+    "sha256": "aa462c7302b46b10cc8ee71b96f9f291c35bfca4ca9b482d46a393bc71b3f555"
+  },
+  {
+    "path": "chargen.egg-info/dependency_links.txt",
+    "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  },
+  {
+    "path": "chargen.egg-info/SOURCES.txt",
+    "sha256": "51e766608ea382443e118c9af07ee47cace356e91f0570e50aaef7ff62391ab5"
+  },
+  {
+    "path": "chargen.egg-info/PKG-INFO",
+    "sha256": "9d6bf4452e3f126919088943e5298a00b1a159253dda05cb65a48b747b466c07"
+  }
+]

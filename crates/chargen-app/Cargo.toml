@@ -1,0 +1,18 @@
+[package]
+name = "chargen-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+axum.workspace = true
+chargen-domain.workspace = true
+chargen-engine.workspace = true
+chargen-query.workspace = true
+chargen-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+

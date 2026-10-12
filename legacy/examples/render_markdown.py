@@ -1,5 +1,5 @@
-from ..chargen import Character
-from ..chargen.render import markdownGenerator
+from chargen import Character
+from chargen.render import markdownGenerator
 
 
 def main():

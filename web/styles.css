@@ -1,0 +1,64 @@
+:root {
+  color-scheme: light dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --paper: #f6f5f0;
+  --panel: #fffefa;
+  --ink: #172620;
+  --muted: #60716a;
+  --line: #d5ded7;
+  --accent: #1d7657;
+  --accent-dark: #11513c;
+  --warning: #9d4d28;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.4rem max(1rem, calc((100vw - 1080px) / 2)); background: #173a30; color: #f6f5f0; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 0; font-size: clamp(1.35rem, 2.5vw, 2rem); letter-spacing: -.025em; }
+h2 { margin-bottom: 0; font-size: 1.12rem; }
+.eyebrow { margin: 0 0 .32rem; color: #7fc7a7; font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.connection { color: #bfebd3; font-size: .88rem; }
+main { width: min(1080px, calc(100% - 2rem)); margin: 1.5rem auto 3rem; display: grid; gap: 1rem; }
+.panel { padding: clamp(1rem, 2.4vw, 1.5rem); border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 8px 24px #173a300b; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.context-grid, .run-grid { display: grid; grid-template-columns: 1.4fr 1fr .7fr auto; gap: .75rem; align-items: end; }
+.run-grid { grid-template-columns: minmax(220px, .7fr) auto; margin-bottom: 1rem; }
+label { display: grid; gap: .4rem; color: var(--muted); font-size: .82rem; font-weight: 650; }
+input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: .65rem .72rem; background: var(--panel); color: var(--ink); font: inherit; }
+textarea { min-height: 17rem; resize: vertical; font: .82rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; tab-size: 2; }
+button { min-height: 2.6rem; padding: .58rem .9rem; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: white; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--accent-dark); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.secondary { background: transparent; color: var(--accent-dark); }
+button.secondary:hover:not(:disabled) { background: #e9f3ed; }
+button.danger { border-color: #b85136; background: #b85136; }
+.badge { padding: .4rem .65rem; border-radius: 100px; background: #e9f3ed; color: var(--accent-dark); font-size: .75rem; font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+.muted { margin: .7rem 0 0; color: var(--muted); font-size: .82rem; }
+progress { width: 100%; height: .7rem; accent-color: var(--accent); }
+.results { overflow-x: auto; }
+.results table { width: 100%; border-collapse: collapse; text-align: left; }
+.results th, .results td { padding: .68rem .55rem; border-bottom: 1px solid var(--line); }
+.results th { color: var(--muted); font-size: .78rem; }
+.messages { min-height: 0; }
+.notice { margin: 0; padding: .85rem 1rem; border-radius: 8px; background: #e9f3ed; color: var(--accent-dark); font-size: .88rem; }
+.notice.error { background: #faece6; color: #822f1c; }
+footer { padding: 0 1rem 1.5rem; color: var(--muted); text-align: center; font-size: .75rem; }
+@media (max-width: 720px) {
+  .topbar { align-items: flex-start; flex-direction: column; }
+  .context-grid, .run-grid { grid-template-columns: 1fr 1fr; }
+  .context-grid button, .run-grid .actions { grid-column: 1 / -1; }
+  .panel-heading { align-items: flex-start; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #101b17; --panel: #172620; --ink: #ebf4ee; --muted: #a6b9ae; --line: #344b40; --accent: #62b58e; --accent-dark: #a0e0bd; }
+  .topbar { background: #0a1712; }
+  .badge, .notice { background: #243c30; color: #c1ecd0; }
+  .notice.error { background: #472c25; color: #ffd0be; }
+  button.secondary:hover:not(:disabled) { background: #243c30; }
+}

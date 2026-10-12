@@ -1,0 +1,29 @@
+{
+  "profile_version": 1,
+  "profiles": [
+    {
+      "id": "B0",
+      "population": 40,
+      "settlements": 3,
+      "years": 10,
+      "seed": 421337,
+      "description": "Escenario pequeño para corrección y trazas revisables."
+    },
+    {
+      "id": "B1",
+      "population": 1000,
+      "settlements": 10,
+      "years": 100,
+      "seed": 421338,
+      "description": "Costes por proceso, persistencia, recuperación y consultas."
+    },
+    {
+      "id": "B2",
+      "population": 10000,
+      "settlements": 50,
+      "years": 200,
+      "seed": 421339,
+      "description": "Curvas de escalado y carga histórica; la población evoluciona según sus políticas."
+    }
+  ]
+}

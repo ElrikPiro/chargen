@@ -1,0 +1,118 @@
+{
+  "world_id": 1,
+  "schema_version": 1,
+  "rules_version": 1,
+  "seed": 421337,
+  "start_year": 0,
+  "settlements": [
+    {
+      "id": 1,
+      "logical_id": 1001,
+      "name": "Bajo del Roble",
+      "culture_values": {"cultura::cooperacion": 50}
+    }
+  ],
+  "initial_people": [
+    {
+      "id": 1,
+      "logical_id": 2001,
+      "birth_year": -25,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {"gametes": ["ovum"], "can_gestate": true, "fertility_enabled": true},
+      "traits": {"cultura::cooperacion": 55},
+      "genome": {"loci": {}},
+      "last_widowed_year": null
+    },
+    {
+      "id": 2,
+      "logical_id": 2002,
+      "birth_year": -24,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {"gametes": ["sperm"], "can_gestate": false, "fertility_enabled": true},
+      "traits": {"cultura::cooperacion": 45},
+      "genome": {"loci": {}},
+      "last_widowed_year": null
+    },
+    {
+      "id": 3,
+      "logical_id": 2003,
+      "birth_year": -3,
+      "death_year": null,
+      "settlement_id": 1,
+      "household_id": 1,
+      "reproductive": {"gametes": [], "can_gestate": false, "fertility_enabled": false},
+      "traits": {"cultura::cooperacion": 60},
+      "genome": {"loci": {}},
+      "last_widowed_year": null
+    }
+  ],
+  "initial_households": [
+    {"id": 1, "logical_id": 3001, "kind": "family", "settlement_id": 1, "members": [1, 2, 3], "closed_year": null}
+  ],
+  "initial_unions": [
+    {"id": 1, "logical_id": 4001, "participants": [1, 2], "kind": "partnership", "validity": {"start": -5, "end_exclusive": null}}
+  ],
+  "initial_family_links": [
+    {"id": 1, "logical_id": 5001, "parent": 1, "child": 3, "kind": "biological_parent", "validity": {"start": -3, "end_exclusive": null}},
+    {"id": 2, "logical_id": 5002, "parent": 2, "child": 3, "kind": "biological_parent", "validity": {"start": -3, "end_exclusive": null}}
+  ],
+  "trait_catalog": [{"key": "cultura::cooperacion", "minimum": 0, "maximum": 100}],
+  "initial_population_profiles": [],
+  "policies": {
+    "mortality": {"default_probability_ppm": 500, "age_bands": []},
+    "unions": {
+      "enabled": true,
+      "minimum_age": 18,
+      "maximum_age": 60,
+      "formation_probability_ppm": 10000,
+      "separation_probability_ppm": 0,
+      "candidate_limit": 8,
+      "formation_attempts_per_person": 1,
+      "max_active_unions_per_person": 1,
+      "prohibited_kinship_generations": 2,
+      "allow_widowed_remarriage": true,
+      "kind": "partnership"
+    },
+    "births": {
+      "enabled": true,
+      "probability_ppm": 100000,
+      "minimum_gestational_age": 18,
+      "maximum_gestational_age": 45,
+      "require_active_union": true,
+      "required_contributor_gamete": "sperm",
+      "minimum_contributor_age": 18,
+      "allow_unknown_contributor": false,
+      "maximum_births_per_person_per_year": 1,
+      "minimum_years_between_births": 1,
+      "infant_mortality_probability_ppm": 0,
+      "child_reproductive_profiles": []
+    },
+    "adoption": {
+      "enabled": false,
+      "adopt_orphans": false,
+      "adoption_probability_ppm": 0,
+      "candidate_limit": 8,
+      "minor_age": 18,
+      "minimum_caregiver_age": 18,
+      "maximum_adoptions_per_year": 16,
+      "maximum_children_per_household": null,
+      "maximum_caregivers_per_child": 2,
+      "move_to_adoptive_household": true,
+      "add_household_care_links": true
+    },
+    "traits": {
+      "cultura::cooperacion": {
+        "parent_weight": 2,
+        "local_weight": 1,
+        "variation_max": 5,
+        "minimum": 0,
+        "maximum": 100
+      }
+    }
+  },
+  "genetics": {"loci": []}
+}

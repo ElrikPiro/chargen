@@ -1,0 +1,26 @@
+{
+    "nombre": 1,
+    "eventos": {
+        "nacimiento": NaN,
+        "muerte": NaN,
+        "matrimonio": NaN
+    },
+    "sexo": NaN,
+    "edad": {
+        "": NaN
+    },
+    "familia": 1,
+    "lugar_nacimiento": 1,
+    "lugar_residencia": NaN,
+    "clase_social": "Artesano",
+    "parientes": {
+        "padre": NaN,
+        "madre": NaN,
+        "conyugue": NaN,
+        "hijos": {
+            "len": NaN,
+            "lista": []
+        }
+    },
+    "personalidad": NaN
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chargen.local/schemas/scenario-v1.schema.json",
+  "title": "Chargen scenario version 1",
+  "description": "Wire shape for the deterministic E0/E1 scenario contract; semantic constraints are enforced by the Rust domain validator.",
+  "$ref": "#/$defs/Scenario",
+  "$defs": {
+    "DomainId": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "LogicalId": {"oneOf": [{"type": "string", "pattern": "^[0-9]{1,20}$"}, {"$ref": "#/$defs/DomainId"}]},
+    "Year": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647},
+    "TraitKey": {"type": "string", "pattern": "^[^:]+::[^:]+$"},
+    "TraitValues": {"type": "object", "propertyNames": {"$ref": "#/$defs/TraitKey"}, "additionalProperties": {"type": "integer", "minimum": -32768, "maximum": 32767}},
+    "YearInterval": {
+      "type": "object", "required": ["start", "end_exclusive"],
+      "properties": {"start": {"$ref": "#/$defs/Year"}, "end_exclusive": {"oneOf": [{"$ref": "#/$defs/Year"}, {"type": "null"}]}}
+    },
+    "Gamete": {"enum": ["ovum", "sperm", "other"]},
+    "ReproductiveProfile": {
+      "type": "object", "required": ["gametes", "can_gestate", "fertility_enabled"],
+      "properties": {"gametes": {"type": "array", "items": {"$ref": "#/$defs/Gamete"}, "uniqueItems": true}, "can_gestate": {"type": "boolean"}, "fertility_enabled": {"type": "boolean"}}
+    },
+    "HouseholdKind": {"oneOf": [{"enum": ["family", "collective", "single_person", "institution"]}, {"type": "object", "required": ["other"], "properties": {"other": {"type": "string"}}}]},
+    "UnionKind": {"oneOf": [{"enum": ["partnership", "marriage"]}, {"type": "object", "required": ["other"], "properties": {"other": {"type": "string"}}}]},
+    "Settlement": {
+      "type": "object", "required": ["id", "logical_id", "name", "culture_values"],
+      "properties": {"id": {"$ref": "#/$defs/DomainId"}, "logical_id": {"$ref": "#/$defs/LogicalId"}, "name": {"type": "string", "minLength": 1}, "culture_values": {"$ref": "#/$defs/TraitValues"}}
+    },
+    "Allele": {
+      "type": "object", "required": ["variant", "lineage", "inherited_from"],
+      "properties": {"variant": {"type": "string"}, "lineage": {"oneOf": [{"$ref": "#/$defs/LogicalId"}, {"type": "null"}]}, "inherited_from": {"oneOf": [{"$ref": "#/$defs/LogicalId"}, {"type": "null"}]}}
+    },
+    "Genome": {"type": "object", "required": ["loci"], "properties": {"loci": {"type": "object", "additionalProperties": {"type": "array", "prefixItems": [{"$ref": "#/$defs/Allele"}, {"$ref": "#/$defs/Allele"}], "minItems": 2, "maxItems": 2}}}},
+    "Person": {
+      "type": "object", "required": ["id", "logical_id", "birth_year", "death_year", "settlement_id", "household_id", "reproductive", "traits", "genome", "last_widowed_year"],
+      "properties": {
+        "id": {"$ref": "#/$defs/DomainId"}, "logical_id": {"$ref": "#/$defs/LogicalId"}, "birth_year": {"$ref": "#/$defs/Year"},
+        "death_year": {"oneOf": [{"$ref": "#/$defs/Year"}, {"type": "null"}]}, "settlement_id": {"$ref": "#/$defs/DomainId"},
+        "household_id": {"oneOf": [{"$ref": "#/$defs/DomainId"}, {"type": "null"}]}, "reproductive": {"$ref": "#/$defs/ReproductiveProfile"},
+        "traits": {"$ref": "#/$defs/TraitValues"}, "genome": {"$ref": "#/$defs/Genome"},
+        "last_widowed_year": {"oneOf": [{"$ref": "#/$defs/Year"}, {"type": "null"}]}
+      }
+    },
+    "Household": {
+      "type": "object", "required": ["id", "logical_id", "kind", "settlement_id", "members", "closed_year"],
+      "properties": {"id": {"$ref": "#/$defs/DomainId"}, "logical_id": {"$ref": "#/$defs/LogicalId"}, "kind": {"$ref": "#/$defs/HouseholdKind"}, "settlement_id": {"$ref": "#/$defs/DomainId"}, "members": {"type": "array", "items": {"$ref": "#/$defs/DomainId"}, "uniqueItems": true}, "closed_year": {"oneOf": [{"$ref": "#/$defs/Year"}, {"type": "null"}]}}
+    },
+    "Union": {
+      "type": "object", "required": ["id", "logical_id", "participants", "kind", "validity"],
+      "properties": {"id": {"$ref": "#/$defs/DomainId"}, "logical_id": {"$ref": "#/$defs/LogicalId"}, "participants": {"type": "array", "items": {"$ref": "#/$defs/DomainId"}, "minItems": 2, "uniqueItems": true}, "kind": {"$ref": "#/$defs/UnionKind"}, "validity": {"$ref": "#/$defs/YearInterval"}}
+    },
+    "FamilyLink": {
+      "type": "object", "required": ["id", "logical_id", "parent", "child", "kind", "validity"],
+      "properties": {"id": {"$ref": "#/$defs/DomainId"}, "logical_id": {"$ref": "#/$defs/LogicalId"}, "parent": {"$ref": "#/$defs/DomainId"}, "child": {"$ref": "#/$defs/DomainId"}, "kind": {"enum": ["biological_parent", "adoptive_parent", "caregiver"]}, "validity": {"$ref": "#/$defs/YearInterval"}}
+    },
+    "TraitDefinition": {
+      "type": "object", "required": ["key", "minimum", "maximum"],
+      "properties": {"key": {"$ref": "#/$defs/TraitKey"}, "minimum": {"type": "integer", "minimum": -32768, "maximum": 32767}, "maximum": {"type": "integer", "minimum": -32768, "maximum": 32767}}
+    },
+    "WeightedAgeBand": {
+      "type": "object", "required": ["minimum_age", "maximum_age", "weight"],
+      "properties": {"minimum_age": {"type": "integer", "minimum": 0, "maximum": 65535}, "maximum_age": {"type": "integer", "minimum": 0, "maximum": 65535}, "weight": {"type": "integer", "minimum": 1}}
+    },
+    "WeightedReproductiveProfile": {
+      "type": "object", "required": ["profile", "weight"],
+      "properties": {"profile": {"$ref": "#/$defs/ReproductiveProfile"}, "weight": {"type": "integer", "minimum": 1}}
+    },
+    "WeightedTraitValue": {
+      "type": "object", "required": ["value", "weight"],
+      "properties": {"value": {"type": "integer", "minimum": -32768, "maximum": 32767}, "weight": {"type": "integer", "minimum": 1}}
+    },
+    "InitialPopulationProfile": {
+      "type": "object", "required": ["settlement_id", "population_size", "household_size_minimum", "household_size_maximum", "household_kind", "age_bands", "reproductive_profiles", "trait_distributions"],
+      "properties": {
+        "settlement_id": {"$ref": "#/$defs/DomainId"}, "population_size": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "household_size_minimum": {"type": "integer", "minimum": 1, "maximum": 65535}, "household_size_maximum": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "household_kind": {"$ref": "#/$defs/HouseholdKind"}, "age_bands": {"type": "array", "items": {"$ref": "#/$defs/WeightedAgeBand"}},
+        "reproductive_profiles": {"type": "array", "items": {"$ref": "#/$defs/WeightedReproductiveProfile"}},
+        "trait_distributions": {"type": "object", "propertyNames": {"$ref": "#/$defs/TraitKey"}, "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/WeightedTraitValue"}}}
+      }
+    },
+    "MortalityPolicy": {
+      "type": "object", "required": ["default_probability_ppm", "age_bands"],
+      "properties": {"default_probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "age_bands": {"type": "array", "items": {"type": "object", "required": ["minimum_age", "maximum_age", "probability_ppm"], "properties": {"minimum_age": {"type": "integer"}, "maximum_age": {"oneOf": [{"type": "integer"}, {"type": "null"}]}, "probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}}}}}
+    },
+    "DemographicPolicies": {
+      "type": "object", "required": ["mortality", "unions", "births", "adoption", "traits"],
+      "properties": {
+        "mortality": {"$ref": "#/$defs/MortalityPolicy"},
+        "unions": {"type": "object", "required": ["enabled", "minimum_age", "maximum_age", "formation_probability_ppm", "separation_probability_ppm", "candidate_limit", "formation_attempts_per_person", "max_active_unions_per_person", "prohibited_kinship_generations", "allow_widowed_remarriage", "kind"], "properties": {"enabled": {"type": "boolean"}, "minimum_age": {"type": "integer"}, "maximum_age": {"oneOf": [{"type": "integer"}, {"type": "null"}]}, "formation_probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "separation_probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "candidate_limit": {"type": "integer", "minimum": 1}, "formation_attempts_per_person": {"type": "integer", "minimum": 0}, "max_active_unions_per_person": {"oneOf": [{"type": "integer"}, {"type": "null"}]}, "prohibited_kinship_generations": {"type": "integer", "minimum": 0, "maximum": 255}, "allow_widowed_remarriage": {"type": "boolean"}, "kind": {"$ref": "#/$defs/UnionKind"}}},
+        "births": {"type": "object", "required": ["enabled", "probability_ppm", "minimum_gestational_age", "maximum_gestational_age", "require_active_union", "required_contributor_gamete", "minimum_contributor_age", "allow_unknown_contributor", "maximum_births_per_person_per_year", "minimum_years_between_births", "infant_mortality_probability_ppm", "child_reproductive_profiles"], "properties": {"enabled": {"type": "boolean"}, "probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "minimum_gestational_age": {"type": "integer"}, "maximum_gestational_age": {"type": "integer"}, "require_active_union": {"type": "boolean"}, "required_contributor_gamete": {"oneOf": [{"$ref": "#/$defs/Gamete"}, {"type": "null"}]}, "minimum_contributor_age": {"type": "integer"}, "allow_unknown_contributor": {"type": "boolean"}, "maximum_births_per_person_per_year": {"type": "integer"}, "minimum_years_between_births": {"type": "integer", "minimum": 0, "maximum": 65535}, "infant_mortality_probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "child_reproductive_profiles": {"type": "array", "items": {"$ref": "#/$defs/WeightedReproductiveProfile"}}}},
+        "adoption": {"type": "object", "required": ["enabled", "adopt_orphans", "adoption_probability_ppm", "candidate_limit", "minor_age", "minimum_caregiver_age", "maximum_adoptions_per_year", "maximum_children_per_household", "maximum_caregivers_per_child", "move_to_adoptive_household", "add_household_care_links"], "properties": {"enabled": {"type": "boolean"}, "adopt_orphans": {"type": "boolean"}, "adoption_probability_ppm": {"type": "integer", "minimum": 0, "maximum": 1000000}, "candidate_limit": {"type": "integer", "minimum": 0}, "minor_age": {"type": "integer"}, "minimum_caregiver_age": {"type": "integer"}, "maximum_adoptions_per_year": {"type": "integer", "minimum": 0}, "maximum_children_per_household": {"oneOf": [{"type": "integer"}, {"type": "null"}]}, "maximum_caregivers_per_child": {"type": "integer", "minimum": 0}, "move_to_adoptive_household": {"type": "boolean"}, "add_household_care_links": {"type": "boolean"}}},
+        "traits": {"type": "object", "propertyNames": {"$ref": "#/$defs/TraitKey"}, "additionalProperties": {"type": "object", "required": ["parent_weight", "local_weight", "variation_max", "minimum", "maximum"], "properties": {"parent_weight": {"type": "integer", "minimum": 0}, "local_weight": {"type": "integer", "minimum": 0}, "variation_max": {"type": "integer"}, "minimum": {"type": "integer"}, "maximum": {"type": "integer"}}}}
+      }
+    },
+    "GeneticExpression": {
+      "oneOf": [
+        {"type": "object", "required": ["mode", "dominant_variants", "dominant_value", "recessive_value"], "properties": {"mode": {"const": "dominant"}, "dominant_variants": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}, "dominant_value": {"type": "integer"}, "recessive_value": {"type": "integer"}}},
+        {"type": "object", "required": ["mode", "values"], "properties": {"mode": {"const": "additive"}, "values": {"type": "object", "additionalProperties": {"type": "integer"}}}}
+      ]
+    },
+    "GeneticLocus": {
+      "type": "object", "required": ["id", "variants", "founder_distribution", "expression"],
+      "properties": {"id": {"type": "string"}, "variants": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}, "founder_distribution": {"type": "array", "items": {"type": "object", "required": ["variant", "weight"], "properties": {"variant": {"type": "string"}, "weight": {"type": "integer", "minimum": 1}}}}, "expression": {"$ref": "#/$defs/GeneticExpression"}}
+    },
+    "Scenario": {
+      "type": "object",
+      "required": ["world_id", "schema_version", "rules_version", "seed", "start_year", "settlements", "initial_people", "initial_households", "initial_unions", "initial_family_links", "trait_catalog", "initial_population_profiles", "policies", "genetics"],
+      "properties": {
+        "world_id": {"$ref": "#/$defs/DomainId"}, "schema_version": {"const": 1}, "rules_version": {"type": "integer", "minimum": 1}, "seed": {"$ref": "#/$defs/DomainId"}, "start_year": {"$ref": "#/$defs/Year"},
+        "settlements": {"type": "array", "items": {"$ref": "#/$defs/Settlement"}}, "initial_people": {"type": "array", "items": {"$ref": "#/$defs/Person"}},
+        "initial_households": {"type": "array", "items": {"$ref": "#/$defs/Household"}}, "initial_unions": {"type": "array", "items": {"$ref": "#/$defs/Union"}},
+        "initial_family_links": {"type": "array", "items": {"$ref": "#/$defs/FamilyLink"}}, "trait_catalog": {"type": "array", "items": {"$ref": "#/$defs/TraitDefinition"}},
+        "initial_population_profiles": {"type": "array", "items": {"$ref": "#/$defs/InitialPopulationProfile"}}, "policies": {"$ref": "#/$defs/DemographicPolicies"},
+        "genetics": {"type": "object", "required": ["loci"], "properties": {"loci": {"type": "array", "items": {"$ref": "#/$defs/GeneticLocus"}}}}
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[package]
+name = "chargen-query"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+chargen-domain.workspace = true
+chargen-store.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+chargen-engine.workspace = true
+serde_json.workspace = true
