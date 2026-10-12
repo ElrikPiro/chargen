@@ -1,0 +1,5 @@
+API smoke passed: scenario validation, create, annual commit, census/people queries and restart recovery.
+E1 black-box acceptance passed: exact births/deaths/census, historical genealogy, policy and initial branches, prefix rejection, pause/resume/cancel and subsequent resume, isolated export/restore, restart.
+E2 black-box acceptance passed: independently calculated birth batch 40/66, empty culture, household movement, profession and residence history, immutable traits, temporal affiliations, organization founders/dissolution, balances, route closure, edited future branch, export/restore and restart.
+E3 black-box acceptance passed: hand-calculated stock/cash, next-year prices, directed cargo-limited trade, physical scarcity vs insolvency, realized losses/death, temporary restriction expiry, exact failure/clamp, immutable past agenda, historical and branch isolation, paginated events, export/restore and restart.
+E4 black-box acceptance passed: independently calculated history, read-only dossiers, bounded genealogy, escaped Markdown, temporal branches/comparison, durable restored catalogs, validated binary import, isolation and restart.

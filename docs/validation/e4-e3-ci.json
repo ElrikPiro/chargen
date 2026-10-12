@@ -1,0 +1,26 @@
+{
+  "commit": "5b11a50de0936c9c5b79a76950538ae3e7d365a4",
+  "run_url": "https://github.com/ElrikPiro/chargen/actions/runs/38249080204",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "Verify (ubuntu-24.04)",
+      "conclusion": "success",
+      "url": "https://github.com/ElrikPiro/chargen/actions/runs/38249080204/job/114810375336",
+      "steps": []
+    },
+    {
+      "name": "Verify (windows-2022)",
+      "conclusion": "success",
+      "url": "https://github.com/ElrikPiro/chargen/actions/runs/38249080204/job/114810375631",
+      "steps": []
+    },
+    {
+      "name": "Compare Linux and Windows B0, E2-B0 and E3-B0 output",
+      "conclusion": "success",
+      "url": "https://github.com/ElrikPiro/chargen/actions/runs/38249080204/job/114812328787",
+      "steps": []
+    }
+  ],
+  "scope": "E3 baseline only; not validation of uncommitted E4 changes"
+}

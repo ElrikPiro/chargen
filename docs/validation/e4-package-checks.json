@@ -1,0 +1,50 @@
+{
+  "version": "0.5.0",
+  "platform": "linux-x86_64",
+  "base_commit": "5b11a50de0936c9c5b79a76950538ae3e7d365a4",
+  "source_dirty": true,
+  "binary_sha256": "a0c9d5f40665c2ace553a4ab610d684fb0a6e9303709e6d5535a91676df5a83f",
+  "checks": {
+    "rust_tests": 100,
+    "clippy": "passed -D warnings",
+    "rustfmt": "passed",
+    "typescript": "passed 5.9.3",
+    "javascript_tests": {
+      "editor": 8,
+      "amounts": 2
+    },
+    "static_web": "passed",
+    "package_manifest": "passed",
+    "embedded_resource_sha256_matches_source": true,
+    "packaged_api_acceptance": {
+      "smoke": "passed",
+      "e1": "passed",
+      "e2": "passed",
+      "e3": "passed",
+      "e4": "passed"
+    },
+    "packaged_deterministic_digests": {
+      "b0": "8abe550c435eed83",
+      "e2-b0": "53ce4b5fcd174c7c",
+      "e3-b0": "9b8bb7d23681a2da"
+    },
+    "legacy_sha256_entries_unchanged": 60
+  },
+  "browser": {
+    "create_edit_validate_simulate": "passed",
+    "historical_dossier_tree_and_markdown": "passed",
+    "keyboard_tabs_and_genealogy": "passed",
+    "historical_branch_and_comparison": "passed",
+    "pause_reopen_resume_cancel": "passed",
+    "local_disconnect_reconnect": "passed",
+    "incompatible_api_rejection": "passed with local API99 fixture",
+    "download_and_import_copy": "passed",
+    "agenda_edit_and_economic_views": "passed",
+    "narrow_viewport_width_pixels": 614
+  },
+  "limitations": [
+    "Windows E4 CI pending; published E3 baseline CI passed both platforms",
+    "No full OS restart or specific screen-reader audit",
+    "E5 population/history performance target not claimed"
+  ]
+}

@@ -4,137 +4,236 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>Chargen · simulación local</title>
+    <title>Chargen · historia local</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#workspace">Saltar a la vista actual</a>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">Chargen · prototipo E3</p>
-        <h1>Historia local de población y economía</h1>
+      <div class="brand">
+        <p class="eyebrow">Chargen · laboratorio histórico</p>
+        <h1>Historia de población y economía</h1>
       </div>
-      <span id="connection" class="connection" aria-live="polite">Comprobando servicio…</span>
+      <div class="service-status">
+        <span id="connection" class="connection" role="status" aria-live="polite">Comprobando servicio local…</span>
+        <button id="retry-connection" class="topbar-button" type="button">Reconectar</button>
+      </div>
     </header>
 
-    <main>
-      <section class="panel" aria-labelledby="context-heading">
+    <nav class="primary-nav" aria-label="Vistas principales" role="tablist">
+      <button id="tab-library" type="button" role="tab" aria-controls="view-library" aria-selected="true" tabindex="0" data-view="library">Biblioteca</button>
+      <button id="tab-scenario" type="button" role="tab" aria-controls="view-scenario" aria-selected="false" tabindex="-1" data-view="scenario">Escenario</button>
+      <button id="tab-simulation" type="button" role="tab" aria-controls="view-simulation" aria-selected="false" tabindex="-1" data-view="simulation">Simulación</button>
+      <button id="tab-history" type="button" role="tab" aria-controls="view-history" aria-selected="false" tabindex="-1" data-view="history">Historia</button>
+      <button id="tab-records" type="button" role="tab" aria-controls="view-records" aria-selected="false" tabindex="-1" data-view="records">Familias y fichas</button>
+      <button id="tab-economy" type="button" role="tab" aria-controls="view-economy" aria-selected="false" tabindex="-1" data-view="economy">Mercados</button>
+      <button id="tab-branches" type="button" role="tab" aria-controls="view-branches" aria-selected="false" tabindex="-1" data-view="branches">Ramas</button>
+    </nav>
+
+    <main id="workspace">
+      <section class="panel context-panel" aria-labelledby="context-heading">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Mundo guardado</p>
-            <h2 id="context-heading">Abrir contexto</h2>
+            <p class="eyebrow">Contexto compartido</p>
+            <h2 id="context-heading">Mundo, rama y año</h2>
           </div>
-          <button id="refresh-worlds" class="secondary">Actualizar</button>
+          <div class="actions">
+            <button id="return-primary" class="secondary" type="button">Volver a biblioteca activa</button>
+            <button id="refresh-worlds" class="secondary" type="button">Actualizar biblioteca</button>
+          </div>
         </div>
         <div class="context-grid">
+          <label>Fuente de datos
+            <select id="data-source"><option value="/api">Biblioteca activa</option></select>
+          </label>
           <label>Mundo
             <select id="world-select"><option value="">Selecciona o crea un mundo</option></select>
           </label>
           <label>Rama
             <select id="branch-select"><option value="">Selecciona una rama</option></select>
           </label>
-          <label>Año de cierre
+          <label>Año de consulta
             <input id="year-input" type="number" value="0" step="1" />
           </label>
-          <button id="load-census">Consultar censo</button>
+          <button id="load-census" type="button">Consultar censo</button>
         </div>
-        <p id="context-note" class="muted">El estado y las consultas quedan fijados al año de cierre seleccionado.</p>
+        <p id="context-note" class="muted">Cada consulta usa el cierre anual elegido. El contexto se restaura al volver a abrir esta aplicación.</p>
       </section>
 
-      <section class="panel" aria-labelledby="territory-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Vista temporal E2</p>
-            <h2 id="territory-heading">Territorio, cultura e instituciones</h2>
+      <section id="view-library" class="workspace-view" role="tabpanel" aria-labelledby="tab-library" data-view-panel="library">
+        <div class="view-intro">
+          <div><p class="eyebrow">Tus mundos</p><h2>Biblioteca local</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
+        </div>
+        <section class="panel" aria-labelledby="library-heading">
+          <div class="panel-heading">
+            <div><h3 id="library-heading">Mundos guardados</h3><p class="muted">Abre un mundo para consultar su historia o preparar una rama.</p></div>
+            <button id="new-scenario" type="button">Preparar escenario</button>
           </div>
-        </div>
-        <div class="context-grid">
-          <label>Asentamiento
-            <select id="settlement-select"><option value="">Todos</option></select>
-          </label>
-          <label>Persona para sus intervalos
-            <select id="person-select"><option value="">Selecciona una persona</option></select>
-          </label>
-          <button id="load-e2">Consultar vista histórica</button>
-        </div>
-        <div id="territory-results" class="results" aria-live="polite">
-          <p class="muted">La vista usa el mismo mundo, rama y año que el censo.</p>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="economy-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Vista temporal E3</p>
-            <h2 id="economy-heading">Mercados y eventos realizados</h2>
-          </div>
-          <button id="load-e3" class="secondary">Consultar economía y eventos</button>
-        </div>
-        <p class="muted">Las consultas usan el mismo cierre seleccionado. La agenda futura del escenario no se presenta como historia realizada.</p>
-        <div id="economy-results" class="results" aria-live="polite">
-          <p class="muted">Selecciona un mundo, una rama y un año para ver sus balances y sucesos.</p>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="scenario-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Escenario local</p>
-            <h2 id="scenario-heading">Validar y crear un mundo</h2>
-          </div>
-          <span class="badge">JSON versionado</span>
-        </div>
-        <label for="scenario-json">Escenario</label>
-        <textarea id="scenario-json" spellcheck="false" aria-describedby="scenario-help"></textarea>
-        <p id="scenario-help" class="muted">Edita una copia del escenario de demostración. Los parámetros de demostración son ficticios.</p>
-        <div class="actions">
-          <button id="load-e2-demo" class="secondary">Cargar demo E2</button>
-          <button id="load-e3-demo" class="secondary">Cargar demo E3</button>
-          <button id="validate-scenario" class="secondary">Validar</button>
-          <button id="create-world">Crear mundo</button>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="run-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Evolución anual</p>
-            <h2 id="run-heading">Ejecutar y pausar</h2>
-          </div>
-          <span id="run-status" class="badge">Sin trabajo activo</span>
-        </div>
-        <div class="run-grid">
-          <label>Simular hasta el cierre del año
-            <input id="through-year" type="number" value="10" step="1" min="0" />
-          </label>
+          <div id="world-library" class="world-list" aria-live="polite"><p class="muted">Conectando con el servicio local…</p></div>
+        </section>
+        <section class="panel" aria-labelledby="library-actions-heading">
+          <div class="panel-heading"><div><h3 id="library-actions-heading">Copias y recuperación</h3></div></div>
+          <p class="muted">Los escenarios descargados son copias JSON que puedes importar después para restaurar o duplicar un diseño.</p>
           <div class="actions">
-            <button id="start-run">Iniciar</button>
-            <button id="pause-run" class="secondary" disabled>Pausar</button>
-            <button id="resume-run" class="secondary" disabled>Reanudar</button>
-            <button id="cancel-run" class="danger" disabled>Cancelar</button>
+            <button id="export-scenario" class="secondary" type="button">Descargar escenario</button>
+            <label class="file-button secondary">Importar escenario<input id="import-scenario" type="file" accept="application/json,.json" /></label>
+            <button id="export-backup" class="secondary" type="button">Descargar copia completa</button>
+            <label class="file-button secondary">Restaurar copia completa<input id="import-backup" type="file" accept="application/octet-stream,.sqlite,.db" /></label>
           </div>
-        </div>
-        <progress id="run-progress" max="1" value="0"></progress>
-        <p id="progress-label" class="muted" aria-live="polite">Los años confirmados se publican después de guardar sus eventos y estado.</p>
+          <p id="restore-status" class="muted" role="status" aria-live="polite">Las copias completas importadas quedan disponibles en el selector de fuente.</p>
+          <p id="draft-status" class="muted" role="status" aria-live="polite">El borrador se guarda automáticamente en este navegador.</p>
+        </section>
       </section>
 
-      <section class="panel" aria-labelledby="results-heading">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Consulta</p>
-            <h2 id="results-heading">Censo del asentamiento</h2>
+      <section id="view-scenario" class="workspace-view" role="tabpanel" aria-labelledby="tab-scenario" data-view-panel="scenario" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">Diseño configurable</p><h2>Escenario y agenda</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
+        </div>
+        <section class="panel" aria-labelledby="scenario-heading">
+          <div class="panel-heading">
+            <div><h3 id="scenario-heading">Editor estructurado</h3><p id="scenario-help" class="muted">Ajusta parámetros, catálogos, listas y mapas. Los cambios se guardan como borrador en este navegador.</p></div>
+            <span id="scenario-version" class="badge">Sin escenario</span>
           </div>
+          <div class="actions scenario-actions">
+            <button id="load-e2-demo" class="secondary" type="button">Cargar demo territorial</button>
+            <button id="load-e3-demo" class="secondary" type="button">Cargar demo económica</button>
+            <button id="validate-scenario" class="secondary" type="button">Validar escenario</button>
+            <button id="create-world" type="button">Guardar como mundo</button>
+          </div>
+          <div id="validation-results" class="validation-results" aria-live="polite"></div>
+          <div id="scenario-form" class="scenario-form" aria-label="Parámetros editables del escenario">
+            <p class="muted">Carga una demo o abre un escenario guardado para editar sus parámetros.</p>
+          </div>
+          <details class="advanced-json">
+            <summary>JSON avanzado (opcional)</summary>
+            <p class="muted">Este modo permite revisar o pegar el escenario completo. Pulsa «Aplicar JSON» para cargarlo en los formularios.</p>
+            <label for="scenario-json">Escenario JSON</label>
+            <textarea id="scenario-json" spellcheck="false" aria-describedby="scenario-help"></textarea>
+            <div class="actions"><button id="apply-json" class="secondary" type="button">Aplicar JSON al editor</button></div>
+          </details>
+        </section>
+      </section>
+
+      <section id="view-simulation" class="workspace-view" role="tabpanel" aria-labelledby="tab-simulation" data-view-panel="simulation" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">Ejecución anual</p><h2>Simular y controlar trabajos</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
         </div>
-        <div id="results" class="results" aria-live="polite">
-          <p class="muted">Selecciona un mundo, una rama y un año para consultar.</p>
+        <section class="panel" aria-labelledby="run-heading">
+          <div class="panel-heading"><div><h3 id="run-heading">Corrida de la rama</h3><p class="muted">Los años confirmados aparecen en las consultas históricas.</p></div><span id="run-status" class="badge">Sin trabajo activo</span></div>
+          <div class="run-grid">
+            <label>Simular hasta el cierre del año<input id="through-year" type="number" value="10" step="1" /></label>
+            <div class="actions">
+              <button id="start-run" type="button">Iniciar</button>
+              <button id="pause-run" class="secondary" type="button" disabled>Pausar</button>
+              <button id="resume-run" class="secondary" type="button" disabled>Reanudar</button>
+              <button id="cancel-run" class="danger" type="button" disabled>Cancelar</button>
+            </div>
+          </div>
+          <progress id="run-progress" max="1" value="0" aria-label="Progreso de simulación"></progress>
+          <p id="progress-label" class="muted" role="status" aria-live="polite">El trabajo se puede recuperar si se cierra y vuelve a abrir el navegador.</p>
+        </section>
+        <section class="panel" aria-labelledby="agenda-heading">
+          <div class="panel-heading"><div><h3 id="agenda-heading">Agenda del escenario</h3><p class="muted">Edita fechas, prioridad, filtros y efectos en la vista Escenario.</p></div><button class="secondary navigate-button" data-go="scenario" type="button">Editar agenda</button></div>
+          <div id="agenda-preview" class="results"><p class="muted">Carga o abre un escenario para ver sus eventos programados.</p></div>
+        </section>
+      </section>
+
+      <section id="view-history" class="workspace-view" role="tabpanel" aria-labelledby="tab-history" data-view-panel="history" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">Consulta temporal</p><h2>Territorio, cultura e instituciones</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
         </div>
+        <section class="panel" aria-labelledby="census-heading">
+          <div class="panel-heading"><div><h3 id="census-heading"><span id="results-heading">Censo por asentamiento</span></h3><p class="muted">La tabla admite desplazamiento horizontal si hay muchas columnas.</p></div><button class="secondary navigate-button" data-go="library" type="button">Elegir mundo</button></div>
+          <div id="results" class="results" aria-live="polite"><p class="muted">Selecciona mundo, rama y año para consultar.</p></div>
+        </section>
+        <section class="panel" aria-labelledby="territory-heading">
+          <div class="panel-heading"><div><h3 id="territory-heading">Asentamientos y cultura</h3><p class="muted">Incluye población, rutas, movimientos, cultura, instituciones y organizaciones.</p></div><button id="load-e2" type="button">Consultar vista histórica</button></div>
+          <div class="context-grid compact-grid">
+            <label>Asentamiento<select id="settlement-select"><option value="">Todos</option></select></label>
+            <label>Persona para intervalos<select id="person-select"><option value="">Selecciona una persona</option></select></label>
+          </div>
+          <div id="territory-results" class="results" aria-live="polite"><p class="muted">La vista usa el mundo, rama y año seleccionados arriba.</p></div>
+        </section>
+      </section>
+
+      <section id="view-records" class="workspace-view" role="tabpanel" aria-labelledby="tab-records" data-view-panel="records" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">F10 · consultas históricas</p><h2>Hogares, fichas y genealogía</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
+        </div>
+        <section class="panel" aria-labelledby="households-heading">
+          <div class="panel-heading"><div><h3 id="households-heading">Hogares del año</h3><p class="muted">Carga más resultados en grupos acotados.</p></div><button id="load-households" type="button">Consultar hogares</button></div>
+          <div id="household-results" class="results" aria-live="polite"><p class="muted">Selecciona mundo, rama y año para consultar hogares.</p></div>
+        </section>
+        <section class="panel" aria-labelledby="person-heading">
+          <div class="panel-heading"><div><h3 id="person-heading">Ficha de persona</h3><p class="muted">Proyección al año elegido, relaciones, cronología y afiliaciones conocidas.</p></div></div>
+          <div class="context-grid compact-grid">
+            <label>Persona<select id="record-person-select"><option value="">Consultar personas para elegir</option></select></label>
+            <button id="load-record-people" class="secondary" type="button">Consultar personas</button>
+            <label>Profundidad del árbol<input id="tree-depth" type="number" min="1" max="12" value="5" /></label>
+            <button id="load-person" type="button">Abrir ficha y árbol</button>
+          </div>
+          <div class="actions people-page-controls">
+            <button id="load-more-people" class="secondary" type="button" disabled>Cargar más personas</button>
+            <span id="people-page-status" class="muted" role="status" aria-live="polite">Carga la vista histórica para llenar el selector.</span>
+          </div>
+          <div class="context-grid compact-grid settlement-record-controls">
+            <label>Asentamiento<select id="record-settlement-select"><option value="">Consultar la vista histórica para elegir</option></select></label>
+            <button id="load-settlement-record" type="button">Abrir ficha del asentamiento</button>
+          </div>
+          <div id="person-record" class="results" aria-live="polite"><p class="muted">Elige una persona para abrir su ficha histórica.</p></div>
+          <div id="person-events" class="results" aria-live="polite"><p class="muted">La cronología aparecerá junto a la ficha de persona.</p></div>
+          <div id="family-tree" class="results tree-results" aria-live="polite"><p class="muted">El árbol se mostrará también en forma de tabla accesible.</p></div>
+          <div class="actions"><button id="export-person" class="secondary" type="button" disabled>Exportar ficha Markdown</button></div>
+        </section>
+      </section>
+
+      <section id="view-economy" class="workspace-view" role="tabpanel" aria-labelledby="tab-economy" data-view-panel="economy" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">E3 · economía histórica</p><h2>Mercados y sucesos realizados</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
+        </div>
+        <section class="panel" aria-labelledby="economy-heading">
+          <div class="panel-heading"><div><h3 id="economy-heading">Balances, bienes e intercambios</h3><p class="muted">Los sucesos muestran efectos realizados hasta el cierre elegido.</p></div><button id="load-e3" type="button">Consultar mercados y eventos</button></div>
+          <div id="economy-results" class="results" aria-live="polite"><p class="muted">Selecciona mundo, rama y año para consultar.</p></div>
+        </section>
+      </section>
+
+      <section id="view-branches" class="workspace-view" role="tabpanel" aria-labelledby="tab-branches" data-view-panel="branches" hidden>
+        <div class="view-intro">
+          <div><p class="eyebrow">Edición histórica</p><h2>Crear y comparar ramas</h2></div>
+          <span class="context-stamp" aria-live="polite"></span>
+        </div>
+        <section class="panel" aria-labelledby="branch-heading">
+          <div class="panel-heading"><div><h3 id="branch-heading">Editar futuro desde el corte</h3><p class="muted">Primero carga el escenario del mundo; luego modifica parámetros o agenda y crea una rama hija.</p></div><button id="load-world-scenario" class="secondary" type="button">Abrir escenario del mundo</button></div>
+          <div class="context-grid branch-grid">
+            <label>Nombre de rama<input id="new-branch-id" type="text" value="alternativa" maxlength="80" /></label>
+            <label>Corte histórico<input id="branch-cut-year" type="number" step="1" /></label>
+            <button id="create-branch" type="button">Crear rama con escenario editado</button>
+          </div>
+          <p class="muted">La rama conserva la historia hasta el corte y aplica el escenario editado desde el futuro.</p>
+        </section>
+        <section class="panel" aria-labelledby="compare-heading">
+          <div class="panel-heading"><div><h3 id="compare-heading">Comparar dos contextos</h3><p class="muted">Compara población por asentamiento entre ramas o cierres distintos.</p></div></div>
+          <div class="context-grid compare-grid">
+            <label>Rama izquierda<select id="compare-left-branch"><option value="">Usar rama actual</option></select></label>
+            <label>Año izquierdo<input id="compare-left-year" type="number" step="1" /></label>
+            <label>Rama derecha<select id="compare-right-branch"><option value="">Selecciona una rama</option></select></label>
+            <label>Año derecho<input id="compare-right-year" type="number" step="1" /></label>
+            <button id="compare-branches" type="button">Comparar censos</button>
+          </div>
+          <div id="comparison-results" class="results" aria-live="polite"><p class="muted">Selecciona dos cierres para comparar sus resultados.</p></div>
+        </section>
       </section>
 
       <section id="messages" class="messages" aria-live="polite" aria-atomic="true"></section>
     </main>
 
-    <footer>
-      <p>Servidor local · sin recursos externos · años mostrados al cierre anual</p>
-    </footer>
+    <footer><p>Servicio local · guardado en el navegador y en el mundo seleccionado · consultas al cierre anual</p></footer>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

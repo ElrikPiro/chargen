@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use chargen_domain::{
     CultureAggregate, EconomicGoodLedger, EconomicGroupLedger, EconomicMoneyLedger, EconomicTrade,
@@ -13,6 +14,10 @@ use chargen_store::{HistoryStore, StoreError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub mod narrative;
+pub mod presentation;
+pub use presentation::*;
+
 #[derive(Debug, Error)]
 pub enum QueryError {
     #[error(transparent)]
@@ -21,10 +26,16 @@ pub enum QueryError {
     Scenario(#[from] serde_json::Error),
     #[error("person {0} does not exist in the selected historical state")]
     PersonNotFound(u64),
+    #[error("union {0} does not exist at the selected historical close")]
+    UnionNotFound(u64),
     #[error("organization {0} does not exist at the selected historical close")]
     OrganizationNotFound(u64),
     #[error("institution {0} does not exist at the selected historical close")]
     InstitutionNotFound(String),
+    #[error("household {0} does not exist at the selected historical close")]
+    HouseholdNotFound(u64),
+    #[error("settlement {0} does not exist at the selected historical close")]
+    SettlementNotFound(u64),
     #[error("historical page must have a limit from 1 to 500")]
     InvalidPage,
 }
@@ -46,6 +57,7 @@ pub struct HistoryQuery {
     state: State,
     scenario: Scenario,
     store: HistoryStore,
+    presentation_cache: Arc<PresentationCache>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -286,6 +298,7 @@ pub struct ResidenceAtClose {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProfessionAtClose {
     pub profession_id: chargen_domain::ProfessionId,
+    pub profession_name: Option<String>,
     pub validity: chargen_domain::YearInterval,
 }
 
@@ -328,6 +341,24 @@ impl HistoryQuery {
         branch_id: impl Into<String>,
         year: Year,
     ) -> QueryResult<Self> {
+        Self::open_with_presentation_cache(
+            path,
+            world_id,
+            branch_id,
+            year,
+            Arc::new(PresentationCache::default()),
+        )
+    }
+
+    /// Open a historical view with a caller-owned presentation cache that can be shared by
+    /// query contexts belonging to the same service. The cache contains no simulation state.
+    pub fn open_with_presentation_cache(
+        path: impl AsRef<Path>,
+        world_id: impl Into<String>,
+        branch_id: impl Into<String>,
+        year: Year,
+        presentation_cache: Arc<PresentationCache>,
+    ) -> QueryResult<Self> {
         let store = HistoryStore::open_existing(path)?;
         let world_id = world_id.into();
         let branch_id = branch_id.into();
@@ -341,6 +372,7 @@ impl HistoryQuery {
             state,
             scenario,
             store,
+            presentation_cache,
         })
     }
 
@@ -884,6 +916,14 @@ impl HistoryQuery {
             .filter(|interval| interval.validity.start <= self.year)
             .map(|interval| ProfessionAtClose {
                 profession_id: interval.profession_id.clone(),
+                profession_name: self
+                    .scenario
+                    .territory
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|territory| territory.professions.iter())
+                    .find(|definition| definition.id == interval.profession_id)
+                    .map(|definition| definition.name.clone()),
                 validity: visible_interval(interval.validity, self.year),
             })
             .collect();
@@ -1082,8 +1122,12 @@ fn visible_interval(mut interval: YearInterval, cutoff: Year) -> YearInterval {
 }
 
 fn person_record(person: &Person, year: Year) -> PersonRecord {
+    let mut projected_person = person.clone();
+    projected_person.death_year = projected_person
+        .death_year
+        .filter(|death_year| *death_year <= year);
     PersonRecord {
-        person: person.clone(),
+        person: projected_person,
         age_at_close: person.age_at_close(year),
         alive_at_close: person.alive_at_close(year),
     }
@@ -1125,7 +1169,10 @@ fn traverse_relations(
                     }
                     output.push(GenealogyRelation {
                         relative: person_record(person, year),
-                        link: (*link).clone(),
+                        link: FamilyLink {
+                            validity: visible_interval(link.validity, year),
+                            ..(*link).clone()
+                        },
                         distance,
                     });
                     if seen_people.insert(to) {
@@ -1153,7 +1200,7 @@ mod tests {
         DirectedRoute, EntityRef, EventEffect, EventPopulationFilter, FamilyLinkId, FamilyLinkKind,
         GeneticCatalog, Genome, HistoricalEventKind, LogicalId, MigrationPolicy, Person,
         ReproductiveProfile, Scenario, ScheduledEvent, Settlement, TerritoryConfig,
-        TraitDefinition, WorldId,
+        TraitDefinition, Union, UnionId, UnionKind, WorldId,
     };
     use chargen_engine::Engine;
     use std::collections::{BTreeMap, BTreeSet};
@@ -1355,6 +1402,251 @@ mod tests {
                 FamilyLinkKind::AdoptiveParent,
             ])
         );
+        let page = query
+            .genealogy_page(
+                PersonId(2),
+                GenealogyDirection::Ancestors,
+                Vec::new(),
+                4,
+                0,
+                1,
+            )
+            .unwrap();
+        assert_eq!(page.total, 2);
+        assert!(!page.truncated);
+        assert_eq!(page.relations.len(), 1);
+        let second_page = query
+            .genealogy_page(
+                PersonId(2),
+                GenealogyDirection::Ancestors,
+                Vec::new(),
+                4,
+                1,
+                1,
+            )
+            .unwrap();
+        assert_eq!(second_page.total, 2);
+        assert_eq!(second_page.relations.len(), 1);
+        assert_eq!(
+            second_page.relations[0].link.kind,
+            FamilyLinkKind::AdoptiveParent
+        );
+        let adoption_only = query
+            .genealogy_page(
+                PersonId(2),
+                GenealogyDirection::Ancestors,
+                vec![FamilyLinkKind::AdoptiveParent],
+                4,
+                0,
+                10,
+            )
+            .unwrap();
+        assert_eq!(adoption_only.total, 1);
+        assert_eq!(
+            adoption_only.relations[0].link.kind,
+            FamilyLinkKind::AdoptiveParent
+        );
+        assert!(!page.relations[0].presentation.name.is_empty());
+    }
+
+    #[test]
+    fn person_dossier_caps_family_rows_and_exposes_complete_paged_total() {
+        let temp = TempWorkspace::new();
+        let scenario = scenario();
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                "201",
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        let mut close = engine.advance_year(None).unwrap();
+        let child_template = close.state.persons[&PersonId(2)].clone();
+        for index in 0..101_u64 {
+            let person_id = PersonId(index + 3);
+            let mut child = child_template.clone();
+            child.id = person_id;
+            child.logical_id = LogicalId(10_000 + index);
+            child.birth_year = Year(0);
+            child.death_year = None;
+            close.state.persons.insert(person_id, child);
+
+            let link_id = FamilyLinkId(index + 3);
+            let kind = match index % 3 {
+                0 => FamilyLinkKind::BiologicalParent,
+                1 => FamilyLinkKind::AdoptiveParent,
+                _ => FamilyLinkKind::Caregiver,
+            };
+            close.state.family_links.insert(
+                link_id,
+                FamilyLink {
+                    id: link_id,
+                    logical_id: LogicalId(20_000 + index),
+                    parent: PersonId(1),
+                    child: person_id,
+                    kind,
+                    validity: chargen_domain::YearInterval {
+                        start: Year(0),
+                        end_exclusive: None,
+                    },
+                },
+            );
+        }
+        close.state.next_person_id = 104;
+        close.state.next_family_link_id = 104;
+        store
+            .acquire_writer("201", "main")
+            .unwrap()
+            .commit_year(&close)
+            .unwrap();
+
+        let query = HistoryQuery::open(temp.db(), "201", "main", Year(0)).unwrap();
+        let dossier = query.person_dossier(PersonId(1)).unwrap();
+        assert_eq!(dossier.family_links.len(), PRESENTATION_PAGE_LIMIT);
+        assert_eq!(dossier.family_links_total, 103);
+        assert!(dossier.family_links_truncated);
+
+        let first_page = query
+            .genealogy_page(
+                PersonId(1),
+                GenealogyDirection::Descendants,
+                Vec::new(),
+                1,
+                0,
+                PRESENTATION_PAGE_LIMIT,
+            )
+            .unwrap();
+        let next_page = query
+            .genealogy_page(
+                PersonId(1),
+                GenealogyDirection::Descendants,
+                Vec::new(),
+                1,
+                PRESENTATION_PAGE_LIMIT,
+                PRESENTATION_PAGE_LIMIT,
+            )
+            .unwrap();
+        assert_eq!(first_page.total, 103);
+        assert!(!first_page.truncated);
+        assert_eq!(first_page.relations.len(), PRESENTATION_PAGE_LIMIT);
+        assert_eq!(next_page.total, first_page.total);
+        assert_eq!(next_page.relations.len(), 3);
+        assert!(next_page
+            .relations
+            .iter()
+            .all(|relation| !relation.presentation.name.is_empty()));
+        assert!(query
+            .export_person_markdown(PersonId(1))
+            .unwrap()
+            .contains("consulta el árbol genealógico con paginación"));
+    }
+
+    #[test]
+    fn dossier_and_union_member_pages_preserve_multiple_unions_and_cutoff_intervals() {
+        let temp = TempWorkspace::new();
+        let mut scenario = scenario();
+        let template = scenario.initial_people[1].clone();
+        for id in 3..=105_u64 {
+            let mut participant = template.clone();
+            participant.id = PersonId(id);
+            participant.logical_id = LogicalId(10_000 + id);
+            participant.birth_year = Year(-30);
+            scenario.initial_people.push(participant);
+        }
+        scenario.initial_family_links.clear();
+        let participants = (1..=105_u64).map(PersonId).collect::<BTreeSet<_>>();
+        scenario.initial_unions = vec![
+            Union {
+                id: UnionId(1),
+                logical_id: LogicalId(401),
+                participants: BTreeSet::from([PersonId(1), PersonId(2)]),
+                kind: UnionKind::Partnership,
+                validity: YearInterval {
+                    start: Year(-2),
+                    end_exclusive: Some(Year(0)),
+                },
+            },
+            Union {
+                id: UnionId(2),
+                logical_id: LogicalId(402),
+                participants,
+                kind: UnionKind::Other("colectiva".into()),
+                validity: YearInterval {
+                    start: Year(0),
+                    end_exclusive: None,
+                },
+            },
+        ];
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                "201",
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        let close = engine.advance_year(None).unwrap();
+        store
+            .acquire_writer("201", "main")
+            .unwrap()
+            .commit_year(&close)
+            .unwrap();
+
+        let query = HistoryQuery::open(temp.db(), "201", "main", Year(0)).unwrap();
+        let dossier = query.person_dossier(PersonId(1)).unwrap();
+        assert_eq!(dossier.unions_total, 2);
+        assert_eq!(dossier.unions.len(), 2);
+        let ongoing = dossier
+            .unions
+            .iter()
+            .find(|union| union.union_id == UnionId(2))
+            .unwrap();
+        assert!(ongoing.active_at_close);
+        assert_eq!(ongoing.validity.end_exclusive, None);
+        let ended = dossier
+            .unions
+            .iter()
+            .find(|union| union.union_id == UnionId(1))
+            .unwrap();
+        assert!(!ended.active_at_close);
+        assert_eq!(ended.validity.end_exclusive, Some(Year(0)));
+        assert_eq!(ended.kind, UnionKind::Partnership);
+
+        assert_eq!(ongoing.kind, UnionKind::Other("colectiva".into()));
+        assert_eq!(ongoing.participants_total, 105);
+        assert_eq!(ongoing.participants.len(), PRESENTATION_PAGE_LIMIT);
+        assert!(ongoing.participants_truncated);
+
+        let next_participants = query.union_participants_page(UnionId(2), 100, 100).unwrap();
+        assert_eq!(next_participants.total, 105);
+        assert_eq!(next_participants.offset, 100);
+        assert_eq!(next_participants.participants.len(), 5);
+        assert!(!next_participants.truncated);
+        assert!(next_participants
+            .participants
+            .iter()
+            .all(|participant| !participant.presentation.name.is_empty()));
+
+        let next_unions = query.person_unions_page(PersonId(1), 1, 1).unwrap();
+        assert_eq!(next_unions.total, 2);
+        assert_eq!(next_unions.unions.len(), 1);
+        assert!(!next_unions.truncated);
+        assert_eq!(next_unions.unions[0].union_id, UnionId(2));
     }
 
     #[test]
@@ -1450,6 +1742,12 @@ mod tests {
             Year(1)
         );
         assert!(child_view.person(PersonId(3)).is_none());
+        let not_yet_known = child_view.person_dossier(PersonId(3)).unwrap();
+        assert_eq!(not_yet_known.status, PersonVisibility::NotKnownAtYear);
+        assert!(not_yet_known.record.is_none());
+        assert!(not_yet_known.presentation.is_none());
+        assert!(not_yet_known.timeline.is_empty());
+        assert!(not_yet_known.fact_fingerprint.is_none());
         assert_eq!(
             mother_view
                 .genealogy(PersonId(2), 4)
@@ -1468,6 +1766,122 @@ mod tests {
             .events_for_person(PersonId(2))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn settlement_markdown_escapes_adversarial_names_and_newlines() {
+        let temp = TempWorkspace::new();
+        let mut scenario = scenario();
+        scenario.settlements[0].name =
+            "## Cabecera\n<script>alert(1)</script> [abrir](javascript:alert(2)) | fin".into();
+        scenario.initial_people[0].death_year = Some(Year(-10));
+        scenario.initial_family_links.clear();
+        let validated = scenario.validate().unwrap();
+        let initial = Engine::from_scenario(validated.clone())
+            .unwrap()
+            .state()
+            .clone();
+        let store = HistoryStore::open(temp.db()).unwrap();
+        store
+            .create_world(
+                "201",
+                "main",
+                &serde_json::to_string(&scenario).unwrap(),
+                &initial,
+            )
+            .unwrap();
+        let mut engine = Engine::new(validated, initial).unwrap();
+        store
+            .acquire_writer("201", "main")
+            .unwrap()
+            .commit_year(&engine.advance_year(None).unwrap())
+            .unwrap();
+
+        let query = HistoryQuery::open(temp.db(), "201", "main", Year(0)).unwrap();
+        let markdown = query
+            .export_settlement_markdown(SettlementId(1), 0, 10)
+            .unwrap();
+        assert!(!markdown.contains("<script>"));
+        assert!(!markdown.contains("\n<script>"));
+        assert!(!markdown.contains("](javascript:"));
+        assert!(markdown.contains("\\#\\# Cabecera "));
+
+        let deceased = query.person_dossier(PersonId(1)).unwrap();
+        assert_eq!(
+            deceased.status,
+            PersonVisibility::Deceased {
+                death_year: Year(-10)
+            }
+        );
+        assert_eq!(deceased.age_at_close, None);
+        assert_eq!(deceased.age_at_death, Some(30));
+        let mut adversarial_person = deceased.clone();
+        adversarial_person.presentation.as_mut().unwrap().name =
+            "### Persona\n[abrir](javascript:alert(1))<script>".into();
+        let hostile_label = "## Casa\n[abrir](javascript:alert(2))<script>";
+        adversarial_person.settlement_name = Some(hostile_label.into());
+        adversarial_person.residences = vec![ResidencePresentation {
+            settlement_id: SettlementId(9),
+            settlement_name: Some(hostile_label.into()),
+            validity: YearInterval {
+                start: Year(-3),
+                end_exclusive: None,
+            },
+        }];
+        adversarial_person.organization_affiliations = vec![OrganizationAffiliationPresentation {
+            organization_id: OrganizationId(4),
+            organization_name: hostile_label.into(),
+            settlement_id: SettlementId(9),
+            settlement_name: Some(hostile_label.into()),
+            founder: true,
+            validity: YearInterval {
+                start: Year(-3),
+                end_exclusive: None,
+            },
+            active_at_close: true,
+        }];
+        let participant = PersonPresentationRow {
+            person_id: PersonId(1),
+            presentation: PersonPresentation {
+                name: hostile_label.into(),
+                descriptive_traits: Vec::new(),
+            },
+            status: PersonVisibility::Deceased {
+                death_year: Year(-10),
+            },
+            age_at_close: None,
+            age_at_death: Some(30),
+            settlement_id: SettlementId(9),
+            household_id: None,
+        };
+        adversarial_person.unions = vec![PersonUnionAtClose {
+            union_id: UnionId(4),
+            logical_id: LogicalId(404),
+            kind: UnionKind::Other(hostile_label.into()),
+            validity: YearInterval {
+                start: Year(-3),
+                end_exclusive: None,
+            },
+            active_at_close: true,
+            participants: vec![participant],
+            participants_total: 1,
+            participants_truncated: false,
+        }];
+        adversarial_person.unions_total = 1;
+        let adversarial_person_markdown = render_person_markdown(&adversarial_person);
+        assert!(!adversarial_person_markdown.contains("](javascript:"));
+        assert!(!adversarial_person_markdown.contains("\n[abrir]"));
+        assert!(!adversarial_person_markdown.contains("<script>"));
+        assert!(adversarial_person_markdown.contains("Residencias registradas"));
+        assert!(adversarial_person_markdown.contains("Uniones registradas"));
+        let person_markdown = query.export_person_markdown(PersonId(1)).unwrap();
+        assert!(person_markdown.contains("falleció a los 30 años"));
+        assert!(!person_markdown.contains("Edad al cierre"));
+
+        let mermaid = escape_mermaid_label("Rosa\"]\n--> Malicious[<script>]");
+        assert!(!mermaid.contains('"'));
+        assert!(!mermaid.contains('\n'));
+        assert!(!mermaid.contains("<script>"));
     }
 
     #[test]

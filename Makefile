@@ -1,4 +1,4 @@
-.PHONY: check fmt test clippy build smoke bench contracts-check web-check package clean
+.PHONY: check fmt test clippy build smoke e4-smoke bench contracts-check web-check package clean
 
 CARGO ?= cargo
 NODE ?= node
@@ -21,6 +21,10 @@ build:
 
 web-check:
 	$(NODE) --check web/app.js
+	$(NODE) --check web/scenario-editor.js
+	$(NODE) --check web/scenario-editor.test.js
+	$(NODE) --check web/economic-amounts.js
+	$(NODE) --check web/economic-amounts.test.js
 	$(NODE) --check scripts/check-web.mjs
 	$(NODE) --check scripts/smoke-api.mjs
 	$(NODE) --check scripts/create-package-manifest.mjs
@@ -30,6 +34,9 @@ web-check:
 	$(NODE) --check scripts/validate-e1.mjs
 	$(NODE) --check scripts/validate-e2.mjs
 	$(NODE) --check scripts/validate-e3.mjs
+	$(NODE) --check scripts/validate-e4.mjs
+	$(NODE) --experimental-default-type=module web/scenario-editor.test.js
+	$(NODE) --experimental-default-type=module web/economic-amounts.test.js
 	$(NODE) scripts/check-web.mjs
 
 contracts-check:
@@ -40,6 +47,10 @@ smoke: build
 	$(NODE) scripts/validate-e1.mjs target/release/chargen-app
 	$(NODE) scripts/validate-e2.mjs target/release/chargen-app
 	$(NODE) scripts/validate-e3.mjs target/release/chargen-app
+	$(NODE) scripts/validate-e4.mjs target/release/chargen-app
+
+e4-smoke: build
+	$(NODE) scripts/validate-e4.mjs target/release/chargen-app
 
 bench:
 	$(CARGO) run --release --package chargen-app --locked -- bench --profile $(PROFILE) $(if $(DATABASE),--database $(DATABASE),)

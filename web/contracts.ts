@@ -598,6 +598,12 @@ export interface ApiError {
   details?: unknown;
 }
 
+export interface HealthResponse {
+  api_version: 1;
+  version: string;
+  offline: true;
+}
+
 export interface ValidateScenarioResponse {
   valid: boolean;
   issues: ValidationIssue[];
@@ -777,7 +783,7 @@ export interface PersonResidenceAtClose {
   year: Year;
   person: PersonRecord;
   residences: Array<{ settlement_id: DomainId; validity: YearInterval }>;
-  professions: Array<{ profession_id: ProfessionId; validity: YearInterval }>;
+  professions: ProfessionAtClose[];
 }
 
 export interface PersonAffiliationsAtClose {
@@ -811,8 +817,14 @@ export interface GenealogyRelation {
   distance: number;
 }
 
+/** New paginated E4 row; the legacy genealogy response remains unchanged. */
+export interface GenealogyPageRelation extends GenealogyRelation {
+  presentation: PersonPresentation;
+}
+
 export interface ExportResponse {
   export_id: string;
+  download_url: string;
   manifest: {
     format_version: number;
     schema_version: number;
@@ -836,4 +848,308 @@ export interface RestoreResponse {
   database_file: string;
   worlds: string[];
   restart_required: boolean;
+  api_base: string;
+}
+
+/** E4 temporal metadata. A close's revision may be inherited from its parent branch. */
+export interface ScenarioRevisionResponse {
+  world_id: string;
+  branch_id: string;
+  year: Year | null;
+  revision_id: number;
+  scenario: Scenario;
+}
+
+export interface ScenarioSchemaResponse {
+  version: 1 | 2 | 3;
+  schema: Record<string, unknown>;
+}
+
+export interface RestoreCatalogEntry {
+  restored_id: string;
+  api_base: string;
+  worlds: string[];
+  available: boolean;
+  error?: ApiError;
+}
+
+export interface RestoreCatalogResponse {
+  restores: RestoreCatalogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export type RestoreResponseE4 = RestoreResponse;
+
+export type PersonVisibility =
+  | { status: "alive" }
+  | { status: "deceased"; death_year: Year }
+  | { status: "not_known_at_year" };
+
+export interface PersonPresentation {
+  name: string;
+  descriptive_traits: string[];
+}
+
+export interface PersonPresentationRow {
+  person_id: DomainId;
+  presentation: PersonPresentation;
+  status: PersonVisibility;
+  age_at_close: number | null;
+  age_at_death: number | null;
+  settlement_id: DomainId;
+  household_id: DomainId | null;
+}
+
+export interface PersonTraitFact { key: TraitKey; value: number; description: string | null }
+export interface ProfessionAtClose {
+  profession_id: ProfessionId;
+  profession_name: string | null;
+  validity: YearInterval;
+}
+export interface ResidencePresentation {
+  settlement_id: DomainId;
+  settlement_name: string | null;
+  validity: YearInterval;
+}
+export interface InstitutionAffiliationPresentation {
+  institution_id: string;
+  institution_name: string | null;
+  settlement_id: DomainId;
+  settlement_name: string | null;
+  validity: YearInterval;
+  active_at_close: boolean;
+}
+export interface OrganizationAffiliationPresentation {
+  organization_id: DomainId;
+  organization_name: string;
+  settlement_id: DomainId;
+  settlement_name: string | null;
+  founder: boolean;
+  validity: YearInterval;
+  active_at_close: boolean;
+}
+export interface PersonGenomeLocus {
+  locus_id: string;
+  alleles: [Allele, Allele];
+  expressed_value: number | null;
+}
+export interface FamilyLinkPresentation {
+  direction: "parent" | "child";
+  relative: PersonPresentationRow;
+  link: FamilyLink;
+}
+export interface ChronologyEntry { year: Year; order: number; event_id: LogicalId; text_es: string }
+
+export interface PersonDossier {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  template_version: number;
+  fact_fingerprint: string | null;
+  person_id: DomainId;
+  status: PersonVisibility;
+  record: PersonRecord | null;
+  presentation: PersonPresentation | null;
+  birth_year: Year | null;
+  death_year: Year | null;
+  age_at_close: number | null;
+  age_at_death: number | null;
+  settlement_id: DomainId | null;
+  settlement_name: string | null;
+  household_id: DomainId | null;
+  profession: ProfessionId | null;
+  professions: ProfessionAtClose[];
+  traits: PersonTraitFact[];
+  genome: PersonGenomeLocus[];
+  residences: ResidencePresentation[];
+  institution_affiliations: InstitutionAffiliationPresentation[];
+  organization_affiliations: OrganizationAffiliationPresentation[];
+  family_links: FamilyLinkPresentation[];
+  family_links_total: number;
+  family_links_truncated: boolean;
+  unions: PersonUnionAtClose[];
+  unions_total: number;
+  unions_truncated: boolean;
+  timeline: ChronologyEntry[];
+  timeline_total: number;
+  timeline_truncated: boolean;
+  revision_id: number;
+}
+
+export interface PersonUnionAtClose {
+  union_id: DomainId;
+  logical_id: LogicalId;
+  kind: UnionKind;
+  validity: YearInterval;
+  active_at_close: boolean;
+  participants: PersonPresentationRow[];
+  participants_total: number;
+  participants_truncated: boolean;
+}
+
+export interface PersonUnionsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  person_id: DomainId;
+  offset: number;
+  total: number;
+  truncated: boolean;
+  unions: PersonUnionAtClose[];
+  revision_id: number;
+}
+
+export interface UnionParticipantsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  union_id: DomainId;
+  offset: number;
+  total: number;
+  truncated: boolean;
+  participants: PersonPresentationRow[];
+  revision_id: number;
+}
+
+export interface HouseholdRow {
+  household_id: DomainId;
+  kind: HouseholdKind;
+  settlement_id: DomainId;
+  active_at_close: boolean;
+  member_count: number;
+}
+export interface HouseholdsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  total: number;
+  limit: number;
+  offset: number;
+  households: HouseholdRow[];
+  revision_id: number;
+}
+export interface HouseholdDossier {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  household_id: DomainId;
+  kind: HouseholdKind;
+  settlement_id: DomainId;
+  active_at_close: boolean;
+  closed_year: Year | null;
+  total: number;
+  offset: number;
+  members: PersonPresentationRow[];
+  revision_id: number;
+}
+export interface SettlementView {
+  settlement_id: DomainId;
+  settlement_name: string;
+  population: number;
+  capacity: number | null;
+  opportunity_score: number | null;
+  balance: SettlementYearBalance | null;
+}
+export interface SettlementYearBalance {
+  settlement_id: DomainId;
+  before: number;
+  births: number;
+  deaths: number;
+  incoming: number;
+  outgoing: number;
+  after: number;
+}
+export interface SettlementCultureAtClose {
+  settlement_id: DomainId;
+  settlement_name: string;
+  traits: Array<{
+    key: TraitKey;
+    weighted_sum: number;
+    total_weight: number;
+    member_count: number;
+    current_value: number | null;
+    minimum: number | null;
+    maximum: number | null;
+  }>;
+}
+export interface SettlementDossier {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  settlement: SettlementView;
+  culture: SettlementCultureAtClose | null;
+  household_count: number;
+  total: number;
+  offset: number;
+  people: PersonPresentationRow[];
+  revision_id: number;
+}
+export interface GenealogyPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  subject: PersonRecord;
+  direction: "ancestors" | "descendants";
+  relation_kinds: FamilyLinkKind[];
+  maximum_depth: number;
+  offset: number;
+  total: number;
+  truncated: boolean;
+  relations: GenealogyPageRelation[];
+  revision_id: number;
+}
+export interface PersonEventsPage {
+  world_id: string;
+  branch_id: string;
+  year: Year;
+  person_id: DomainId;
+  total: number;
+  offset: number;
+  events: HistoricalEvent[];
+  revision_id: number;
+}
+
+export interface ComparisonContext {
+  branch_id: string;
+  year: Year;
+  revision_id: number;
+  economy_enabled: boolean;
+  money: EconomicMoneyLedger | null;
+  treasury_goods: Record<string, EconomicGoodLedger>;
+}
+export interface ComparisonSettlementSide {
+  settlement: SettlementView;
+  balance: SettlementYearBalance | null;
+  economy: SettlementEconomicLedger | null;
+  culture: SettlementCultureAtClose | null;
+}
+export interface BranchComparisonResponse {
+  world_id: string;
+  left: ComparisonContext;
+  right: ComparisonContext;
+  total: number;
+  limit: number;
+  offset: number;
+  items: Array<{
+    settlement_id: DomainId;
+    left: ComparisonSettlementSide | null;
+    right: ComparisonSettlementSide | null;
+  }>;
+}
+
+/** GET /runs/{job_id}/progress emits `event: progress` with this JSON payload. */
+export interface RunSnapshot {
+  job_id: string;
+  world_id: string;
+  branch_id: string;
+  status: "queued" | "running" | "paused" | "completed" | "cancelled" | "failed";
+  start_year: Year;
+  through_year: Year;
+  current_year: Year | null;
+  completed_years: number;
+  total_years: number;
+  message: string | null;
 }

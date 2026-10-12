@@ -113,6 +113,10 @@ pub enum StoreError {
     WriterAlreadyActive(String),
     #[error("schema version {found} is newer than supported version {supported}")]
     NewerSchema { found: u32, supported: u32 },
+    #[error("schema version {found} is incompatible with supported version {supported}")]
+    IncompatibleSchema { found: u32, supported: u32 },
+    #[error("uploaded file is not a valid Chargen export")]
+    InvalidArchive,
     #[error("history integrity check failed: {0}")]
     Integrity(String),
     #[error("invalid history operation: {0}")]
@@ -147,9 +151,17 @@ impl HistoryStore {
         let conn = open_ro(&path)?;
         let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         if version != CURRENT_SCHEMA_VERSION {
-            return Err(StoreError::Invalid(format!(
-                "query requires schema version {CURRENT_SCHEMA_VERSION}, found {version}"
-            )));
+            return Err(if version > CURRENT_SCHEMA_VERSION {
+                StoreError::NewerSchema {
+                    found: version,
+                    supported: CURRENT_SCHEMA_VERSION,
+                }
+            } else {
+                StoreError::IncompatibleSchema {
+                    found: version,
+                    supported: CURRENT_SCHEMA_VERSION,
+                }
+            });
         }
         Ok(Self {
             path,
@@ -617,6 +629,20 @@ impl HistoryStore {
         self.scenario_json(world_id, branch_id)
     }
 
+    /// Return the scenario revision visible at a historical close, following the same
+    /// inclusive branch lineage as `scenario_json_at`.
+    pub fn revision_id_at(&self, world_id: &str, branch_id: &str, year: Year) -> StoreResult<i64> {
+        let branch = get_branch(&open_ro(&self.path)?, world_id, branch_id)?;
+        if let (Some(parent), Some(fork_year)) =
+            (branch.parent_branch_id.as_deref(), branch.fork_year)
+        {
+            if year.0 <= fork_year {
+                return self.revision_id_at(world_id, parent, year);
+            }
+        }
+        Ok(branch.revision_id)
+    }
+
     /// Read semantic events involving an entity through the selected branch
     /// and year. Ancestors are restricted to the branch's stored cutoff.
     pub fn events_for_entity(
@@ -891,11 +917,24 @@ impl HistoryStore {
         let source = source.as_ref();
         let destination = destination.as_ref();
         let manifest = read_manifest(source)?;
-        if manifest.format_version != 1 || manifest.schema_version != CURRENT_SCHEMA_VERSION {
+        if manifest.format_version != 1 {
             return Err(StoreError::Invalid(format!(
                 "unsupported export manifest versions: format {}, schema {}",
                 manifest.format_version, manifest.schema_version
             )));
+        }
+        if manifest.schema_version != CURRENT_SCHEMA_VERSION {
+            return Err(if manifest.schema_version > CURRENT_SCHEMA_VERSION {
+                StoreError::NewerSchema {
+                    found: manifest.schema_version,
+                    supported: CURRENT_SCHEMA_VERSION,
+                }
+            } else {
+                StoreError::IncompatibleSchema {
+                    found: manifest.schema_version,
+                    supported: CURRENT_SCHEMA_VERSION,
+                }
+            });
         }
         let (length, checksum) = file_checksum(source)?;
         if length != manifest.byte_length || checksum != manifest.checksum_fnv1a64 {
@@ -937,6 +976,59 @@ impl HistoryStore {
             return Err(StoreError::Io(error));
         }
         Self::open(destination)
+    }
+
+    /// Validate and restore a user-selected SQLite archive that has no
+    /// neighboring manifest file. The uploaded bytes are copied into a
+    /// temporary path by the caller; this method verifies the database,
+    /// derives a local checksum manifest, and then uses the same restore path
+    /// as an application-created export.
+    pub fn restore_uploaded_archive(
+        source: impl AsRef<Path>,
+        destination: impl AsRef<Path>,
+    ) -> StoreResult<Self> {
+        let source = source.as_ref();
+        let destination = destination.as_ref();
+        let validation = (|| -> StoreResult<ExportManifest> {
+            let conn = open_ro(source)?;
+            verify_database(&conn)?;
+            let world_ids = query_world_ids(&conn)?;
+            if world_ids.is_empty() {
+                return Err(StoreError::InvalidArchive);
+            }
+            drop(conn);
+            let (byte_length, checksum_fnv1a64) = file_checksum(source)?;
+            Ok(ExportManifest {
+                format_version: 1,
+                schema_version: CURRENT_SCHEMA_VERSION,
+                world_ids,
+                database_file: source
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("upload.sqlite3")
+                    .to_owned(),
+                byte_length,
+                checksum_fnv1a64,
+            })
+        })();
+        let manifest = match validation {
+            Ok(manifest) => manifest,
+            Err(StoreError::NewerSchema { found, supported }) => {
+                return Err(StoreError::NewerSchema { found, supported });
+            }
+            Err(StoreError::IncompatibleSchema { found, supported }) => {
+                return Err(StoreError::IncompatibleSchema { found, supported });
+            }
+            Err(_) => return Err(StoreError::InvalidArchive),
+        };
+        let manifest_file = manifest_path(source);
+        if manifest_file.exists() {
+            return Err(StoreError::InvalidArchive);
+        }
+        write_manifest(source, &manifest).map_err(|_| StoreError::InvalidArchive)?;
+        let restored = Self::restore_world(source, destination);
+        let _ = fs::remove_file(&manifest_file);
+        restored
     }
 }
 
@@ -1861,6 +1953,19 @@ fn utc_timestamp() -> String {
 }
 
 fn verify_database(conn: &Connection) -> StoreResult<()> {
+    let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version > CURRENT_SCHEMA_VERSION {
+        return Err(StoreError::NewerSchema {
+            found: version,
+            supported: CURRENT_SCHEMA_VERSION,
+        });
+    }
+    if version != CURRENT_SCHEMA_VERSION {
+        return Err(StoreError::IncompatibleSchema {
+            found: version,
+            supported: CURRENT_SCHEMA_VERSION,
+        });
+    }
     let check: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))?;
     if check != "ok" {
         return Err(StoreError::Integrity(format!(
@@ -1873,18 +1978,6 @@ fn verify_database(conn: &Connection) -> StoreResult<()> {
         return Err(StoreError::Integrity(
             "SQLite foreign_key_check reported a violation".into(),
         ));
-    }
-    let version: u32 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    if version > CURRENT_SCHEMA_VERSION {
-        return Err(StoreError::NewerSchema {
-            found: version,
-            supported: CURRENT_SCHEMA_VERSION,
-        });
-    }
-    if version != CURRENT_SCHEMA_VERSION {
-        return Err(StoreError::Integrity(format!(
-            "unsupported database schema version {version}; expected {CURRENT_SCHEMA_VERSION}"
-        )));
     }
     Ok(())
 }

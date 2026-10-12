@@ -44,6 +44,10 @@ jobs:
       - name: Check static web and API
         run: |
           node --check web/app.js
+          node --check web/scenario-editor.js
+          node --check web/scenario-editor.test.js
+          node --check web/economic-amounts.js
+          node --check web/economic-amounts.test.js
           node --check scripts/check-web.mjs
           node --check scripts/smoke-api.mjs
           node --check scripts/create-package-manifest.mjs
@@ -53,6 +57,9 @@ jobs:
           node --check scripts/validate-e1.mjs
           node --check scripts/validate-e2.mjs
           node --check scripts/validate-e3.mjs
+          node --check scripts/validate-e4.mjs
+          node --experimental-default-type=module web/scenario-editor.test.js
+          node --experimental-default-type=module web/economic-amounts.test.js
           node scripts/check-web.mjs
       - name: Type-check scenario contracts
         run: npx --yes --package=typescript@5.9.3 tsc --project web/tsconfig.json
@@ -79,6 +86,7 @@ jobs:
           node scripts/validate-e1.mjs "$package_dir/${{ matrix.executable }}"
           node scripts/validate-e2.mjs "$package_dir/${{ matrix.executable }}"
           node scripts/validate-e3.mjs "$package_dir/${{ matrix.executable }}"
+          node scripts/validate-e4.mjs "$package_dir/${{ matrix.executable }}"
       - name: Run deterministic B0 benchmark
         shell: bash
         run: |

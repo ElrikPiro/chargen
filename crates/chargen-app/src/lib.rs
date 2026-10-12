@@ -1,8 +1,10 @@
 //! Local browser application and explicit service composition for Chargen.
 
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::env;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -10,36 +12,50 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::extract::{rejection::JsonRejection, DefaultBodyLimit, Path as AxumPath, Query, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::http::{header, HeaderValue, StatusCode, Uri};
+use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use chargen_domain::{
-    PersonId, Scenario, SettlementId, State as WorldState, ValidatedScenario, ValidationIssue, Year,
+    FamilyLinkKind, HouseholdId, PersonId, Scenario, SettlementId, State as WorldState, UnionId,
+    ValidatedScenario, ValidationIssue, Year,
 };
 use chargen_engine::{CancellationToken, Engine, EngineError, YearCommit};
 use chargen_query::{
-    Census, CultureAtClose, EventsAtClose, Genealogy, HistoryQuery, InstitutionAffiliationsAtClose,
+    Census, CultureAtClose, EventsAtClose, Genealogy, GenealogyDirection, GenealogyPage,
+    HistoryQuery, HouseholdDossier, HouseholdsPage, InstitutionAffiliationsAtClose,
     InstitutionAtClose, MarketTradesAtClose, MarketsAtClose, MigrationAtClose, OpenRouteAtClose,
     OpenRoutesAtClose, OrganizationAtClose, OrganizationMembersAtClose, PersonAffiliationsAtClose,
-    PersonRecord, PersonResidenceAtClose, QueryError, SettlementCultureAtClose,
-    SettlementMarketsAtClose, SettlementView,
+    PersonDossier, PersonEventsPage, PersonRecord, PersonResidenceAtClose, PersonUnionsPage,
+    PresentationCache, QueryError, SettlementCultureAtClose, SettlementDossier,
+    SettlementMarketsAtClose, SettlementView, UnionParticipantsPage,
 };
 use chargen_store::{
     BranchSummary, ExportManifest, HistoryStore, StoreError, WorldSummary, WorldWriter,
 };
+use futures_util::{stream, Stream};
 use serde::{Deserialize, Serialize};
+use tower::ServiceExt;
 
 const DEMO_SCENARIO: &str = include_str!("../../../scenarios/demos/b0-family.json");
 const DEMO_E2_SCENARIO: &str = include_str!("../../../scenarios/demos/e2-territory-culture.json");
 const DEMO_E3_SCENARIO: &str = include_str!("../../../scenarios/demos/e3-economy-events.json");
+const SCENARIO_SCHEMA_V1: &str = include_str!("../../../schemas/scenario-v1.schema.json");
+const SCENARIO_SCHEMA_V2: &str = include_str!("../../../schemas/scenario-v2.schema.json");
+const SCENARIO_SCHEMA_V3: &str = include_str!("../../../schemas/scenario-v3.schema.json");
 const INDEX_HTML: &str = include_str!("../../../web/index.html");
 const APP_JS: &str = include_str!("../../../web/app.js");
+const ECONOMIC_AMOUNTS_JS: &str = include_str!("../../../web/economic-amounts.js");
+const SCENARIO_EDITOR_JS: &str = include_str!("../../../web/scenario-editor.js");
 const STYLES_CSS: &str = include_str!("../../../web/styles.css");
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 const DEFAULT_MAX_BODY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_RESTORE_CONTAINERS: usize = 16;
+const MAX_RESTORE_PAGE_SIZE: usize = 100;
+const MAX_PRESENTATION_PAGE_SIZE: usize = 100;
 
 /// Service configuration is separate from a simulation scenario.
 #[derive(Clone, Debug)]
@@ -93,7 +109,7 @@ impl ServiceConfig {
         }
         if self.max_offset > 100_000
             || self.max_genealogy_depth == 0
-            || self.max_genealogy_depth > 32
+            || self.max_genealogy_depth > 64
         {
             return Err(ServiceFault::Invalid(
                 "Los límites de consulta exceden el máximo permitido.".into(),
@@ -178,26 +194,52 @@ pub enum ServiceFault {
     PayloadTooLarge,
     NotFound(String),
     Conflict(String),
+    IncompatibleVersion { found: u32, supported: u32 },
     Internal(String),
 }
 
 impl ServiceFault {
-    fn http(&self) -> (StatusCode, &'static str, String) {
+    fn http(&self) -> (StatusCode, &'static str, String, Option<serde_json::Value>) {
         match self {
-            Self::Invalid(message) => (StatusCode::BAD_REQUEST, "invalid_request", message.clone()),
+            Self::Invalid(message) => (
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                message.clone(),
+                None,
+            ),
             Self::PayloadTooLarge => (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "payload_too_large",
                 "La solicitud supera el tamaño máximo permitido.".into(),
+                None,
             ),
-            Self::NotFound(message) => (StatusCode::NOT_FOUND, "not_found", message.clone()),
-            Self::Conflict(message) => (StatusCode::CONFLICT, "conflict", message.clone()),
+            Self::NotFound(message) => (
+                StatusCode::NOT_FOUND,
+                "not_found",
+                message.clone(),
+                None,
+            ),
+            Self::Conflict(message) => (
+                StatusCode::CONFLICT,
+                "conflict",
+                message.clone(),
+                None,
+            ),
+            Self::IncompatibleVersion { found, supported } => (
+                StatusCode::CONFLICT,
+                "incompatible_version",
+                format!(
+                    "El archivo usa el esquema {found}; esta versión de Chargen admite hasta el esquema {supported}."
+                ),
+                Some(serde_json::json!({ "found": found, "supported": supported })),
+            ),
             Self::Internal(message) => {
                 eprintln!("Chargen internal operation failed: {message}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "internal_error",
                     "La operación falló. El último cierre anual confirmado se conserva.".into(),
+                    None,
                 )
             }
         }
@@ -206,13 +248,13 @@ impl ServiceFault {
 
 impl IntoResponse for ServiceFault {
     fn into_response(self) -> Response {
-        let (status, code, message) = self.http();
+        let (status, code, message, details) = self.http();
         (
             status,
             Json(ApiError {
                 code: code.into(),
                 message,
-                details: None,
+                details,
             }),
         )
             .into_response()
@@ -277,9 +319,51 @@ pub struct YearQuery {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct OptionalYearQuery {
+    pub year: Option<i32>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ScenarioSchemaQuery {
+    pub version: u8,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ScenarioBranchQuery {
+    pub branch_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GenealogyPageQuery {
+    pub year: i32,
+    pub direction: GenealogyDirection,
+    pub kinds: Option<String>,
+    pub depth: Option<usize>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct CompareQuery {
+    pub left_branch_id: String,
+    pub left_year: i32,
+    pub right_branch_id: String,
+    pub right_year: i32,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct YearPageQuery {
     pub year: i32,
     pub settlement_id: Option<u64>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct YearLimitOffsetQuery {
+    pub year: i32,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
 }
@@ -416,6 +500,100 @@ pub struct RestoreResponse {
     pub database_file: String,
     pub worlds: Vec<String>,
     pub restart_required: bool,
+    pub api_base: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ScenarioRevisionResponse {
+    pub world_id: String,
+    pub branch_id: String,
+    pub year: Option<Year>,
+    pub revision_id: i64,
+    pub scenario: Scenario,
+}
+
+/// Adds the exact scenario revision and presentation template version to a
+/// temporal projection without changing the stable query-crate payload type.
+#[derive(Clone, Debug, Serialize)]
+pub struct VersionedProjection<T> {
+    #[serde(flatten)]
+    pub projection: T,
+    pub revision_id: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct HouseholdListResponse {
+    #[serde(flatten)]
+    pub page: HouseholdsPage,
+    pub limit: usize,
+    pub revision_id: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ComparisonContext {
+    pub branch_id: String,
+    pub year: Year,
+    pub revision_id: i64,
+    pub economy_enabled: bool,
+    pub money: Option<chargen_domain::EconomicMoneyLedger>,
+    pub treasury_goods: BTreeMap<chargen_domain::GoodId, chargen_domain::EconomicGoodLedger>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ComparisonSettlementSide {
+    pub settlement: SettlementView,
+    pub balance: Option<chargen_domain::SettlementYearBalance>,
+    pub economy: Option<chargen_domain::SettlementEconomicLedger>,
+    pub culture: Option<SettlementCultureAtClose>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ComparisonSettlementRow {
+    pub settlement_id: SettlementId,
+    pub left: Option<ComparisonSettlementSide>,
+    pub right: Option<ComparisonSettlementSide>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BranchComparisonResponse {
+    pub world_id: String,
+    pub left: ComparisonContext,
+    pub right: ComparisonContext,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub items: Vec<ComparisonSettlementRow>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ScenarioSchemaResponse {
+    pub version: u8,
+    pub schema: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RestoreCatalogResponse {
+    pub restores: Vec<RestoreCatalogEntry>,
+    pub total: usize,
+    pub limit: usize,
+    pub offset: usize,
+    pub has_more: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct RestoreCatalogQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RestoreCatalogEntry {
+    pub restored_id: String,
+    pub api_base: String,
+    pub worlds: Vec<String>,
+    pub available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ApiError>,
 }
 
 /// Replaceable annual writer interface for service composition and tests.
@@ -445,6 +623,29 @@ pub trait HistoryRepository: Send + Sync {
     fn list_worlds(&self) -> Result<Vec<WorldSummary>, ServiceFault>;
     fn list_branches(&self, world_id: &str) -> Result<Vec<BranchSummary>, ServiceFault>;
     fn scenario_json(&self, world_id: &str, branch_id: &str) -> Result<String, ServiceFault>;
+    fn scenario_json_at(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+    ) -> Result<String, ServiceFault> {
+        let _ = year;
+        self.scenario_json(world_id, branch_id)
+    }
+    fn revision_id_at(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+    ) -> Result<i64, ServiceFault> {
+        let branches = self.list_branches(world_id)?;
+        let revision_branch = scenario_branch_at(&branches, branch_id, year)?;
+        branches
+            .iter()
+            .find(|summary| summary.branch_id == revision_branch)
+            .map(|summary| summary.revision_id)
+            .ok_or_else(|| ServiceFault::NotFound("No se encontró la revisión histórica.".into()))
+    }
     fn head(&self, world_id: &str, branch_id: &str) -> Result<Option<Year>, ServiceFault>;
     fn load_state(&self, world_id: &str, branch_id: &str) -> Result<WorldState, ServiceFault>;
     fn load_state_at(
@@ -481,6 +682,13 @@ pub trait HistoryRepository: Send + Sync {
     ) -> Result<ExportManifest, ServiceFault>;
     fn restore_world(&self, source: &Path, destination: &Path)
         -> Result<Vec<String>, ServiceFault>;
+    fn restore_uploaded_archive(
+        &self,
+        source: &Path,
+        destination: &Path,
+    ) -> Result<Vec<String>, ServiceFault> {
+        self.restore_world(source, destination)
+    }
 }
 
 impl HistoryRepository for HistoryStore {
@@ -511,6 +719,22 @@ impl HistoryRepository for HistoryStore {
     }
     fn scenario_json(&self, world_id: &str, branch_id: &str) -> Result<String, ServiceFault> {
         HistoryStore::scenario_json(self, world_id, branch_id).map_err(map_store_error)
+    }
+    fn scenario_json_at(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+    ) -> Result<String, ServiceFault> {
+        HistoryStore::scenario_json_at(self, world_id, branch_id, year).map_err(map_store_error)
+    }
+    fn revision_id_at(
+        &self,
+        world_id: &str,
+        branch_id: &str,
+        year: Year,
+    ) -> Result<i64, ServiceFault> {
+        HistoryStore::revision_id_at(self, world_id, branch_id, year).map_err(map_store_error)
     }
     fn head(&self, world_id: &str, branch_id: &str) -> Result<Option<Year>, ServiceFault> {
         HistoryStore::head(self, world_id, branch_id).map_err(map_store_error)
@@ -580,6 +804,18 @@ impl HistoryRepository for HistoryStore {
             .collect();
         Ok(ids)
     }
+    fn restore_uploaded_archive(
+        &self,
+        source: &Path,
+        destination: &Path,
+    ) -> Result<Vec<String>, ServiceFault> {
+        let store =
+            HistoryStore::restore_uploaded_archive(source, destination).map_err(map_store_error)?;
+        store
+            .list_worlds()
+            .map(|worlds| worlds.into_iter().map(|world| world.world_id).collect())
+            .map_err(map_store_error)
+    }
 }
 
 /// Historical projection port; each instance is pinned to a single cutoff.
@@ -593,6 +829,61 @@ pub trait HistoricalView: Send + Sync {
         limit: usize,
     ) -> Vec<PersonRecord>;
     fn person(&self, person: PersonId) -> Option<PersonRecord>;
+    fn person_dossier(&self, person: PersonId) -> Result<PersonDossier, ServiceFault>;
+    fn households(&self, offset: usize, limit: usize) -> Result<HouseholdsPage, ServiceFault>;
+    fn households_for_settlement(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<HouseholdsPage, ServiceFault>;
+    fn household_dossier(
+        &self,
+        household: HouseholdId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<HouseholdDossier, ServiceFault>;
+    fn settlement_dossier(
+        &self,
+        settlement: SettlementId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<SettlementDossier, ServiceFault>;
+    fn genealogy_page(
+        &self,
+        person: PersonId,
+        direction: GenealogyDirection,
+        kinds: Vec<FamilyLinkKind>,
+        depth: usize,
+        offset: usize,
+        limit: usize,
+    ) -> Result<GenealogyPage, ServiceFault>;
+    fn person_events_page(
+        &self,
+        person: PersonId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PersonEventsPage, ServiceFault>;
+    fn person_unions_page(
+        &self,
+        person: PersonId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PersonUnionsPage, ServiceFault>;
+    fn union_participants_page(
+        &self,
+        union: UnionId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<UnionParticipantsPage, ServiceFault>;
+    fn export_person_markdown(&self, person: PersonId) -> Result<String, ServiceFault>;
+    fn export_household_markdown(&self, household: HouseholdId) -> Result<String, ServiceFault>;
+    fn export_settlement_markdown(
+        &self,
+        settlement: SettlementId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<String, ServiceFault>;
     fn genealogy(&self, person: PersonId, depth: usize) -> Result<Genealogy, ServiceFault>;
     fn events_for_person(
         &self,
@@ -668,6 +959,88 @@ impl HistoricalView for HistoryQuery {
     }
     fn person(&self, person: PersonId) -> Option<PersonRecord> {
         HistoryQuery::person(self, person)
+    }
+    fn person_dossier(&self, person: PersonId) -> Result<PersonDossier, ServiceFault> {
+        HistoryQuery::person_dossier(self, person).map_err(map_query_error)
+    }
+    fn households(&self, offset: usize, limit: usize) -> Result<HouseholdsPage, ServiceFault> {
+        HistoryQuery::households(self, offset, limit).map_err(map_query_error)
+    }
+    fn households_for_settlement(
+        &self,
+        settlement: Option<SettlementId>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<HouseholdsPage, ServiceFault> {
+        HistoryQuery::households_for_settlement(self, settlement, offset, limit)
+            .map_err(map_query_error)
+    }
+    fn household_dossier(
+        &self,
+        household: HouseholdId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<HouseholdDossier, ServiceFault> {
+        HistoryQuery::household_dossier(self, household, offset, limit).map_err(map_query_error)
+    }
+    fn settlement_dossier(
+        &self,
+        settlement: SettlementId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<SettlementDossier, ServiceFault> {
+        HistoryQuery::settlement_dossier(self, settlement, offset, limit).map_err(map_query_error)
+    }
+    fn genealogy_page(
+        &self,
+        person: PersonId,
+        direction: GenealogyDirection,
+        kinds: Vec<FamilyLinkKind>,
+        depth: usize,
+        offset: usize,
+        limit: usize,
+    ) -> Result<GenealogyPage, ServiceFault> {
+        HistoryQuery::genealogy_page(self, person, direction, kinds, depth, offset, limit)
+            .map_err(map_query_error)
+    }
+    fn person_events_page(
+        &self,
+        person: PersonId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PersonEventsPage, ServiceFault> {
+        HistoryQuery::person_events_page(self, person, offset, limit).map_err(map_query_error)
+    }
+    fn person_unions_page(
+        &self,
+        person: PersonId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<PersonUnionsPage, ServiceFault> {
+        HistoryQuery::person_unions_page(self, person, offset, limit).map_err(map_query_error)
+    }
+    fn union_participants_page(
+        &self,
+        union: UnionId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<UnionParticipantsPage, ServiceFault> {
+        HistoryQuery::union_participants_page(self, union, offset, limit).map_err(map_query_error)
+    }
+    fn export_person_markdown(&self, person: PersonId) -> Result<String, ServiceFault> {
+        HistoryQuery::export_person_markdown(self, person).map_err(map_query_error)
+    }
+    fn export_household_markdown(&self, household: HouseholdId) -> Result<String, ServiceFault> {
+        HistoryQuery::export_household_markdown(self, household).map_err(map_query_error)
+    }
+    fn export_settlement_markdown(
+        &self,
+        settlement: SettlementId,
+        offset: usize,
+        limit: usize,
+    ) -> Result<String, ServiceFault> {
+        HistoryQuery::export_settlement_markdown(self, settlement, offset, limit)
+            .map_err(map_query_error)
     }
     fn genealogy(&self, person: PersonId, depth: usize) -> Result<Genealogy, ServiceFault> {
         HistoryQuery::genealogy(self, person, depth).map_err(map_query_error)
@@ -789,21 +1162,33 @@ impl QueryContext {
 #[derive(Clone, Debug)]
 pub struct SqliteQueryFactory {
     path: PathBuf,
+    presentation_cache: Arc<PresentationCache>,
 }
 
 impl SqliteQueryFactory {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self::with_presentation_cache(path, Arc::new(PresentationCache::default()))
+    }
+
+    pub fn with_presentation_cache(
+        path: impl Into<PathBuf>,
+        presentation_cache: Arc<PresentationCache>,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            presentation_cache,
+        }
     }
 }
 
 impl QueryFactory for SqliteQueryFactory {
     fn open(&self, context: &QueryContext) -> Result<Box<dyn HistoricalView>, ServiceFault> {
-        HistoryQuery::open(
+        HistoryQuery::open_with_presentation_cache(
             &self.path,
             &context.world_id,
             &context.branch_id,
             context.year,
+            self.presentation_cache.clone(),
         )
         .map(|view| Box::new(view) as Box<dyn HistoricalView>)
         .map_err(map_query_error)
@@ -851,6 +1236,13 @@ fn map_store_error(error: StoreError) -> ServiceFault {
         StoreError::ScenarioInvalid(_) => {
             ServiceFault::Invalid("El escenario de la revisión no es válido.".into())
         }
+        StoreError::NewerSchema { found, supported }
+        | StoreError::IncompatibleSchema { found, supported } => {
+            ServiceFault::IncompatibleVersion { found, supported }
+        }
+        StoreError::InvalidArchive => ServiceFault::Invalid(
+            "El archivo no es una exportación Chargen válida o está dañado.".into(),
+        ),
         other => ServiceFault::Internal(other.to_string()),
     }
 }
@@ -865,6 +1257,15 @@ fn map_query_error(error: QueryError) -> ServiceFault {
         }
         QueryError::InstitutionNotFound(_) => {
             ServiceFault::NotFound("La institución no existe en el año consultado.".into())
+        }
+        QueryError::HouseholdNotFound(_) => {
+            ServiceFault::NotFound("El hogar no existe en el año consultado.".into())
+        }
+        QueryError::SettlementNotFound(_) => {
+            ServiceFault::NotFound("El asentamiento no existe en el año consultado.".into())
+        }
+        QueryError::UnionNotFound(_) => {
+            ServiceFault::NotFound("La unión no existe en el año consultado.".into())
         }
         QueryError::InvalidPage => {
             ServiceFault::Invalid("El límite de página debe estar entre 1 y 500.".into())
@@ -926,6 +1327,7 @@ pub struct ContainerBuilder {
     query_factory: Option<Arc<dyn QueryFactory>>,
     clock: Arc<dyn MeasurementClock>,
     metrics: Arc<dyn MetricsSink>,
+    presentation_cache: Arc<PresentationCache>,
 }
 
 impl ContainerBuilder {
@@ -936,6 +1338,7 @@ impl ContainerBuilder {
             query_factory: None,
             clock: Arc::new(SystemMeasurementClock::default()),
             metrics: Arc::new(NullMetricsSink),
+            presentation_cache: Arc::new(PresentationCache::default()),
         }
     }
 
@@ -959,6 +1362,11 @@ impl ContainerBuilder {
         self
     }
 
+    pub fn presentation_cache(mut self, cache: Arc<PresentationCache>) -> Self {
+        self.presentation_cache = cache;
+        self
+    }
+
     pub fn build(self) -> Result<AppContainer, ServiceFault> {
         self.config.validate()?;
         fs::create_dir_all(&self.config.exports_dir)
@@ -975,8 +1383,10 @@ impl ContainerBuilder {
                 as Arc<dyn HistoryRepository>
         });
         let query_factory = self.query_factory.unwrap_or_else(|| {
-            Arc::new(SqliteQueryFactory::new(self.config.database_path.clone()))
-                as Arc<dyn QueryFactory>
+            Arc::new(SqliteQueryFactory::with_presentation_cache(
+                self.config.database_path.clone(),
+                self.presentation_cache.clone(),
+            )) as Arc<dyn QueryFactory>
         });
         Ok(AppContainer {
             config: Arc::new(self.config),
@@ -987,6 +1397,9 @@ impl ContainerBuilder {
             jobs: Arc::new(RwLock::new(BTreeMap::new())),
             job_counter: Arc::new(AtomicU64::new(0)),
             export_counter: Arc::new(AtomicU64::new(0)),
+            restore_catalog: Arc::new(RestoreContainerCatalog::default()),
+            restore_access_counter: Arc::new(AtomicU64::new(0)),
+            api_base_prefix: String::new(),
         })
     }
 }
@@ -1001,6 +1414,28 @@ pub struct AppContainer {
     jobs: Arc<RwLock<BTreeMap<String, Arc<JobControl>>>>,
     job_counter: Arc<AtomicU64>,
     export_counter: Arc<AtomicU64>,
+    restore_catalog: Arc<RestoreContainerCatalog>,
+    restore_access_counter: Arc<AtomicU64>,
+    api_base_prefix: String,
+}
+
+#[derive(Default)]
+struct RestoreContainerCatalog {
+    slots: Mutex<BTreeMap<String, Arc<RestoreContainer>>>,
+}
+
+struct RestoreContainer {
+    app: AppContainer,
+    active_requests: AtomicU64,
+    last_access: AtomicU64,
+}
+
+struct RestoreContainerUse(Arc<RestoreContainer>);
+
+impl Drop for RestoreContainerUse {
+    fn drop(&mut self) {
+        self.0.active_requests.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 struct JobControl {
@@ -1021,20 +1456,144 @@ impl AppContainer {
         &self.config
     }
 
+    fn has_active_jobs(&self) -> bool {
+        self.jobs.read().map_or(true, |jobs| {
+            jobs.values().any(|job| {
+                job.snapshot.lock().map_or(true, |snapshot| {
+                    matches!(
+                        snapshot.status,
+                        RunStatus::Queued | RunStatus::Running | RunStatus::Paused
+                    )
+                })
+            })
+        })
+    }
+
+    fn restore_container(&self, restored_id: &str) -> Result<RestoreContainerUse, ServiceFault> {
+        validate_restore_id(restored_id)?;
+        let database_path = self
+            .config
+            .restores_dir
+            .join(format!("{restored_id}.sqlite3"));
+        let metadata = fs::symlink_metadata(&database_path)
+            .map_err(|_| ServiceFault::NotFound("No se encontró la copia restaurada.".into()))?;
+        if !metadata.file_type().is_file() {
+            return Err(ServiceFault::NotFound(
+                "No se encontró la copia restaurada.".into(),
+            ));
+        }
+        let access = self.restore_access_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        {
+            let slots = self
+                .restore_catalog
+                .slots
+                .lock()
+                .map_err(|_| ServiceFault::Internal("restore catalog lock poisoned".into()))?;
+            if let Some(slot) = slots.get(restored_id) {
+                slot.active_requests.fetch_add(1, Ordering::AcqRel);
+                slot.last_access.store(access, Ordering::Release);
+                return Ok(RestoreContainerUse(slot.clone()));
+            }
+        }
+
+        let slot_app = self.build_restore_container(restored_id, database_path)?;
+        let mut slots = self
+            .restore_catalog
+            .slots
+            .lock()
+            .map_err(|_| ServiceFault::Internal("restore catalog lock poisoned".into()))?;
+        if let Some(slot) = slots.get(restored_id) {
+            slot.active_requests.fetch_add(1, Ordering::AcqRel);
+            slot.last_access.store(access, Ordering::Release);
+            return Ok(RestoreContainerUse(slot.clone()));
+        }
+        if slots.len() >= MAX_RESTORE_CONTAINERS {
+            let candidate = slots
+                .iter()
+                .filter(|(_, slot)| {
+                    slot.active_requests.load(Ordering::Acquire) == 0 && !slot.app.has_active_jobs()
+                })
+                .min_by_key(|(_, slot)| slot.last_access.load(Ordering::Acquire))
+                .map(|(id, _)| id.clone());
+            if let Some(candidate) = candidate {
+                slots.remove(&candidate);
+            } else {
+                return Err(ServiceFault::Conflict(
+                    "Hay demasiadas copias restauradas ocupadas; termina sus trabajos y vuelve a intentarlo.".into(),
+                ));
+            }
+        }
+        let slot = Arc::new(RestoreContainer {
+            app: slot_app,
+            active_requests: AtomicU64::new(1),
+            last_access: AtomicU64::new(access),
+        });
+        slots.insert(restored_id.to_owned(), slot.clone());
+        Ok(RestoreContainerUse(slot))
+    }
+
+    fn restore_api_base(&self, restored_id: &str) -> String {
+        if self.api_base_prefix.is_empty() {
+            format!("/api/restores/{restored_id}")
+        } else {
+            format!("{}/api/restores/{restored_id}", self.api_base_prefix)
+        }
+    }
+
+    fn build_restore_container(
+        &self,
+        restored_id: &str,
+        database_path: PathBuf,
+    ) -> Result<AppContainer, ServiceFault> {
+        let store = HistoryStore::open_existing(&database_path).map_err(map_store_error)?;
+        let data_dir = self
+            .config
+            .restores_dir
+            .join(".catalog-data")
+            .join(restored_id);
+        let mut config = self.config.as_ref().clone();
+        config.database_path = database_path.clone();
+        config.exports_dir = data_dir.join("exports");
+        config.restores_dir = data_dir.join("restores");
+        config.open_browser = false;
+        let presentation_cache = Arc::new(PresentationCache::default());
+        let mut container = ContainerBuilder::new(config)
+            .repository(Arc::new(store))
+            .query_factory(Arc::new(SqliteQueryFactory::with_presentation_cache(
+                database_path,
+                presentation_cache.clone(),
+            )))
+            .presentation_cache(presentation_cache)
+            .clock(self.clock.clone())
+            .metrics(self.metrics.clone())
+            .build()?;
+        container.api_base_prefix = self.restore_api_base(restored_id);
+        Ok(container)
+    }
+
     pub fn router(&self) -> Router {
         Router::new()
             .route("/", get(index))
             .route("/app.js", get(app_js))
+            .route("/economic-amounts.js", get(economic_amounts_js))
+            .route("/scenario-editor.js", get(scenario_editor_js))
             .route("/styles.css", get(styles_css))
             .route("/api/health", get(health))
             .route("/api/demo-scenario", get(demo_scenario))
             .route("/api/demo-scenario-e2", get(demo_e2_scenario))
             .route("/api/demo-scenario-e3", get(demo_e3_scenario))
             .route("/api/scenarios/validate", post(validate_scenario))
+            .route("/api/scenarios/schema", get(get_scenario_schema))
             .route("/api/worlds", get(list_worlds).post(create_world))
+            .route("/api/worlds/{world_id}/scenario", get(get_world_scenario))
+            .route("/api/worlds/{world_id}/compare", get(compare_branches))
             .route(
                 "/api/worlds/{world_id}/branches",
                 get(list_branches).post(create_branch),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/scenario",
+                get(get_branch_scenario),
             )
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/census",
@@ -1049,12 +1608,56 @@ impl AppContainer {
                 get(get_person),
             )
             .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/dossier",
+                get(get_person_dossier),
+            )
+            .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/genealogy",
                 get(get_genealogy),
             )
             .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/tree",
+                get(get_genealogy_page),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/events",
+                get(get_person_events_page),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/unions",
+                get(get_person_unions_page),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/unions/{union_id}/members",
+                get(get_union_participants_page),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/people/{person_id}/markdown",
+                get(export_person_markdown),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/households",
+                get(list_households),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/households/{household_id}",
+                get(get_household_dossier),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/households/{household_id}/markdown",
+                get(export_household_markdown),
+            )
+            .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/settlements",
                 get(get_settlements),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/settlements/{settlement_id}/dossier",
+                get(get_settlement_dossier),
+            )
+            .route(
+                "/api/worlds/{world_id}/branches/{branch_id}/settlements/{settlement_id}/markdown",
+                get(export_settlement_markdown),
             )
             .route(
                 "/api/worlds/{world_id}/branches/{branch_id}/routes",
@@ -1118,11 +1721,19 @@ impl AppContainer {
             )
             .route("/api/worlds/{world_id}/export", post(export_world))
             .route("/api/runs/{job_id}", get(get_run))
+            .route("/api/runs/{job_id}/progress", get(run_progress))
             .route("/api/runs/{job_id}/pause", post(pause_run))
             .route("/api/runs/{job_id}/resume", post(resume_run))
             .route("/api/runs/{job_id}/cancel", post(cancel_run))
             .route("/api/exports/{export_id}", get(download_export))
             .route("/api/restore", post(restore_world))
+            .route("/api/restores", get(list_restores))
+            .route("/api/restores/{restore_id}", get(get_restore_catalog_entry))
+            .route("/api/import/archive", post(import_archive))
+            .route(
+                "/api/restores/{restore_id}/{*path}",
+                any(restore_slot_dispatch),
+            )
             .layer(DefaultBodyLimit::max(self.config.max_body_bytes))
             .with_state(self.clone())
     }
@@ -1178,6 +1789,20 @@ async fn app_js() -> Response {
         .expect("static response is valid")
 }
 
+async fn economic_amounts_js() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/javascript; charset=utf-8")
+        .body(Body::from(ECONOMIC_AMOUNTS_JS))
+        .expect("static response is valid")
+}
+
+async fn scenario_editor_js() -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/javascript; charset=utf-8")
+        .body(Body::from(SCENARIO_EDITOR_JS))
+        .expect("static response is valid")
+}
+
 async fn styles_css() -> Response {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
@@ -1187,12 +1812,14 @@ async fn styles_css() -> Response {
 
 #[derive(Serialize)]
 struct HealthResponse {
+    api_version: u32,
     version: &'static str,
     offline: bool,
 }
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
+        api_version: 1,
         version: env!("CARGO_PKG_VERSION"),
         offline: true,
     })
@@ -1217,6 +1844,111 @@ async fn demo_e3_scenario() -> Response {
         Ok(scenario) => Json(scenario).into_response(),
         Err(_) => ServiceFault::Internal("No se pudo cargar el escenario demostrativo E3.".into())
             .into_response(),
+    }
+}
+
+async fn get_scenario_schema(
+    Query(query): Query<ScenarioSchemaQuery>,
+) -> Result<Json<ScenarioSchemaResponse>, ServiceFault> {
+    let source = match query.version {
+        1 => SCENARIO_SCHEMA_V1,
+        2 => SCENARIO_SCHEMA_V2,
+        3 => SCENARIO_SCHEMA_V3,
+        version => {
+            return Err(ServiceFault::Invalid(format!(
+                "No se admite la versión de escenario {version}; las versiones disponibles son 1, 2 y 3."
+            )))
+        }
+    };
+    let schema = serde_json::from_str(source)
+        .map_err(|_| ServiceFault::Internal("embedded scenario schema is invalid".into()))?;
+    Ok(Json(ScenarioSchemaResponse {
+        version: query.version,
+        schema,
+    }))
+}
+
+async fn get_world_scenario(
+    State(app): State<AppContainer>,
+    AxumPath(world_id): AxumPath<String>,
+    Query(query): Query<ScenarioBranchQuery>,
+) -> Result<Json<ScenarioRevisionResponse>, ServiceFault> {
+    let branch_id = query.branch_id.unwrap_or_else(|| "main".into());
+    scenario_revision(&app, world_id, branch_id, None).await
+}
+
+async fn get_branch_scenario(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<OptionalYearQuery>,
+) -> Result<Json<ScenarioRevisionResponse>, ServiceFault> {
+    scenario_revision(&app, world_id, branch_id, query.year.map(Year)).await
+}
+
+async fn scenario_revision(
+    app: &AppContainer,
+    world_id: String,
+    branch_id: String,
+    requested_year: Option<Year>,
+) -> Result<Json<ScenarioRevisionResponse>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    let repository = app.repository.clone();
+    let world = world_id.clone();
+    let branch = branch_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let revision_year = if let Some(year) = requested_year {
+            repository.load_state_at(&world, &branch, year)?;
+            Some(year)
+        } else {
+            repository.head(&world, &branch)?
+        };
+        let revision_id = match (revision_year, requested_year) {
+            (Some(year), Some(_)) => repository.revision_id_at(&world, &branch, year)?,
+            _ => repository
+                .list_branches(&world)?
+                .into_iter()
+                .find(|summary| summary.branch_id == branch)
+                .map(|summary| summary.revision_id)
+                .ok_or_else(|| {
+                    ServiceFault::NotFound("No se encontró la rama solicitada.".into())
+                })?,
+        };
+        let scenario_json = match revision_year {
+            Some(year) if requested_year.is_some() => {
+                repository.scenario_json_at(&world, &branch, year)?
+            }
+            _ => repository.scenario_json(&world, &branch)?,
+        };
+        let scenario: Scenario = serde_json::from_str(&scenario_json)
+            .map_err(|_| ServiceFault::Internal("stored scenario could not be decoded".into()))?;
+        Ok(ScenarioRevisionResponse {
+            world_id: world,
+            branch_id: branch,
+            year: revision_year,
+            revision_id,
+            scenario,
+        })
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))?
+    .map(Json)
+}
+
+fn scenario_branch_at(
+    branches: &[BranchSummary],
+    branch_id: &str,
+    year: Year,
+) -> Result<String, ServiceFault> {
+    let mut current = branch_id;
+    loop {
+        let branch = branches
+            .iter()
+            .find(|candidate| candidate.branch_id == current)
+            .ok_or_else(|| ServiceFault::NotFound("No se encontró la rama solicitada.".into()))?;
+        match (branch.parent_branch_id.as_deref(), branch.fork_year) {
+            (Some(parent), Some(cut)) if year.0 <= cut => current = parent,
+            _ => return Ok(current.to_owned()),
+        }
     }
 }
 
@@ -1437,6 +2169,261 @@ async fn get_person(
     }))
 }
 
+async fn get_person_dossier(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearQuery>,
+) -> Result<Json<VersionedProjection<PersonDossier>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(person_id, "persona")?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let projection = tokio::task::spawn_blocking(move || view.person_dossier(PersonId(person_id)))
+        .await
+        .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, Year(query.year)).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn list_households(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id)): AxumPath<(String, String)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Json<HouseholdListResponse>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_optional_id(query.settlement_id, "asentamiento")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let settlement = query.settlement_id.map(SettlementId);
+    let page = tokio::task::spawn_blocking(move || {
+        view.households_for_settlement(settlement, offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(HouseholdListResponse {
+        page,
+        limit,
+        revision_id,
+    }))
+}
+
+async fn get_household_dossier(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, household_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearLimitOffsetQuery>,
+) -> Result<Json<VersionedProjection<HouseholdDossier>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(household_id, "hogar")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let projection = tokio::task::spawn_blocking(move || {
+        view.household_dossier(HouseholdId(household_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn get_settlement_dossier(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, settlement_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearLimitOffsetQuery>,
+) -> Result<Json<VersionedProjection<SettlementDossier>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(settlement_id, "asentamiento")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let projection = tokio::task::spawn_blocking(move || {
+        view.settlement_dossier(SettlementId(settlement_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn get_genealogy_page(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<GenealogyPageQuery>,
+) -> Result<Json<VersionedProjection<GenealogyPage>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(person_id, "persona")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let depth = query.depth.unwrap_or(4);
+    if depth == 0 || depth > app.config.max_genealogy_depth {
+        return Err(ServiceFault::Invalid(format!(
+            "depth debe estar entre 1 y {}.",
+            app.config.max_genealogy_depth
+        )));
+    }
+    let kinds = parse_family_link_kinds(query.kinds.as_deref())?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let mut projection = tokio::task::spawn_blocking(move || {
+        view.genealogy_page(
+            PersonId(person_id),
+            query.direction,
+            kinds,
+            depth,
+            offset,
+            limit,
+        )
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    projection.subject = sanitize_person_record(projection.subject, year);
+    for relation in &mut projection.relations {
+        relation.relative = sanitize_person_record(relation.relative.clone(), year);
+    }
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn get_person_events_page(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Json<VersionedProjection<PersonEventsPage>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(person_id, "persona")?;
+    if query.settlement_id.is_some() {
+        return Err(ServiceFault::Invalid(
+            "Esta consulta no admite un filtro por asentamiento.".into(),
+        ));
+    }
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let projection = tokio::task::spawn_blocking(move || {
+        view.person_events_page(PersonId(person_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn get_person_unions_page(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearLimitOffsetQuery>,
+) -> Result<Json<VersionedProjection<PersonUnionsPage>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(person_id, "persona")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let projection = tokio::task::spawn_blocking(move || {
+        view.person_unions_page(PersonId(person_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn get_union_participants_page(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, union_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearLimitOffsetQuery>,
+) -> Result<Json<VersionedProjection<UnionParticipantsPage>>, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(union_id, "unión")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let year = Year(query.year);
+    let view = open_historical_view(&app, &world_id, &branch_id, year).await?;
+    let projection = tokio::task::spawn_blocking(move || {
+        view.union_participants_page(UnionId(union_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let revision_id = revision_id_at(&app, &world_id, &branch_id, year).await?;
+    Ok(Json(VersionedProjection {
+        projection,
+        revision_id,
+    }))
+}
+
+async fn export_person_markdown(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearQuery>,
+) -> Result<Response, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(person_id, "persona")?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let markdown =
+        tokio::task::spawn_blocking(move || view.export_person_markdown(PersonId(person_id)))
+            .await
+            .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    Ok(markdown_response(
+        markdown,
+        &format!("person-{person_id}.md"),
+    ))
+}
+
+async fn export_household_markdown(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, household_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearQuery>,
+) -> Result<Response, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(household_id, "hogar")?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let markdown = tokio::task::spawn_blocking(move || {
+        view.export_household_markdown(HouseholdId(household_id))
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    Ok(markdown_response(
+        markdown,
+        &format!("household-{household_id}.md"),
+    ))
+}
+
+async fn export_settlement_markdown(
+    State(app): State<AppContainer>,
+    AxumPath((world_id, branch_id, settlement_id)): AxumPath<(String, String, u64)>,
+    Query(query): Query<YearPageQuery>,
+) -> Result<Response, ServiceFault> {
+    validate_context(&world_id, &branch_id)?;
+    validate_numeric_id(settlement_id, "asentamiento")?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let view = open_historical_view(&app, &world_id, &branch_id, Year(query.year)).await?;
+    let markdown = tokio::task::spawn_blocking(move || {
+        view.export_settlement_markdown(SettlementId(settlement_id), offset, limit)
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    Ok(markdown_response(
+        markdown,
+        &format!("settlement-{settlement_id}.md"),
+    ))
+}
+
 async fn get_genealogy(
     State(app): State<AppContainer>,
     AxumPath((world_id, branch_id, person_id)): AxumPath<(String, String, u64)>,
@@ -1467,6 +2454,134 @@ async fn get_genealogy(
         relation.relative = sanitize_person_record(relation.relative.clone(), year);
     }
     Ok(Json(genealogy))
+}
+
+async fn compare_branches(
+    State(app): State<AppContainer>,
+    AxumPath(world_id): AxumPath<String>,
+    Query(query): Query<CompareQuery>,
+) -> Result<Json<BranchComparisonResponse>, ServiceFault> {
+    validate_key(&world_id, "mundo")?;
+    validate_context(&world_id, &query.left_branch_id)?;
+    validate_context(&world_id, &query.right_branch_id)?;
+    let (limit, offset) = checked_presentation_page(&app.config, query.limit, query.offset)?;
+    let left_year = Year(query.left_year);
+    let right_year = Year(query.right_year);
+    let left_view = open_historical_view(&app, &world_id, &query.left_branch_id, left_year).await?;
+    let right_view =
+        open_historical_view(&app, &world_id, &query.right_branch_id, right_year).await?;
+    let (left_context, right_context, items, total) = tokio::task::spawn_blocking(move || {
+        let left_rows = left_view
+            .settlements()
+            .settlements
+            .into_iter()
+            .map(|settlement| (settlement.settlement_id, settlement))
+            .collect::<BTreeMap<_, _>>();
+        let right_rows = right_view
+            .settlements()
+            .settlements
+            .into_iter()
+            .map(|settlement| (settlement.settlement_id, settlement))
+            .collect::<BTreeMap<_, _>>();
+        let left_culture = left_view
+            .culture(None)
+            .settlements
+            .into_iter()
+            .map(|settlement| (settlement.settlement_id, settlement))
+            .collect::<BTreeMap<_, _>>();
+        let right_culture = right_view
+            .culture(None)
+            .settlements
+            .into_iter()
+            .map(|settlement| (settlement.settlement_id, settlement))
+            .collect::<BTreeMap<_, _>>();
+        let left_market = left_view.markets(None, 0, 1)?;
+        let right_market = right_view.markets(None, 0, 1)?;
+        let left_context = ComparisonContext {
+            branch_id: left_market.branch_id,
+            year: left_market.year,
+            revision_id: 0,
+            economy_enabled: left_market.enabled,
+            money: left_market.money,
+            treasury_goods: left_market.treasury_goods,
+        };
+        let right_context = ComparisonContext {
+            branch_id: right_market.branch_id,
+            year: right_market.year,
+            revision_id: 0,
+            economy_enabled: right_market.enabled,
+            money: right_market.money,
+            treasury_goods: right_market.treasury_goods,
+        };
+        let ids = left_rows
+            .keys()
+            .chain(right_rows.keys())
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        let total = ids.len();
+        let page_ids = ids.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
+        let mut items = Vec::with_capacity(page_ids.len());
+        for settlement_id in page_ids {
+            let left = match left_rows.get(&settlement_id) {
+                Some(settlement) => {
+                    let economy = left_view
+                        .market_settlements(Some(settlement_id), 0, 1)?
+                        .settlements
+                        .into_iter()
+                        .next();
+                    Some(ComparisonSettlementSide {
+                        settlement: settlement.clone(),
+                        balance: settlement.balance,
+                        economy,
+                        culture: left_culture.get(&settlement_id).cloned(),
+                    })
+                }
+                None => None,
+            };
+            let right = match right_rows.get(&settlement_id) {
+                Some(settlement) => {
+                    let economy = right_view
+                        .market_settlements(Some(settlement_id), 0, 1)?
+                        .settlements
+                        .into_iter()
+                        .next();
+                    Some(ComparisonSettlementSide {
+                        settlement: settlement.clone(),
+                        balance: settlement.balance,
+                        economy,
+                        culture: right_culture.get(&settlement_id).cloned(),
+                    })
+                }
+                None => None,
+            };
+            items.push(ComparisonSettlementRow {
+                settlement_id,
+                left,
+                right,
+            });
+        }
+        Ok::<_, ServiceFault>((left_context, right_context, items, total))
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    let left_revision = revision_id_at(&app, &world_id, &query.left_branch_id, left_year).await?;
+    let right_revision =
+        revision_id_at(&app, &world_id, &query.right_branch_id, right_year).await?;
+    Ok(Json(BranchComparisonResponse {
+        world_id,
+        left: ComparisonContext {
+            revision_id: left_revision,
+            ..left_context
+        },
+        right: ComparisonContext {
+            revision_id: right_revision,
+            ..right_context
+        },
+        total,
+        limit,
+        offset,
+        items,
+    }))
 }
 
 async fn get_settlements(
@@ -1887,6 +3002,71 @@ async fn open_historical_view(
         .map_err(|error| ServiceFault::Internal(error.to_string()))?
 }
 
+async fn revision_id_at(
+    app: &AppContainer,
+    world_id: &str,
+    branch_id: &str,
+    year: Year,
+) -> Result<i64, ServiceFault> {
+    let repository = app.repository.clone();
+    let world_id = world_id.to_owned();
+    let branch_id = branch_id.to_owned();
+    tokio::task::spawn_blocking(move || repository.revision_id_at(&world_id, &branch_id, year))
+        .await
+        .map_err(|error| ServiceFault::Internal(error.to_string()))?
+}
+
+fn checked_presentation_page(
+    config: &ServiceConfig,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<(usize, usize), ServiceFault> {
+    let (limit, offset) = checked_page(config, limit, offset)?;
+    if limit > MAX_PRESENTATION_PAGE_SIZE {
+        return Err(ServiceFault::Invalid(format!(
+            "limit debe estar entre 1 y {MAX_PRESENTATION_PAGE_SIZE} para fichas históricas."
+        )));
+    }
+    Ok((limit, offset))
+}
+
+fn parse_family_link_kinds(value: Option<&str>) -> Result<Vec<FamilyLinkKind>, ServiceFault> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    if value.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut kinds = Vec::new();
+    for label in value.split(',') {
+        let kind = match label {
+            "biological_parent" => FamilyLinkKind::BiologicalParent,
+            "adoptive_parent" => FamilyLinkKind::AdoptiveParent,
+            "caregiver" => FamilyLinkKind::Caregiver,
+            _ => {
+                return Err(ServiceFault::Invalid(format!(
+                    "El tipo de vínculo `{label}` no está admitido. Usa biological_parent, adoptive_parent o caregiver."
+                )))
+            }
+        };
+        if !kinds.contains(&kind) {
+            kinds.push(kind);
+        }
+    }
+    Ok(kinds)
+}
+
+fn markdown_response(markdown: String, filename: &str) -> Response {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/markdown; charset=utf-8")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{filename}\""),
+        )
+        .body(Body::from(markdown))
+        .expect("Markdown download response is valid")
+}
+
 fn paginate<T>(items: Vec<T>, limit: usize, offset: usize) -> (usize, Vec<T>) {
     let total = items.len();
     (total, items.into_iter().skip(offset).take(limit).collect())
@@ -2301,6 +3481,32 @@ async fn get_run(
     Ok(Json(job_snapshot(&job)))
 }
 
+async fn run_progress(
+    State(app): State<AppContainer>,
+    AxumPath(job_id): AxumPath<String>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ServiceFault> {
+    let job = app.lookup_job(&job_id)?;
+    let progress = stream::unfold((job, false), |(job, finished)| async move {
+        if finished {
+            return None;
+        }
+        let snapshot = job_snapshot(&job);
+        let terminal = matches!(
+            snapshot.status,
+            RunStatus::Completed | RunStatus::Cancelled | RunStatus::Failed
+        );
+        let event = Event::default()
+            .event("progress")
+            .json_data(snapshot)
+            .unwrap_or_else(|_| Event::default().event("progress").data("{}"));
+        if !terminal {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        Some((Ok(event), (job, terminal)))
+    });
+    Ok(Sse::new(progress).keep_alive(KeepAlive::default()))
+}
+
 async fn pause_run(
     State(app): State<AppContainer>,
     AxumPath(job_id): AxumPath<String>,
@@ -2393,7 +3599,7 @@ async fn export_world(
     Ok(Json(ExportResponse {
         export_id: export_id.clone(),
         manifest,
-        download_url: format!("/api/exports/{export_id}"),
+        download_url: format!("{}/api/exports/{export_id}", app.api_base_prefix),
     }))
 }
 
@@ -2434,12 +3640,7 @@ async fn restore_world(
             "No se encontró la exportación solicitada.".into(),
         ));
     }
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_micros();
-    let serial = app.export_counter.fetch_add(1, Ordering::Relaxed);
-    let restored_id = format!("restored-{timestamp:x}-{serial:x}");
+    let restored_id = next_restore_id(&app);
     let destination = app
         .config
         .restores_dir
@@ -2455,8 +3656,288 @@ async fn restore_world(
         restored_id: restored_id.clone(),
         database_file: format!("restores/{restored_id}.sqlite3"),
         worlds,
-        restart_required: true,
+        restart_required: false,
+        api_base: app.restore_api_base(&restored_id),
     }))
+}
+
+async fn list_restores(
+    State(app): State<AppContainer>,
+    Query(query): Query<RestoreCatalogQuery>,
+) -> Result<Json<RestoreCatalogResponse>, ServiceFault> {
+    let (limit, offset) = checked_restore_catalog_page(query.limit, query.offset)?;
+    let config = app.config.clone();
+    let api_prefix = app.api_base_prefix.clone();
+    tokio::task::spawn_blocking(move || list_restore_catalog(&config, &api_prefix, offset, limit))
+        .await
+        .map_err(|error| ServiceFault::Internal(error.to_string()))?
+        .map(Json)
+}
+
+async fn get_restore_catalog_entry(
+    State(app): State<AppContainer>,
+    AxumPath(restored_id): AxumPath<String>,
+) -> Result<Json<RestoreCatalogEntry>, ServiceFault> {
+    validate_restore_id(&restored_id)?;
+    let config = app.config.clone();
+    let api_prefix = app.api_base_prefix.clone();
+    tokio::task::spawn_blocking(move || restore_catalog_entry(&config, &api_prefix, &restored_id))
+        .await
+        .map_err(|error| ServiceFault::Internal(error.to_string()))?
+        .map(Json)
+}
+
+async fn import_archive(
+    State(app): State<AppContainer>,
+    body: Result<Bytes, axum::extract::rejection::BytesRejection>,
+) -> Result<Json<RestoreResponse>, ServiceFault> {
+    let bytes = body.map_err(|error| {
+        if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            ServiceFault::PayloadTooLarge
+        } else {
+            ServiceFault::Invalid("No se pudo leer el archivo subido.".into())
+        }
+    })?;
+    if bytes.is_empty() {
+        return Err(ServiceFault::Invalid(
+            "El archivo subido está vacío.".into(),
+        ));
+    }
+    let restored_id = next_restore_id(&app);
+    let upload_path = app
+        .config
+        .restores_dir
+        .join(format!(".{restored_id}.upload.sqlite3"));
+    let destination = app
+        .config
+        .restores_dir
+        .join(format!("{restored_id}.sqlite3"));
+    let repository = app.repository.clone();
+    let upload_for_thread = upload_path.clone();
+    let destination_for_thread = destination.clone();
+    let worlds = tokio::task::spawn_blocking(move || {
+        let write_result = (|| -> Result<(), ServiceFault> {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&upload_for_thread)
+                .map_err(|error| ServiceFault::Internal(error.to_string()))?;
+            file.write_all(&bytes)
+                .map_err(|error| ServiceFault::Internal(error.to_string()))?;
+            file.sync_all()
+                .map_err(|error| ServiceFault::Internal(error.to_string()))?;
+            Ok(())
+        })();
+        let result = write_result.and_then(|()| {
+            repository.restore_uploaded_archive(&upload_for_thread, &destination_for_thread)
+        });
+        let _ = fs::remove_file(&upload_for_thread);
+        let _ = fs::remove_file(upload_for_thread.with_extension("manifest.json"));
+        if result.is_err() {
+            let _ = fs::remove_file(&destination_for_thread);
+            let _ = fs::remove_file(destination_for_thread.with_extension("manifest.json"));
+        }
+        result
+    })
+    .await
+    .map_err(|error| ServiceFault::Internal(error.to_string()))??;
+    Ok(Json(RestoreResponse {
+        restored_id: restored_id.clone(),
+        database_file: format!("restores/{restored_id}.sqlite3"),
+        worlds,
+        restart_required: false,
+        api_base: app.restore_api_base(&restored_id),
+    }))
+}
+
+async fn restore_slot_dispatch(
+    State(app): State<AppContainer>,
+    AxumPath((restored_id, path)): AxumPath<(String, String)>,
+    mut request: axum::extract::Request,
+) -> Response {
+    let slot = match app.restore_container(&restored_id) {
+        Ok(slot) => slot,
+        Err(fault) => return fault.into_response(),
+    };
+    let rewritten_path = if path.starts_with("api/") {
+        format!("/{path}")
+    } else {
+        format!("/api/{path}")
+    };
+    let query = request
+        .uri()
+        .query()
+        .map(|value| format!("?{value}"))
+        .unwrap_or_default();
+    let rewritten_uri = match format!("{rewritten_path}{query}").parse::<Uri>() {
+        Ok(uri) => uri,
+        Err(_) => {
+            return ServiceFault::Invalid("La ruta de la copia no es válida.".into())
+                .into_response()
+        }
+    };
+    *request.uri_mut() = rewritten_uri;
+    // The outer router attached captures for `/api/restores/{restore_id}/{*path}`.
+    // The isolated router must extract a fresh parameter set for its rewritten URI.
+    request.extensions_mut().clear();
+    match slot.0.app.router().oneshot(request).await {
+        Ok(response) => response,
+        Err(never) => match never {},
+    }
+}
+
+fn next_restore_id(app: &AppContainer) -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_micros();
+    let serial = app.export_counter.fetch_add(1, Ordering::Relaxed);
+    format!("restored-{timestamp:x}-{serial:x}")
+}
+
+fn validate_restore_id(restored_id: &str) -> Result<(), ServiceFault> {
+    let valid_suffix = restored_id
+        .strip_prefix("restored-")
+        .and_then(|suffix| {
+            let (timestamp, serial) = suffix.split_once('-')?;
+            (!timestamp.is_empty()
+                && !serial.is_empty()
+                && timestamp.bytes().all(|byte| byte.is_ascii_hexdigit())
+                && serial.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .then_some(())
+        })
+        .is_some();
+    if restored_id.len() > 64 || !valid_suffix {
+        return Err(ServiceFault::Invalid(
+            "El identificador de copia restaurada no es válido.".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn list_restore_catalog(
+    config: &ServiceConfig,
+    api_prefix: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<RestoreCatalogResponse, ServiceFault> {
+    let entries = fs::read_dir(&config.restores_dir)
+        .map_err(|error| ServiceFault::Internal(error.to_string()))?;
+    let mut paths = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let metadata = entry.file_type().ok()?;
+            if !metadata.is_file() {
+                return None;
+            }
+            let name = path.file_name()?.to_str()?;
+            let restored_id = name.strip_suffix(".sqlite3")?.to_owned();
+            validate_restore_id(&restored_id).ok()?;
+            Some((restored_id, path))
+        })
+        .collect::<Vec<_>>();
+    paths.sort_by(|left, right| left.0.cmp(&right.0));
+    let total = paths.len();
+    let restores = paths
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|(restored_id, path)| catalog_entry_for_path(restored_id, path, api_prefix))
+        .collect::<Vec<_>>();
+    Ok(RestoreCatalogResponse {
+        has_more: offset.saturating_add(restores.len()) < total,
+        restores,
+        total,
+        limit,
+        offset,
+    })
+}
+
+fn restore_catalog_entry(
+    config: &ServiceConfig,
+    api_prefix: &str,
+    restored_id: &str,
+) -> Result<RestoreCatalogEntry, ServiceFault> {
+    validate_restore_id(restored_id)?;
+    let path = config.restores_dir.join(format!("{restored_id}.sqlite3"));
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|_| ServiceFault::NotFound("No se encontró la copia restaurada.".into()))?;
+    if !metadata.file_type().is_file() {
+        return Err(ServiceFault::NotFound(
+            "No se encontró la copia restaurada.".into(),
+        ));
+    }
+    Ok(catalog_entry_for_path(
+        restored_id.to_owned(),
+        path,
+        api_prefix,
+    ))
+}
+
+fn catalog_entry_for_path(
+    restored_id: String,
+    path: PathBuf,
+    api_prefix: &str,
+) -> RestoreCatalogEntry {
+    let api_base = if api_prefix.is_empty() {
+        format!("/api/restores/{restored_id}")
+    } else {
+        format!("{api_prefix}/api/restores/{restored_id}")
+    };
+    match HistoryStore::open_existing(&path).and_then(|store| store.list_worlds()) {
+        Ok(worlds) => RestoreCatalogEntry {
+            restored_id,
+            api_base,
+            worlds: worlds.into_iter().map(|world| world.world_id).collect(),
+            available: true,
+            error: None,
+        },
+        Err(error) => RestoreCatalogEntry {
+            restored_id,
+            api_base,
+            worlds: Vec::new(),
+            available: false,
+            error: Some(restore_catalog_error(error)),
+        },
+    }
+}
+
+fn checked_restore_catalog_page(
+    requested_limit: Option<usize>,
+    requested_offset: Option<usize>,
+) -> Result<(usize, usize), ServiceFault> {
+    let limit = requested_limit.unwrap_or(MAX_RESTORE_PAGE_SIZE);
+    let offset = requested_offset.unwrap_or(0);
+    if limit == 0 || limit > MAX_RESTORE_PAGE_SIZE {
+        return Err(ServiceFault::Invalid(format!(
+            "limit debe estar entre 1 y {MAX_RESTORE_PAGE_SIZE} para el catálogo de copias."
+        )));
+    }
+    if u64::try_from(offset).unwrap_or(u64::MAX) > MAX_SAFE_INTEGER {
+        return Err(ServiceFault::Invalid(
+            "offset supera el rango seguro para clientes JavaScript.".into(),
+        ));
+    }
+    Ok((limit, offset))
+}
+
+fn restore_catalog_error(error: StoreError) -> ApiError {
+    match error {
+        StoreError::NewerSchema { found, supported }
+        | StoreError::IncompatibleSchema { found, supported } => ApiError {
+            code: "incompatible_version".into(),
+            message: format!(
+                "El archivo usa el esquema {found}; esta versión de Chargen admite hasta el esquema {supported}."
+            ),
+            details: Some(serde_json::json!({ "found": found, "supported": supported })),
+        },
+        _ => ApiError {
+            code: "unavailable_restore".into(),
+            message: "La copia restaurada está dañada o no se puede abrir.".into(),
+            details: None,
+        },
+    }
 }
 
 fn sanitize_person_record(mut record: PersonRecord, year: Year) -> PersonRecord {
@@ -3777,6 +5258,14 @@ mod tests {
 
     struct UnusedRepository;
 
+    struct UnusedQueryFactory;
+
+    impl QueryFactory for UnusedQueryFactory {
+        fn open(&self, _context: &QueryContext) -> Result<Box<dyn HistoricalView>, ServiceFault> {
+            unreachable!("this test only requests a run-progress stream")
+        }
+    }
+
     impl HistoryRepository for UnusedRepository {
         fn create_world(&self, _: &str, _: &str, _: &WorldState) -> Result<(), ServiceFault> {
             unreachable!()
@@ -3847,6 +5336,144 @@ mod tests {
         config.max_page_size = 100;
         assert!(checked_page(&config, Some(101), Some(0)).is_err());
         assert!(checked_page(&config, Some(25), Some(10_001)).is_err());
+    }
+
+    #[test]
+    fn presentation_pages_and_relation_types_have_explicit_limits() {
+        let config = ServiceConfig::new("/tmp/chargen-e4-page-validation.sqlite3");
+        assert!(matches!(
+            checked_presentation_page(&config, Some(100), Some(10_000)),
+            Ok((100, 10_000))
+        ));
+        assert!(checked_presentation_page(&config, Some(101), Some(0)).is_err());
+        assert_eq!(parse_family_link_kinds(None).unwrap(), Vec::new());
+        assert_eq!(
+            parse_family_link_kinds(Some("biological_parent,caregiver,biological_parent")).unwrap(),
+            vec![FamilyLinkKind::BiologicalParent, FamilyLinkKind::Caregiver]
+        );
+        assert!(parse_family_link_kinds(Some("biological_parent,future_link")).is_err());
+    }
+
+    #[tokio::test]
+    async fn run_progress_sse_emits_a_terminal_snapshot_for_reconnection() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+        let data_dir = env::temp_dir().join(format!("chargen-e4-sse-{timestamp}"));
+        let database = data_dir.join("worlds.sqlite3");
+        let config = ServiceConfig::new(&database);
+        let app = ContainerBuilder::new(config)
+            .repository(Arc::new(UnusedRepository))
+            .query_factory(Arc::new(UnusedQueryFactory))
+            .build()
+            .unwrap();
+        let snapshot = RunSnapshot {
+            job_id: "job-e4-sse".into(),
+            world_id: "12".into(),
+            branch_id: "main".into(),
+            status: RunStatus::Completed,
+            start_year: 0,
+            through_year: 0,
+            current_year: Some(0),
+            completed_years: 1,
+            total_years: 1,
+            message: None,
+        };
+        app.jobs.write().unwrap().insert(
+            snapshot.job_id.clone(),
+            Arc::new(JobControl {
+                cancellation: CancellationToken::new(),
+                gate: Mutex::new(JobGate::default()),
+                gate_changed: Condvar::new(),
+                snapshot: Mutex::new(snapshot),
+            }),
+        );
+        let response = app
+            .router()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/runs/job-e4-sse/progress")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("text/event-stream"));
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(text.contains("event: progress"));
+        assert!(text.contains("\"status\":\"completed\""));
+        let _ = fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
+    fn archive_errors_and_schema_versions_are_client_visible() {
+        let incompatible = map_store_error(StoreError::NewerSchema {
+            found: 9,
+            supported: 8,
+        });
+        let (status, code, _, details) = incompatible.http();
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(code, "incompatible_version");
+        assert_eq!(
+            details,
+            Some(serde_json::json!({ "found": 9, "supported": 8 }))
+        );
+
+        let invalid_archive = map_store_error(StoreError::InvalidArchive);
+        let (status, code, message, _) = invalid_archive.http();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(code, "invalid_request");
+        assert!(message.contains("archivo"));
+        assert!(validate_restore_id("../world.sqlite3").is_err());
+        assert!(validate_restore_id("restored-0123-abcd").is_ok());
+    }
+
+    #[test]
+    fn historical_union_lookup_errors_are_not_reported_as_internal_failures() {
+        let (status, code, message, _) = map_query_error(QueryError::UnionNotFound(41)).http();
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(code, "not_found");
+        assert!(message.contains("unión"));
+    }
+
+    #[test]
+    fn restore_catalog_pagination_keeps_entries_after_the_first_page() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_micros();
+        let data_dir = env::temp_dir().join(format!("chargen-e4-catalog-{timestamp}"));
+        let config = ServiceConfig::new(data_dir.join("worlds.sqlite3"));
+        fs::create_dir_all(&config.restores_dir).unwrap();
+        for index in 0..105_u64 {
+            let restored_id = format!("restored-{index:x}-{index:x}");
+            fs::write(
+                config.restores_dir.join(format!("{restored_id}.sqlite3")),
+                [],
+            )
+            .unwrap();
+        }
+
+        let first = list_restore_catalog(&config, "", 0, 100).unwrap();
+        assert_eq!(first.total, 105);
+        assert_eq!(first.restores.len(), 100);
+        assert!(first.has_more);
+        let second = list_restore_catalog(&config, "", 100, 100).unwrap();
+        assert_eq!(second.offset, 100);
+        assert_eq!(second.restores.len(), 5);
+        assert!(!second.has_more);
+        let _ = fs::remove_dir_all(data_dir);
     }
 
     #[test]

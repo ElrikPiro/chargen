@@ -49,3 +49,19 @@ La agenda configurada es una entrada de reglas, no una proyección histórica. L
 Las consultas de E3 se exponen como páginas limitadas (`markets`, `markets/settlements`, `markets/trades`, `events`) sobre el `HistoricalView` ya fijado. Así, sus proyecciones no abren un contexto global ni acceden al futuro de una rama madre. Los eventos globales se indexan por `EntityRef::World` para paginar por rama/año sin cargar toda la historia en memoria.
 
 Los escenarios E1/E2 mantienen la configuración nueva ausente y los campos de estado vacíos se omiten al serializar. E3 no cambia sus hashes, reglas, fixtures SQL o resultados reproducibles. Las revisiones de rama solo aplican economía y eventos futuros: catálogo e IDs de bienes, unidades, dotaciones iniciales y agenda que ya comenzó antes o en el corte no se reescriben.
+
+## ADR-008: fichas E4 y proyección solo lectura
+
+Fichas y narración se derivan de `HistoryQuery` anclado a mundo/rama/cierre. La consulta solo lee el estado confirmado, eventos materializados hasta ese año y la revisión de escenario visible por la línea de ramas. El endpoint legado de persona y el árbol E3 mantienen sus respuestas; E4 añade rutas de dossier/eventos y una página genealógica nueva.
+
+Los nombres/descriptores viven en una LRU de presentación acotada, inyectada por `ContainerBuilder`; cada fuente restaurada construye su propia caché. La clave contiene contexto temporal, identidad lógica, versión de plantilla y huella de hechos. La caché nunca comparte el estado del motor, libros económicos ni decisiones aleatorias. Los exportadores reciben proyecciones listas y escapan Markdown; no guardan la narración en SQLite.
+
+Las páginas de presentación tienen un tope de 100 elementos, los árboles limitan su profundidad y presupuesto, y el timeline de ficha declara si truncó. Uniones y participantes se paginan por separado para conservar grupos y múltiples parejas sin una expansión no acotada. Los nombres de lugar y las afiliaciones proceden de catálogos visibles al cierre; los intervalos de residencia, afiliación, profesión y unión se recortan a ese año. El dossier puede representar ausencia neutral (`not_known_at_year`) y no hace una segunda lectura del head para inferir nacimientos futuros. Hechos futuros de profesión/fallecimiento y fin de uniones se recortan antes de serializar.
+
+## ADR-009: comparación contextual y biblioteca de restauraciones
+
+La comparación no elige defaults ocultos: rama y año de ambos lados deben abrir como cierres confirmados. Las filas acotadas contienen la unión de asentamientos y proyecciones a ambos lados, con balances demográficos, economía por bien/precio y cultura disponible; los libros monetarios/tesorería se incluyen por contexto. Los errores no se sustituyen por un censo aproximado.
+
+Una restauración ocupa un archivo SQLite local propio y se sirve bajo un prefijo API aislado `/api/restores/{restored_id}`. El contenedor de la copia conserva su fábrica de consultas, caché de presentación, directorios de exportación/restauración, trabajos y registro de jobs entre requests. El catálogo en disco permite encontrar la copia después de reiniciar; el mapa en memoria es acotado y solo expulsa contenedores sin requests ni trabajos activos. Nunca se cambia el path global de la base activa ni se remapean IDs o hashes. El import local valida SQLite, esquema e integridad antes de registrarse; el cuerpo binario está limitado a 64 MiB y se procesa como datos, no como código.
+
+El progreso de trabajos se publica como SSE y se conserva un snapshot HTTP para polling/reconexión. Cerrar o abrir el navegador no duplica ni interrumpe un actor de trabajo persistente de la aplicación.

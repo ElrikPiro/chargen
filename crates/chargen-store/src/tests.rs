@@ -182,9 +182,18 @@ fn historical_fork_shares_only_its_prefix_and_allows_policy_edits() {
 
     scenario.policies.mortality.default_probability_ppm = 1;
     let scenario_json = serde_json::to_string(&scenario).unwrap();
+    let parent_revision = store.revision_id_at("102", "main", Year(0)).unwrap();
     let cut_state = store
         .fork_branch("102", "main", "edited", Year(0), &scenario_json)
         .unwrap();
+    assert_eq!(
+        store.revision_id_at("102", "edited", Year(0)).unwrap(),
+        parent_revision
+    );
+    assert_eq!(
+        store.scenario_json_at("102", "edited", Year(0)).unwrap(),
+        store.scenario_json_at("102", "main", Year(0)).unwrap()
+    );
     assert_eq!(
         cut_state,
         store.load_state_at("102", "main", Year(0)).unwrap()
@@ -199,6 +208,16 @@ fn historical_fork_shares_only_its_prefix_and_allows_policy_edits() {
     let child_year_one = next_year(&mut child_engine).unwrap();
     writer.commit_year(&child_year_one).unwrap();
     drop(writer);
+    assert_eq!(
+        store.revision_id_at("102", "edited", Year(1)).unwrap(),
+        store
+            .list_branches("102")
+            .unwrap()
+            .into_iter()
+            .find(|branch| branch.branch_id == "edited")
+            .unwrap()
+            .revision_id
+    );
     assert_eq!(
         store.load_state_at("102", "edited", Year(1)).unwrap(),
         child_year_one.state

@@ -71,11 +71,33 @@ async function json(baseUrl, route, options = {}, expectedStatus = 200) {
   return body;
 }
 
+async function assertLocalJavaScriptModules(baseUrl) {
+  const baseOrigin = new URL(baseUrl).origin;
+  const pending = ["/app.js"];
+  const visited = new Set();
+  while (pending.length > 0) {
+    const route = pending.pop();
+    if (visited.has(route)) continue;
+    visited.add(route);
+    const response = await fetch(new URL(route, baseUrl));
+    assert.equal(response.status, 200, `JavaScript module ${route} must be served locally`);
+    assert.match(response.headers.get("content-type") ?? "", /javascript/i, `${route} must use a JavaScript MIME type`);
+    const source = await response.text();
+    for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*)["']([^"']+\.js)["']/g)) {
+      const dependency = new URL(match[1], new URL(route, baseUrl));
+      assert.equal(dependency.origin, baseOrigin, `JavaScript import ${match[1]} must remain local`);
+      pending.push(`${dependency.pathname}${dependency.search}`);
+    }
+  }
+}
+
 async function assertDurableHistory(baseUrl) {
   const health = await json(baseUrl, "/api/health");
   assert.equal(health.offline, true);
+  assert.equal(health.api_version, 1);
   const root = await fetch(new URL("", baseUrl)).then((response) => response.text());
   assert.match(root, /Chargen/);
+  await assertLocalJavaScriptModules(baseUrl);
   assert.equal((await json(baseUrl, "/api/scenarios/validate", {
     method: "POST", body: JSON.stringify({ scenario }),
   })).valid, true);
